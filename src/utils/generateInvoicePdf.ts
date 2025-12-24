@@ -45,13 +45,13 @@ export const generateInvoicePdf = (data: InvoiceData) => {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(22);
   doc.setFont("helvetica", "bold");
-  doc.text(data.schoolName || "School Management System", 20, 20);
+  doc.text(data.schoolName || "The Suffah Public School & College", 20, 20);
   
   // School info
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(data.schoolAddress || "123 Education Street, City", 20, 28);
-  doc.text(`Phone: ${data.schoolPhone || "+234 000 000 0000"} | Email: ${data.schoolEmail || "info@school.com"}`, 20, 35);
+  doc.text(data.schoolAddress || "Knowledge is Power - Since 2009", 20, 28);
+  doc.text(`Phone: ${data.schoolPhone || "+92 000 000 0000"} | Email: ${data.schoolEmail || "info@suffah.edu.pk"}`, 20, 35);
   
   // Invoice title
   doc.setTextColor(...darkColor);
@@ -116,7 +116,7 @@ export const generateInvoicePdf = (data: InvoiceData) => {
     startY: 130,
     head: [["Description", "Fee Type", "Amount"]],
     body: [
-      [data.feeName, data.feeType.charAt(0).toUpperCase() + data.feeType.slice(1), `₦${data.amount.toLocaleString()}`],
+      [data.feeName, data.feeType.charAt(0).toUpperCase() + data.feeType.slice(1), `PKR ${data.amount.toLocaleString()}`],
     ],
     headStyles: {
       fillColor: primaryColor,
@@ -150,19 +150,19 @@ export const generateInvoicePdf = (data: InvoiceData) => {
   let yPos = finalY + 10;
   doc.text("Subtotal:", pageWidth - 85, yPos);
   doc.setTextColor(...darkColor);
-  doc.text(`₦${data.amount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
+  doc.text(`PKR ${data.amount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
   
   yPos += 8;
   doc.setTextColor(...grayColor);
   doc.text("Discount:", pageWidth - 85, yPos);
   doc.setTextColor(34, 197, 94);
-  doc.text(`-₦${data.discount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
+  doc.text(`-PKR ${data.discount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
   
   yPos += 8;
   doc.setTextColor(...grayColor);
   doc.text("Paid:", pageWidth - 85, yPos);
   doc.setTextColor(34, 197, 94);
-  doc.text(`-₦${data.paidAmount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
+  doc.text(`-PKR ${data.paidAmount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
   
   // Total due line
   yPos += 12;
@@ -175,7 +175,7 @@ export const generateInvoicePdf = (data: InvoiceData) => {
   doc.setTextColor(...primaryColor);
   doc.text("Balance Due:", pageWidth - 85, yPos);
   const balance = Math.max(0, data.finalAmount - data.paidAmount);
-  doc.text(`₦${balance.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
+  doc.text(`PKR ${balance.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
   
   // Payment history if exists
   if (data.payments.length > 0) {
@@ -191,7 +191,7 @@ export const generateInvoicePdf = (data: InvoiceData) => {
       head: [["Date", "Amount", "Method", "Receipt #"]],
       body: data.payments.map((p) => [
         p.date,
-        `₦${p.amount.toLocaleString()}`,
+        `PKR ${p.amount.toLocaleString()}`,
         p.method.charAt(0).toUpperCase() + p.method.slice(1),
         p.receiptNumber || "-",
       ]),

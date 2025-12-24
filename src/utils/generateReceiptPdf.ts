@@ -38,13 +38,13 @@ export const generateReceiptPdf = (data: ReceiptData) => {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(22);
   doc.setFont("helvetica", "bold");
-  doc.text(data.schoolName || "School Management System", 20, 20);
+  doc.text(data.schoolName || "The Suffah Public School & College", 20, 20);
   
   // School info
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(data.schoolAddress || "123 Education Street, City", 20, 28);
-  doc.text(`Phone: ${data.schoolPhone || "+234 000 000 0000"} | Email: ${data.schoolEmail || "info@school.com"}`, 20, 35);
+  doc.text(data.schoolAddress || "Knowledge is Power - Since 2009", 20, 28);
+  doc.text(`Phone: ${data.schoolPhone || "+92 000 000 0000"} | Email: ${data.schoolEmail || "info@suffah.edu.pk"}`, 20, 35);
   
   // Receipt title
   doc.setTextColor(...darkColor);
@@ -103,7 +103,7 @@ export const generateReceiptPdf = (data: ReceiptData) => {
         data.feeName, 
         data.feeType.charAt(0).toUpperCase() + data.feeType.slice(1),
         data.paymentMethod.charAt(0).toUpperCase() + data.paymentMethod.slice(1).replace("_", " "),
-        `N${data.paymentAmount.toLocaleString()}`
+        `PKR ${data.paymentAmount.toLocaleString()}`
       ],
     ],
     headStyles: {
@@ -139,20 +139,20 @@ export const generateReceiptPdf = (data: ReceiptData) => {
   let yPos = finalY + 12;
   doc.text("Total Fee Amount:", pageWidth - 90, yPos);
   doc.setTextColor(...darkColor);
-  doc.text(`N${data.totalFeeAmount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
+  doc.text(`PKR ${data.totalFeeAmount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
   
   yPos += 10;
   doc.setTextColor(...grayColor);
   doc.text("Previously Paid:", pageWidth - 90, yPos);
   doc.setTextColor(...darkColor);
-  doc.text(`N${data.previouslyPaid.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
+  doc.text(`PKR ${data.previouslyPaid.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
   
   yPos += 10;
   doc.setTextColor(...grayColor);
   doc.text("This Payment:", pageWidth - 90, yPos);
   doc.setTextColor(34, 197, 94);
   doc.setFont("helvetica", "bold");
-  doc.text(`N${data.paymentAmount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
+  doc.text(`PKR ${data.paymentAmount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
   
   // Balance due line
   yPos += 12;
@@ -165,11 +165,11 @@ export const generateReceiptPdf = (data: ReceiptData) => {
   if (data.balanceAfterPayment <= 0) {
     doc.setTextColor(34, 197, 94);
     doc.text("FULLY PAID", pageWidth - 90, yPos);
-    doc.text("N0", pageWidth - 25, yPos, { align: "right" });
+    doc.text("PKR 0", pageWidth - 25, yPos, { align: "right" });
   } else {
     doc.setTextColor(234, 179, 8);
     doc.text("Balance Due:", pageWidth - 90, yPos);
-    doc.text(`N${data.balanceAfterPayment.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
+    doc.text(`PKR ${data.balanceAfterPayment.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
   }
   
   // Transaction details if available

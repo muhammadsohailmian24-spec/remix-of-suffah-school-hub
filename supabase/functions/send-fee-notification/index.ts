@@ -71,15 +71,15 @@ async function generateReceiptPdf(data: InvoiceData): Promise<Uint8Array> {
   });
 
   // School name
-  page.drawText("School Management System", {
+  page.drawText("The Suffah Public School & College", {
     x: 40,
     y: height - 40,
-    size: 20,
+    size: 18,
     font: helveticaBold,
     color: rgb(1, 1, 1),
   });
 
-  page.drawText("123 Education Street, City | Phone: +234 000 000 0000", {
+  page.drawText("Knowledge is Power - Since 2009 | Phone: +92 000 000 0000", {
     x: 40,
     y: height - 60,
     size: 10,
@@ -152,7 +152,7 @@ async function generateReceiptPdf(data: InvoiceData): Promise<Uint8Array> {
   const rowY = tableTop - 30;
   page.drawText(data.feeName, { x: 50, y: rowY, size: 10, font: helvetica, color: darkColor });
   page.drawText(data.feeType.charAt(0).toUpperCase() + data.feeType.slice(1), { x: 250, y: rowY, size: 10, font: helvetica, color: darkColor });
-  page.drawText(`NGN ${data.amount.toLocaleString()}`, { x: 400, y: rowY, size: 10, font: helvetica, color: darkColor });
+  page.drawText(`PKR ${data.amount.toLocaleString()}`, { x: 400, y: rowY, size: 10, font: helvetica, color: darkColor });
 
   // Totals section
   const totalsX = width - 220;
@@ -167,15 +167,15 @@ async function generateReceiptPdf(data: InvoiceData): Promise<Uint8Array> {
   });
 
   page.drawText("Subtotal:", { x: totalsX + 10, y: totalsY, size: 10, font: helvetica, color: grayColor });
-  page.drawText(`NGN ${data.amount.toLocaleString()}`, { x: totalsX + 120, y: totalsY, size: 10, font: helvetica, color: darkColor });
+  page.drawText(`PKR ${data.amount.toLocaleString()}`, { x: totalsX + 120, y: totalsY, size: 10, font: helvetica, color: darkColor });
 
   totalsY -= 18;
   page.drawText("Discount:", { x: totalsX + 10, y: totalsY, size: 10, font: helvetica, color: grayColor });
-  page.drawText(`-NGN ${data.discount.toLocaleString()}`, { x: totalsX + 120, y: totalsY, size: 10, font: helvetica, color: greenColor });
+  page.drawText(`-PKR ${data.discount.toLocaleString()}`, { x: totalsX + 120, y: totalsY, size: 10, font: helvetica, color: greenColor });
 
   totalsY -= 18;
   page.drawText("Total Due:", { x: totalsX + 10, y: totalsY, size: 10, font: helvetica, color: grayColor });
-  page.drawText(`NGN ${data.finalAmount.toLocaleString()}`, { x: totalsX + 120, y: totalsY, size: 10, font: helveticaBold, color: darkColor });
+  page.drawText(`PKR ${data.finalAmount.toLocaleString()}`, { x: totalsX + 120, y: totalsY, size: 10, font: helveticaBold, color: darkColor });
 
   // Line separator
   totalsY -= 15;
@@ -188,7 +188,7 @@ async function generateReceiptPdf(data: InvoiceData): Promise<Uint8Array> {
 
   totalsY -= 18;
   page.drawText("Amount Paid:", { x: totalsX + 10, y: totalsY, size: 12, font: helveticaBold, color: primaryColor });
-  page.drawText(`NGN ${data.paidAmount.toLocaleString()}`, { x: totalsX + 110, y: totalsY, size: 12, font: helveticaBold, color: greenColor });
+  page.drawText(`PKR ${data.paidAmount.toLocaleString()}`, { x: totalsX + 110, y: totalsY, size: 12, font: helveticaBold, color: greenColor });
 
   // Payment method
   page.drawText("PAYMENT DETAILS", { x: 40, y: tableTop - 100, size: 12, font: helveticaBold, color: primaryColor });
@@ -202,7 +202,7 @@ async function generateReceiptPdf(data: InvoiceData): Promise<Uint8Array> {
   // Balance
   const balance = data.finalAmount - data.paidAmount;
   if (balance > 0) {
-    page.drawText(`Remaining Balance: NGN ${balance.toLocaleString()}`, { 
+    page.drawText(`Remaining Balance: PKR ${balance.toLocaleString()}`, { 
       x: 40, y: tableTop - 156, size: 10, font: helveticaBold, color: rgb(0.86, 0.2, 0.2) 
     });
   } else {
@@ -353,7 +353,7 @@ async function getTotalPaidForFee(supabase: any, studentFeeId: string): Promise<
 }
 
 function formatCurrency(amount: number): string {
-  return `NGN ${amount.toLocaleString()}`;
+  return `PKR ${amount.toLocaleString()}`;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -424,14 +424,14 @@ const handler = async (req: Request): Promise<Response> => {
               <p style="color: #dc2626;"><strong>Days Overdue:</strong> ${daysOverdue} days</p>
             </div>
             <p>Please make the payment at your earliest convenience to avoid any inconvenience.</p>
-            <p>Best regards,<br>School Administration</p>
+            <p>Best regards,<br>The Suffah Public School & College</p>
           </div>
         `;
 
         if (parentContact.emails.length > 0) {
           try {
             await resend.emails.send({
-              from: "School Fees <onboarding@resend.dev>",
+              from: "The Suffah Public School & College <onboarding@resend.dev>",
               to: parentContact.emails,
               subject: subject,
               html: htmlContent,
@@ -497,7 +497,7 @@ const handler = async (req: Request): Promise<Response> => {
             <p><strong>Due Date:</strong> ${new Date(feeDetails.dueDate).toLocaleDateString()}</p>
           </div>
           <p>Please ensure timely payment to avoid any late fees.</p>
-          <p>Best regards,<br>School Administration</p>
+          <p>Best regards,<br>The Suffah Public School & College</p>
         </div>
       `;
       smsMessage = `💰 New Fee: ${feeDetails.feeName} of ${formatCurrency(feeDetails.amount)} assigned to ${student.full_name}. Due: ${new Date(feeDetails.dueDate).toLocaleDateString()}`;
@@ -554,7 +554,7 @@ const handler = async (req: Request): Promise<Response> => {
           </div>
           <p>Please find your payment receipt attached to this email.</p>
           <p>Thank you for your payment!</p>
-          <p>Best regards,<br>School Administration</p>
+          <p>Best regards,<br>The Suffah Public School & College</p>
         </div>
       `;
       smsMessage = `✅ Payment of ${formatCurrency(paymentDetails.amount)} received for ${student.full_name}. Receipt: ${paymentDetails.receiptNumber}. Thank you!`;
@@ -567,7 +567,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (parentContact.emails.length > 0 && subject) {
       try {
         const emailPayload: any = {
-          from: "School Fees <onboarding@resend.dev>",
+          from: "The Suffah Public School & College <onboarding@resend.dev>",
           to: parentContact.emails,
           subject: subject,
           html: htmlContent,
