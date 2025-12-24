@@ -6,10 +6,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Eye } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
 
@@ -46,7 +46,9 @@ const StudentManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -55,6 +57,14 @@ const StudentManagement = () => {
     student_id: "",
     class_id: "",
     status: "active",
+  });
+
+  const [addFormData, setAddFormData] = useState({
+    full_name: "",
+    email: "",
+    password: "",
+    phone: "",
+    class_id: "",
   });
 
   useEffect(() => {
@@ -91,21 +101,18 @@ const StudentManagement = () => {
       return;
     }
 
-    // Fetch profiles for all students
     const userIds = studentsData?.map(s => s.user_id) || [];
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, full_name, email, phone")
       .in("user_id", userIds);
 
-    // Fetch class info
     const classIds = studentsData?.filter(s => s.class_id).map(s => s.class_id) || [];
     const { data: classesData } = await supabase
       .from("classes")
       .select("id, name, section")
       .in("id", classIds);
 
-    // Combine data
     const enrichedStudents = studentsData?.map(student => ({
       ...student,
       profile: profiles?.find(p => p.user_id === student.user_id),
@@ -126,11 +133,50 @@ const StudentManagement = () => {
     return `STU${year}${random}`;
   };
 
+  const handleAddStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const response = await supabase.functions.invoke("create-user", {
+        body: {
+          email: addFormData.email,
+          password: addFormData.password,
+          fullName: addFormData.full_name,
+          phone: addFormData.phone || undefined,
+          role: "student",
+          roleSpecificData: {
+            class_id: addFormData.class_id || null,
+          },
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
+
+      toast({ title: "Success", description: "Student account created successfully" });
+      setIsAddDialogOpen(false);
+      resetAddForm();
+      fetchStudents();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to create student", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (editingStudent) {
-      // Update student
       const { error: studentError } = await supabase
         .from("students")
         .update({
@@ -145,7 +191,6 @@ const StudentManagement = () => {
         return;
       }
 
-      // Update profile
       await supabase
         .from("profiles")
         .update({
@@ -214,6 +259,16 @@ const StudentManagement = () => {
     });
   };
 
+  const resetAddForm = () => {
+    setAddFormData({
+      full_name: "",
+      email: "",
+      password: "",
+      phone: "",
+      class_id: "",
+    });
+  };
+
   const filteredStudents = students.filter(s => {
     const matchesSearch = s.profile?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          s.student_id.toLowerCase().includes(searchQuery.toLowerCase());
@@ -263,6 +318,10 @@ const StudentManagement = () => {
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
+            <Button onClick={() => setIsAddDialogOpen(true)} className="hero-gradient text-primary-foreground">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Student
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -334,6 +393,80 @@ const StudentManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Add Student Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={(o) => { 
+        setIsAddDialogOpen(o); 
+        if (!o) resetAddForm(); 
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Student</DialogTitle>
+            <DialogDescription>Create a new student account. They will be able to sign in with these credentials.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddStudent} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Full Name *</Label>
+                <Input
+                  value={addFormData.full_name}
+                  onChange={(e) => setAddFormData(p => ({ ...p, full_name: e.target.value }))}
+                  placeholder="Student's full name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input
+                  type="email"
+                  value={addFormData.email}
+                  onChange={(e) => setAddFormData(p => ({ ...p, email: e.target.value }))}
+                  placeholder="student@example.com"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Password *</Label>
+                <Input
+                  type="password"
+                  value={addFormData.password}
+                  onChange={(e) => setAddFormData(p => ({ ...p, password: e.target.value }))}
+                  placeholder="Min. 6 characters"
+                  minLength={6}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  value={addFormData.phone}
+                  onChange={(e) => setAddFormData(p => ({ ...p, phone: e.target.value }))}
+                  placeholder="Phone number"
+                />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Assign Class</Label>
+                <Select value={addFormData.class_id} onValueChange={(v) => setAddFormData(p => ({ ...p, class_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select class (optional)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No class</SelectItem>
+                    {classes.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}{c.section ? ` - ${c.section}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="hero-gradient text-primary-foreground" disabled={isSubmitting}>
+                {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</> : "Create Student"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={(o) => { 

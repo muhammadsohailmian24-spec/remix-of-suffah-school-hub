@@ -1,31 +1,21 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GraduationCap, Mail, Lock, User, ArrowLeft } from "lucide-react";
+import { GraduationCap, Mail, Lock, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-type UserRole = "admin" | "teacher" | "student" | "parent";
-
 const Auth = () => {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState(searchParams.get("mode") === "signup" ? "signup" : "signin");
-  
-  // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<UserRole>("student");
 
   useEffect(() => {
     const checkUser = async () => {
@@ -72,55 +62,6 @@ const Auth = () => {
     }
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const redirectUrl = `${window.location.origin}/`;
-      
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            full_name: fullName,
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        // Add user role using raw SQL approach to avoid type issues
-        const { error: roleError } = await supabase
-          .from("user_roles" as any)
-          .insert({
-            user_id: data.user.id,
-            role: role,
-          } as any);
-
-        if (roleError) {
-          console.error("Error adding role:", roleError);
-        }
-      }
-
-      toast({
-        title: "Account created!",
-        description: "Welcome to The Suffah School Management System.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Sign up failed",
-        description: error.message || "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background flex">
       {/* Left Panel - Branding */}
@@ -150,7 +91,7 @@ const Auth = () => {
         </p>
       </div>
 
-      {/* Right Panel - Auth Forms */}
+      {/* Right Panel - Sign In Form */}
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-3 mb-8">
@@ -163,133 +104,55 @@ const Auth = () => {
             </div>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="signin">
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="font-heading text-2xl">Welcome Back</CardTitle>
-                  <CardDescription>Sign in to access your portal</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSignIn} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="signin-email">Email</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="signin-email"
-                          type="email"
-                          placeholder="you@example.com"
-                          className="pl-10"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signin-password">Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="signin-password"
-                          type="password"
-                          placeholder="••••••••"
-                          className="pl-10"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <Button type="submit" className="w-full hero-gradient text-primary-foreground" disabled={isLoading}>
-                      {isLoading ? "Signing in..." : "Sign In"}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="signup">
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="font-heading text-2xl">Create Account</CardTitle>
-                  <CardDescription>Join The Suffah community</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSignUp} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-name">Full Name</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="signup-name"
-                          placeholder="Your full name"
-                          className="pl-10"
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-email">Email</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="signup-email"
-                          type="email"
-                          placeholder="you@example.com"
-                          className="pl-10"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-password">Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="signup-password"
-                          type="password"
-                          placeholder="Min. 6 characters"
-                          className="pl-10"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          required
-                          minLength={6}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-role">I am a</Label>
-                      <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select your role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="student">Student</SelectItem>
-                          <SelectItem value="teacher">Teacher</SelectItem>
-                          <SelectItem value="parent">Parent</SelectItem>
-                          <SelectItem value="admin">Administrator</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button type="submit" className="w-full hero-gradient text-primary-foreground" disabled={isLoading}>
-                      {isLoading ? "Creating account..." : "Create Account"}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <Card className="border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle className="font-heading text-2xl">Welcome Back</CardTitle>
+              <CardDescription>Sign in to access your portal</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSignIn} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signin-email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="signin-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      className="pl-10"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signin-password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="signin-password"
+                      type="password"
+                      placeholder="••••••••"
+                      className="pl-10"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full hero-gradient text-primary-foreground" disabled={isLoading}>
+                  {isLoading ? "Signing in..." : "Sign In"}
+                </Button>
+              </form>
+              
+              <div className="mt-6 pt-6 border-t text-center">
+                <p className="text-sm text-muted-foreground">
+                  Don't have an account? Contact your school administrator to get your login credentials.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

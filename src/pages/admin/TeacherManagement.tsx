@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Pencil, Trash2, UserCheck, UserX } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
 
@@ -46,7 +46,9 @@ const TeacherManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -57,6 +59,16 @@ const TeacherManagement = () => {
     qualification: "",
     specialization: "",
     status: "active",
+  });
+
+  const [addFormData, setAddFormData] = useState({
+    full_name: "",
+    email: "",
+    password: "",
+    phone: "",
+    department_id: "",
+    qualification: "",
+    specialization: "",
   });
 
   useEffect(() => {
@@ -93,14 +105,12 @@ const TeacherManagement = () => {
       return;
     }
 
-    // Fetch profiles
     const userIds = teachersData?.map(t => t.user_id) || [];
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, full_name, email, phone")
       .in("user_id", userIds);
 
-    // Fetch departments
     const deptIds = teachersData?.filter(t => t.department_id).map(t => t.department_id) || [];
     const { data: depts } = await supabase
       .from("departments")
@@ -119,6 +129,48 @@ const TeacherManagement = () => {
   const fetchDepartments = async () => {
     const { data } = await supabase.from("departments").select("id, name").order("name");
     setDepartments(data || []);
+  };
+
+  const handleAddTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const response = await supabase.functions.invoke("create-user", {
+        body: {
+          email: addFormData.email,
+          password: addFormData.password,
+          fullName: addFormData.full_name,
+          phone: addFormData.phone || undefined,
+          role: "teacher",
+          roleSpecificData: {
+            department_id: addFormData.department_id || null,
+            qualification: addFormData.qualification || null,
+            specialization: addFormData.specialization || null,
+          },
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
+
+      toast({ title: "Success", description: "Teacher account created successfully" });
+      setIsAddDialogOpen(false);
+      resetAddForm();
+      fetchTeachers();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to create teacher", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -213,6 +265,18 @@ const TeacherManagement = () => {
     });
   };
 
+  const resetAddForm = () => {
+    setAddFormData({
+      full_name: "",
+      email: "",
+      password: "",
+      phone: "",
+      department_id: "",
+      qualification: "",
+      specialization: "",
+    });
+  };
+
   const filteredTeachers = teachers.filter(t => {
     const matchesSearch = t.profile?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          t.employee_id.toLowerCase().includes(searchQuery.toLowerCase());
@@ -262,6 +326,10 @@ const TeacherManagement = () => {
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
+            <Button onClick={() => setIsAddDialogOpen(true)} className="hero-gradient text-primary-foreground">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Teacher
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -324,6 +392,94 @@ const TeacherManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Add Teacher Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={(o) => { 
+        setIsAddDialogOpen(o); 
+        if (!o) resetAddForm(); 
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add New Teacher</DialogTitle>
+            <DialogDescription>Create a new teacher account. They will be able to sign in with these credentials.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddTeacher} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Full Name *</Label>
+                <Input
+                  value={addFormData.full_name}
+                  onChange={(e) => setAddFormData(p => ({ ...p, full_name: e.target.value }))}
+                  placeholder="Teacher's full name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input
+                  type="email"
+                  value={addFormData.email}
+                  onChange={(e) => setAddFormData(p => ({ ...p, email: e.target.value }))}
+                  placeholder="teacher@example.com"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Password *</Label>
+                <Input
+                  type="password"
+                  value={addFormData.password}
+                  onChange={(e) => setAddFormData(p => ({ ...p, password: e.target.value }))}
+                  placeholder="Min. 6 characters"
+                  minLength={6}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  value={addFormData.phone}
+                  onChange={(e) => setAddFormData(p => ({ ...p, phone: e.target.value }))}
+                  placeholder="Phone number"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <Select value={addFormData.department_id} onValueChange={(v) => setAddFormData(p => ({ ...p, department_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {departments.map(d => (
+                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Qualification</Label>
+                <Input
+                  value={addFormData.qualification}
+                  onChange={(e) => setAddFormData(p => ({ ...p, qualification: e.target.value }))}
+                  placeholder="e.g., M.Ed, Ph.D"
+                />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Specialization</Label>
+                <Input
+                  value={addFormData.specialization}
+                  onChange={(e) => setAddFormData(p => ({ ...p, specialization: e.target.value }))}
+                  placeholder="e.g., Mathematics, Physics"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="hero-gradient text-primary-foreground" disabled={isSubmitting}>
+                {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</> : "Create Teacher"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={(o) => { 

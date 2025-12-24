@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Pencil, Trash2, Link2, Unlink } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Link2, Unlink, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
 
@@ -45,10 +45,12 @@ const ParentManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [editingParent, setEditingParent] = useState<Parent | null>(null);
   const [linkingParent, setLinkingParent] = useState<Parent | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -56,6 +58,16 @@ const ParentManagement = () => {
     phone: "",
     occupation: "",
     relationship: "parent",
+  });
+
+  const [addFormData, setAddFormData] = useState({
+    full_name: "",
+    email: "",
+    password: "",
+    phone: "",
+    occupation: "",
+    relationship: "parent",
+    linked_student_id: "",
   });
 
   useEffect(() => {
@@ -92,21 +104,18 @@ const ParentManagement = () => {
       return;
     }
 
-    // Fetch profiles
     const userIds = parentsData?.map(p => p.user_id) || [];
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, full_name, email, phone")
       .in("user_id", userIds);
 
-    // Fetch linked students
     const parentIds = parentsData?.map(p => p.id) || [];
     const { data: links } = await supabase
       .from("student_parents")
       .select("parent_id, student_id")
       .in("parent_id", parentIds);
 
-    // Fetch student info for linked students
     const linkedStudentIds = links?.map(l => l.student_id) || [];
     const { data: studentsData } = await supabase
       .from("students")
@@ -158,6 +167,78 @@ const ParentManagement = () => {
     })) || [];
 
     setStudents(enriched);
+  };
+
+  const handleAddParent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const response = await supabase.functions.invoke("create-user", {
+        body: {
+          email: addFormData.email,
+          password: addFormData.password,
+          fullName: addFormData.full_name,
+          phone: addFormData.phone || undefined,
+          role: "parent",
+          roleSpecificData: {
+            occupation: addFormData.occupation || null,
+            relationship: addFormData.relationship,
+          },
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
+
+      // If a student was selected, link them
+      if (addFormData.linked_student_id) {
+        // Need to get the new parent ID
+        await fetchParents();
+        
+        // Find the newly created parent by email
+        const { data: newParentData } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("email", addFormData.email)
+          .single();
+
+        if (newParentData) {
+          const { data: parentRecord } = await supabase
+            .from("parents")
+            .select("id")
+            .eq("user_id", newParentData.user_id)
+            .single();
+
+          if (parentRecord) {
+            await supabase
+              .from("student_parents")
+              .insert({
+                parent_id: parentRecord.id,
+                student_id: addFormData.linked_student_id,
+                is_primary: true,
+              });
+          }
+        }
+      }
+
+      toast({ title: "Success", description: "Parent account created successfully" });
+      setIsAddDialogOpen(false);
+      resetAddForm();
+      fetchParents();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to create parent", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -242,7 +323,6 @@ const ParentManagement = () => {
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this parent?")) return;
 
-    // Delete links first
     await supabase.from("student_parents").delete().eq("parent_id", id);
     
     const { error } = await supabase.from("parents").delete().eq("id", id);
@@ -282,6 +362,18 @@ const ParentManagement = () => {
     });
   };
 
+  const resetAddForm = () => {
+    setAddFormData({
+      full_name: "",
+      email: "",
+      password: "",
+      phone: "",
+      occupation: "",
+      relationship: "parent",
+      linked_student_id: "",
+    });
+  };
+
   const filteredParents = parents.filter(p => 
     p.profile?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.profile?.email?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -305,17 +397,23 @@ const ParentManagement = () => {
         ))}
       </div>
 
-      {/* Search */}
+      {/* Search and Add */}
       <Card className="mb-6">
         <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or email..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or email..."
+                className="pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Button onClick={() => setIsAddDialogOpen(true)} className="hero-gradient text-primary-foreground">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Parent
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -383,6 +481,100 @@ const ParentManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Add Parent Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={(o) => { 
+        setIsAddDialogOpen(o); 
+        if (!o) resetAddForm(); 
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add New Parent</DialogTitle>
+            <DialogDescription>Create a new parent account. They will be able to sign in with these credentials.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddParent} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Full Name *</Label>
+                <Input
+                  value={addFormData.full_name}
+                  onChange={(e) => setAddFormData(p => ({ ...p, full_name: e.target.value }))}
+                  placeholder="Parent's full name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input
+                  type="email"
+                  value={addFormData.email}
+                  onChange={(e) => setAddFormData(p => ({ ...p, email: e.target.value }))}
+                  placeholder="parent@example.com"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Password *</Label>
+                <Input
+                  type="password"
+                  value={addFormData.password}
+                  onChange={(e) => setAddFormData(p => ({ ...p, password: e.target.value }))}
+                  placeholder="Min. 6 characters"
+                  minLength={6}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  value={addFormData.phone}
+                  onChange={(e) => setAddFormData(p => ({ ...p, phone: e.target.value }))}
+                  placeholder="Phone number"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Occupation</Label>
+                <Input
+                  value={addFormData.occupation}
+                  onChange={(e) => setAddFormData(p => ({ ...p, occupation: e.target.value }))}
+                  placeholder="e.g., Engineer, Doctor"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Relationship</Label>
+                <Select value={addFormData.relationship} onValueChange={(v) => setAddFormData(p => ({ ...p, relationship: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="parent">Parent</SelectItem>
+                    <SelectItem value="guardian">Guardian</SelectItem>
+                    <SelectItem value="father">Father</SelectItem>
+                    <SelectItem value="mother">Mother</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Link to Student (optional)</Label>
+                <Select value={addFormData.linked_student_id} onValueChange={(v) => setAddFormData(p => ({ ...p, linked_student_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select a student to link" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No student</SelectItem>
+                    {students.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.profile?.full_name} ({s.student_id})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="hero-gradient text-primary-foreground" disabled={isSubmitting}>
+                {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</> : "Create Parent"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={(o) => { 
