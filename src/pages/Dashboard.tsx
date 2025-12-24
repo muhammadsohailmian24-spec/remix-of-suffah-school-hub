@@ -159,11 +159,22 @@ const Dashboard = () => {
     }
   };
 
-  const sidebarLinks = [
-    { icon: LayoutDashboard, label: "Dashboard", link: "/dashboard", active: true },
-    { icon: Bell, label: "Notifications", link: "/notifications" },
-    { icon: Settings, label: "Settings", link: "/settings" },
-  ];
+  const getSidebarLinks = () => {
+    const baseLinks = [
+      { icon: LayoutDashboard, label: "Dashboard", link: "/dashboard", active: true },
+      { icon: Bell, label: "Notifications", link: "/notifications" },
+    ];
+    
+    if (userRole === "parent") {
+      baseLinks.push({ icon: Settings, label: "Notification Preferences", link: "/parent/notifications", active: false });
+    }
+    
+    baseLinks.push({ icon: Settings, label: "Settings", link: "/settings", active: false });
+    
+    return baseLinks;
+  };
+
+  const sidebarLinks = getSidebarLinks();
 
   if (loading) {
     return (
