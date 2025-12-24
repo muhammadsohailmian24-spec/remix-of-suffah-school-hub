@@ -9,6 +9,10 @@ import Dashboard from "./pages/Dashboard";
 import Admissions from "./pages/Admissions";
 import AdminUsers from "./pages/admin/Users";
 import AdminUserManagement from "./pages/admin/UserManagement";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import StudentManagement from "./pages/admin/StudentManagement";
+import TeacherManagement from "./pages/admin/TeacherManagement";
+import ParentManagement from "./pages/admin/ParentManagement";
 import AdminClasses from "./pages/admin/Classes";
 import AdminSubjects from "./pages/admin/Subjects";
 import AdminAnalytics from "./pages/admin/Analytics";
@@ -47,6 +51,10 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admissions" element={<Admissions />} />
           {/* Admin Routes */}
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/students" element={<StudentManagement />} />
+          <Route path="/admin/teachers" element={<TeacherManagement />} />
+          <Route path="/admin/parents" element={<ParentManagement />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/user-management" element={<AdminUserManagement />} />
           <Route path="/admin/classes" element={<AdminClasses />} />
