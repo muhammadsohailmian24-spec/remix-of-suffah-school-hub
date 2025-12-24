@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Pencil, Trash2, Link2, Unlink, Loader2 } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Link2, Unlink, Loader2, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
 
@@ -47,9 +47,12 @@ const ParentManagement = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
   const [editingParent, setEditingParent] = useState<Parent | null>(null);
   const [linkingParent, setLinkingParent] = useState<Parent | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<{ userId: string; name: string } | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -374,6 +377,43 @@ const ParentManagement = () => {
     });
   };
 
+  const openResetPasswordDialog = (parent: Parent) => {
+    setResetPasswordUser({ userId: parent.user_id, name: parent.profile?.full_name || "User" });
+    setNewPassword("");
+    setIsResetPasswordDialogOpen(true);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordUser || !newPassword) return;
+    setIsSubmitting(true);
+
+    try {
+      const response = await supabase.functions.invoke("reset-password", {
+        body: {
+          userId: resetPasswordUser.userId,
+          newPassword: newPassword,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
+
+      toast({ title: "Success", description: "Password reset successfully" });
+      setIsResetPasswordDialogOpen(false);
+      setResetPasswordUser(null);
+      setNewPassword("");
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to reset password", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const filteredParents = parents.filter(p => 
     p.profile?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.profile?.email?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -463,13 +503,16 @@ const ParentManagement = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => openLinkDialog(parent)}>
+                        <Button size="icon" variant="ghost" onClick={() => openLinkDialog(parent)} title="Link Student">
                           <Link2 className="w-4 h-4 text-primary" />
                         </Button>
-                        <Button size="icon" variant="ghost" onClick={() => openEditDialog(parent)}>
+                        <Button size="icon" variant="ghost" onClick={() => openEditDialog(parent)} title="Edit">
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDelete(parent.id)}>
+                        <Button size="icon" variant="ghost" onClick={() => openResetPasswordDialog(parent)} title="Reset Password">
+                          <KeyRound className="w-4 h-4 text-warning" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDelete(parent.id)} title="Delete">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -662,6 +705,42 @@ const ParentManagement = () => {
             <DialogFooter>
               <Button onClick={handleLinkStudent} disabled={!selectedStudentId} className="hero-gradient text-primary-foreground">
                 Link Student
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={isResetPasswordDialogOpen} onOpenChange={(o) => {
+        setIsResetPasswordDialogOpen(o);
+        if (!o) { setResetPasswordUser(null); setNewPassword(""); }
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for {resetPasswordUser?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Password *</Label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Min. 6 characters"
+                minLength={6}
+              />
+            </div>
+            <DialogFooter>
+              <Button 
+                onClick={handleResetPassword} 
+                disabled={!newPassword || newPassword.length < 6 || isSubmitting}
+                className="hero-gradient text-primary-foreground"
+              >
+                {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Resetting...</> : "Reset Password"}
               </Button>
             </DialogFooter>
           </div>
