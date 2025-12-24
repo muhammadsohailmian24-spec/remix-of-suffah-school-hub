@@ -19,6 +19,10 @@ import AdminAnalytics from "./pages/admin/Analytics";
 import AdminExams from "./pages/admin/Exams";
 import AdminTimetable from "./pages/admin/Timetable";
 import AdminDepartments from "./pages/admin/Departments";
+import AnnouncementManagement from "./pages/admin/AnnouncementManagement";
+import Reports from "./pages/admin/Reports";
+import SystemSettings from "./pages/admin/SystemSettings";
+import RolesManagement from "./pages/admin/RolesManagement";
 import TeacherAttendance from "./pages/teacher/Attendance";
 import TeacherAssignments from "./pages/teacher/Assignments";
 import TeacherMaterials from "./pages/teacher/Materials";
@@ -64,6 +68,10 @@ const App = () => (
           <Route path="/admin/timetable" element={<AdminTimetable />} />
           <Route path="/admin/departments" element={<AdminDepartments />} />
           <Route path="/admin/admissions" element={<AdminUsers />} />
+          <Route path="/admin/announcements" element={<AnnouncementManagement />} />
+          <Route path="/admin/reports" element={<Reports />} />
+          <Route path="/admin/settings" element={<SystemSettings />} />
+          <Route path="/admin/roles" element={<RolesManagement />} />
           {/* Teacher Routes */}
           <Route path="/teacher/attendance" element={<TeacherAttendance />} />
           <Route path="/teacher/assignments" element={<TeacherAssignments />} />
