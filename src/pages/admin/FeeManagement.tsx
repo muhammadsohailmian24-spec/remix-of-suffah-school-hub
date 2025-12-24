@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Receipt, CreditCard, FileText, Loader2, Search, Download, Printer } from "lucide-react";
+import { downloadInvoice, printInvoice } from "@/utils/generateInvoicePdf";
 
 interface FeeStructure {
   id: string;
@@ -32,6 +33,7 @@ interface StudentFee {
   final_amount: number;
   due_date: string;
   status: string;
+  created_at: string;
   student?: { student_id: string; profiles?: { full_name: string } };
   fee_structure?: { name: string };
 }
@@ -598,7 +600,71 @@ const FeeManagement = () => {
                                   <Receipt className="h-4 w-4" />
                                 </Button>
                               )}
-                              <Button variant="ghost" size="sm">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                title="Download Invoice"
+                                onClick={() => {
+                                  const feePayments = payments
+                                    .filter(p => p.student_fee_id === sf.id)
+                                    .map(p => ({
+                                      date: new Date(p.payment_date).toLocaleDateString(),
+                                      amount: p.amount,
+                                      method: p.payment_method,
+                                      receiptNumber: p.receipt_number
+                                    }));
+                                  
+                                  downloadInvoice({
+                                    invoiceNumber: `INV-${sf.id.slice(0, 8).toUpperCase()}`,
+                                    invoiceDate: new Date(sf.created_at || Date.now()).toLocaleDateString(),
+                                    dueDate: new Date(sf.due_date).toLocaleDateString(),
+                                    studentName: sf.student?.profiles?.full_name || "Unknown",
+                                    studentId: sf.student?.student_id || "",
+                                    feeName: sf.fee_structure?.name || "Fee",
+                                    feeType: feeStructures.find(f => f.id === sf.fee_structure_id)?.fee_type || "tuition",
+                                    amount: sf.amount,
+                                    discount: sf.discount,
+                                    finalAmount: sf.final_amount,
+                                    paidAmount: paid,
+                                    status: sf.status,
+                                    payments: feePayments,
+                                  });
+                                  toast.success("Invoice downloaded");
+                                }}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                title="Print Invoice"
+                                onClick={() => {
+                                  const feePayments = payments
+                                    .filter(p => p.student_fee_id === sf.id)
+                                    .map(p => ({
+                                      date: new Date(p.payment_date).toLocaleDateString(),
+                                      amount: p.amount,
+                                      method: p.payment_method,
+                                      receiptNumber: p.receipt_number
+                                    }));
+                                  
+                                  printInvoice({
+                                    invoiceNumber: `INV-${sf.id.slice(0, 8).toUpperCase()}`,
+                                    invoiceDate: new Date(sf.created_at || Date.now()).toLocaleDateString(),
+                                    dueDate: new Date(sf.due_date).toLocaleDateString(),
+                                    studentName: sf.student?.profiles?.full_name || "Unknown",
+                                    studentId: sf.student?.student_id || "",
+                                    feeName: sf.fee_structure?.name || "Fee",
+                                    feeType: feeStructures.find(f => f.id === sf.fee_structure_id)?.fee_type || "tuition",
+                                    amount: sf.amount,
+                                    discount: sf.discount,
+                                    finalAmount: sf.final_amount,
+                                    paidAmount: paid,
+                                    status: sf.status,
+                                    payments: feePayments,
+                                  });
+                                }}
+                              >
                                 <Printer className="h-4 w-4" />
                               </Button>
                             </div>
