@@ -93,8 +93,8 @@ const Dashboard = () => {
     switch (userRole) {
       case "admin":
         return [
-          { icon: Users, label: "Manage Users", desc: "Add or edit users", color: "bg-primary/10 text-primary", link: "/admin/users" },
-          { icon: School, label: "Classes", desc: "Manage classes", color: "bg-info/10 text-info", link: "/admin/classes" },
+          { icon: LayoutDashboard, label: "Admin Dashboard", desc: "Full admin panel", color: "bg-primary/10 text-primary", link: "/admin/dashboard" },
+          { icon: Users, label: "Students", desc: "Manage students", color: "bg-info/10 text-info", link: "/admin/students" },
           { icon: ClipboardList, label: "Admissions", desc: "Review applications", color: "bg-warning/10 text-warning", link: "/admin/admissions" },
           { icon: FileText, label: "Reports", desc: "View reports", color: "bg-success/10 text-success", link: "/admin/reports" },
         ];
