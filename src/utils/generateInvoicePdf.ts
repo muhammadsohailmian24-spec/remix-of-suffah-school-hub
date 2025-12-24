@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 interface InvoiceData {
   invoiceNumber: string;
@@ -27,11 +27,6 @@ interface InvoiceData {
   schoolEmail?: string;
 }
 
-declare module "jspdf" {
-  interface jsPDF {
-    autoTable: (options: unknown) => jsPDF;
-  }
-}
 
 export const generateInvoicePdf = (data: InvoiceData) => {
   const doc = new jsPDF();
@@ -117,7 +112,7 @@ export const generateInvoicePdf = (data: InvoiceData) => {
   doc.text(data.status.toUpperCase(), pageWidth - 37.5, 117, { align: "center" });
   
   // Fee details table
-  doc.autoTable({
+  autoTable(doc, {
     startY: 130,
     head: [["Description", "Fee Type", "Amount"]],
     body: [
@@ -191,7 +186,7 @@ export const generateInvoicePdf = (data: InvoiceData) => {
     doc.setTextColor(...primaryColor);
     doc.text("Payment History", 20, paymentStartY);
     
-    doc.autoTable({
+    autoTable(doc, {
       startY: paymentStartY + 5,
       head: [["Date", "Amount", "Method", "Receipt #"]],
       body: data.payments.map((p) => [
