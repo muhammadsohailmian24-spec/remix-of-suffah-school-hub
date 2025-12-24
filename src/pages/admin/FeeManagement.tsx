@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Receipt, CreditCard, FileText, Loader2, Search, Download, Printer } from "lucide-react";
 import { downloadInvoice, printInvoice } from "@/utils/generateInvoicePdf";
+import { downloadReceipt, printReceipt } from "@/utils/generateReceiptPdf";
 
 interface FeeStructure {
   id: string;
@@ -46,6 +47,7 @@ interface Payment {
   payment_date: string;
   receipt_number: string | null;
   transaction_id: string | null;
+  studentFee?: StudentFee;
 }
 
 const FeeManagement = () => {
@@ -164,7 +166,17 @@ const FeeManagement = () => {
       .from("fee_payments")
       .select("*")
       .order("payment_date", { ascending: false });
-    if (data) setPayments(data);
+    
+    // Enrich payments with student fee data for receipts
+    if (data && studentFees.length > 0) {
+      const enrichedPayments = data.map(payment => ({
+        ...payment,
+        studentFee: studentFees.find(sf => sf.id === payment.student_fee_id)
+      }));
+      setPayments(enrichedPayments);
+    } else if (data) {
+      setPayments(data);
+    }
   };
 
   const handleCreateFeeStructure = async () => {
@@ -738,31 +750,96 @@ const FeeManagement = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Receipt #</TableHead>
+                    <TableHead>Student</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Method</TableHead>
                     <TableHead>Transaction ID</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {payments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No payments recorded yet
                       </TableCell>
                     </TableRow>
                   ) : (
-                    payments.map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell className="font-mono">{payment.receipt_number}</TableCell>
-                        <TableCell>{new Date(payment.payment_date).toLocaleString()}</TableCell>
-                        <TableCell className="text-green-600 font-medium">₦{payment.amount.toLocaleString()}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{payment.payment_method}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{payment.transaction_id || "-"}</TableCell>
-                      </TableRow>
-                    ))
+                    payments.map((payment) => {
+                      const sf = payment.studentFee || studentFees.find(s => s.id === payment.student_fee_id);
+                      const previousPaid = payments
+                        .filter(p => p.student_fee_id === payment.student_fee_id && new Date(p.payment_date) < new Date(payment.payment_date))
+                        .reduce((sum, p) => sum + p.amount, 0);
+                      
+                      return (
+                        <TableRow key={payment.id}>
+                          <TableCell className="font-mono">{payment.receipt_number || "-"}</TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{sf?.student?.profiles?.full_name || "Unknown"}</p>
+                              <p className="text-xs text-muted-foreground">{sf?.student?.student_id || ""}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>{new Date(payment.payment_date).toLocaleString()}</TableCell>
+                          <TableCell className="text-green-600 font-medium">₦{payment.amount.toLocaleString()}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{payment.payment_method}</Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{payment.transaction_id || "-"}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button 
+                                size="sm" 
+                                variant="ghost"
+                                title="Download Receipt"
+                                onClick={() => {
+                                  downloadReceipt({
+                                    receiptNumber: payment.receipt_number || `RCP-${payment.id.slice(0, 8).toUpperCase()}`,
+                                    paymentDate: new Date(payment.payment_date).toLocaleString(),
+                                    studentName: sf?.student?.profiles?.full_name || "Unknown",
+                                    studentId: sf?.student?.student_id || "",
+                                    feeName: sf?.fee_structure?.name || "Fee",
+                                    feeType: feeStructures.find(f => f.id === sf?.fee_structure_id)?.fee_type || "tuition",
+                                    paymentAmount: payment.amount,
+                                    paymentMethod: payment.payment_method,
+                                    transactionId: payment.transaction_id || undefined,
+                                    totalFeeAmount: sf?.final_amount || 0,
+                                    previouslyPaid: previousPaid,
+                                    balanceAfterPayment: Math.max(0, (sf?.final_amount || 0) - previousPaid - payment.amount),
+                                  });
+                                }}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="ghost"
+                                title="Print Receipt"
+                                onClick={() => {
+                                  printReceipt({
+                                    receiptNumber: payment.receipt_number || `RCP-${payment.id.slice(0, 8).toUpperCase()}`,
+                                    paymentDate: new Date(payment.payment_date).toLocaleString(),
+                                    studentName: sf?.student?.profiles?.full_name || "Unknown",
+                                    studentId: sf?.student?.student_id || "",
+                                    feeName: sf?.fee_structure?.name || "Fee",
+                                    feeType: feeStructures.find(f => f.id === sf?.fee_structure_id)?.fee_type || "tuition",
+                                    paymentAmount: payment.amount,
+                                    paymentMethod: payment.payment_method,
+                                    transactionId: payment.transaction_id || undefined,
+                                    totalFeeAmount: sf?.final_amount || 0,
+                                    previouslyPaid: previousPaid,
+                                    balanceAfterPayment: Math.max(0, (sf?.final_amount || 0) - previousPaid - payment.amount),
+                                  });
+                                }}
+                              >
+                                <Printer className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
