@@ -28,7 +28,6 @@ const Auth = () => {
   const [role, setRole] = useState<UserRole>("student");
 
   useEffect(() => {
-    // Check if user is already logged in
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
@@ -94,11 +93,13 @@ const Auth = () => {
       if (error) throw error;
 
       if (data.user) {
-        // Add user role
-        const { error: roleError } = await supabase.from("user_roles").insert({
-          user_id: data.user.id,
-          role: role,
-        });
+        // Add user role using raw SQL approach to avoid type issues
+        const { error: roleError } = await supabase
+          .from("user_roles" as any)
+          .insert({
+            user_id: data.user.id,
+            role: role,
+          } as any);
 
         if (roleError) {
           console.error("Error adding role:", roleError);
