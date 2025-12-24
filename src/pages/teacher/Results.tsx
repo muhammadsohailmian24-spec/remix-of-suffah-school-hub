@@ -157,11 +157,34 @@ const TeacherResults = () => {
     }));
   };
 
+  const sendResultsNotification = async (classId: string, examName: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("send-notification", {
+        body: {
+          type: "results_published",
+          classId,
+          title: examName,
+          details: `Results for "${examName}" have been published. Log in to view your grades.`,
+        },
+      });
+      if (error) console.error("Notification error:", error);
+    } catch (err) {
+      console.error("Failed to send notification:", err);
+    }
+  };
+
   const saveResults = async (publish: boolean = false) => {
     if (!selectedExam) return;
     setSaving(true);
 
     try {
+      // Get class_id for notification
+      const { data: examData } = await supabase
+        .from("exams")
+        .select("class_id")
+        .eq("id", selectedExam.id)
+        .single();
+
       for (const studentId of Object.keys(results)) {
         const result = results[studentId];
         if (result.marks_obtained === undefined) continue;
@@ -182,9 +205,14 @@ const TeacherResults = () => {
         }
       }
 
+      // Send notifications when publishing
+      if (publish && examData?.class_id) {
+        sendResultsNotification(examData.class_id, selectedExam.name);
+      }
+
       toast({
         title: publish ? "Results Published" : "Results Saved",
-        description: publish ? "Results are now visible to students and parents." : "Results saved as draft.",
+        description: publish ? "Results are now visible to students and parents. Notifications sent!" : "Results saved as draft.",
       });
 
       fetchStudentsAndResults(selectedExam);

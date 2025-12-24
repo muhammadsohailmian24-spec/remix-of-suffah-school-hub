@@ -74,6 +74,22 @@ const TeacherAssignments = () => {
     setLoading(false);
   };
 
+  const sendNotification = async (classId: string, title: string, dueDate: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("send-notification", {
+        body: {
+          type: "new_assignment",
+          classId,
+          title,
+          details: `A new assignment "${title}" has been posted. Due date: ${new Date(dueDate).toLocaleDateString()}`,
+        },
+      });
+      if (error) console.error("Notification error:", error);
+    } catch (err) {
+      console.error("Failed to send notification:", err);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -111,8 +127,13 @@ const TeacherAssignments = () => {
       const { error } = await supabase.from("assignments" as any).update(payload as any).eq("id", editingAssignment.id);
       toast({ title: error ? "Error" : "Success", description: error ? "Failed to update" : "Assignment updated", variant: error ? "destructive" : "default" });
     } else {
-      const { error } = await supabase.from("assignments" as any).insert(payload as any);
-      toast({ title: error ? "Error" : "Success", description: error ? "Failed to create" : "Assignment created", variant: error ? "destructive" : "default" });
+      const { data, error } = await supabase.from("assignments" as any).insert(payload as any).select().single();
+      if (!error && data) {
+        sendNotification((classData as any).id, formData.title, formData.due_date);
+        toast({ title: "Success", description: "Assignment created and notifications sent" });
+      } else {
+        toast({ title: "Error", description: "Failed to create assignment", variant: "destructive" });
+      }
     }
 
     setIsDialogOpen(false);
