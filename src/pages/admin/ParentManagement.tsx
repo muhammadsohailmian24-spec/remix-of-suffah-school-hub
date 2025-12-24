@@ -205,7 +205,7 @@ const ParentManagement = () => {
       }
 
       // If a student was selected, link them
-      if (addFormData.linked_student_id) {
+      if (addFormData.linked_student_id && addFormData.linked_student_id !== "none") {
         // Need to get the new parent ID
         await fetchParents();
         
@@ -604,7 +604,7 @@ const ParentManagement = () => {
                 <Select value={addFormData.linked_student_id} onValueChange={(v) => setAddFormData(p => ({ ...p, linked_student_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select a student to link" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No student</SelectItem>
+                    <SelectItem value="none">No student</SelectItem>
                     {students.map(s => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.profile?.full_name} ({s.student_id})

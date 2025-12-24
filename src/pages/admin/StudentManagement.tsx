@@ -154,7 +154,7 @@ const StudentManagement = () => {
           phone: addFormData.phone || undefined,
           role: "student",
           roleSpecificData: {
-            class_id: addFormData.class_id || null,
+            class_id: addFormData.class_id && addFormData.class_id !== "none" ? addFormData.class_id : null,
           },
         },
       });
@@ -186,7 +186,7 @@ const StudentManagement = () => {
         .from("students")
         .update({
           student_id: formData.student_id,
-          class_id: formData.class_id || null,
+          class_id: formData.class_id && formData.class_id !== "none" ? formData.class_id : null,
           status: formData.status,
         })
         .eq("id", editingStudent.id);
@@ -498,7 +498,7 @@ const StudentManagement = () => {
                 <Select value={addFormData.class_id} onValueChange={(v) => setAddFormData(p => ({ ...p, class_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select class (optional)" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No class</SelectItem>
+                    <SelectItem value="none">No class</SelectItem>
                     {classes.map(c => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}{c.section ? ` - ${c.section}` : ""}
@@ -561,7 +561,7 @@ const StudentManagement = () => {
                 <Select value={formData.class_id} onValueChange={(v) => setFormData(p => ({ ...p, class_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No class</SelectItem>
+                    <SelectItem value="none">No class</SelectItem>
                     {classes.map(c => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}{c.section ? ` - ${c.section}` : ""}

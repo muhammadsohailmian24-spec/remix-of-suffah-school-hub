@@ -152,7 +152,7 @@ const TeacherManagement = () => {
           phone: addFormData.phone || undefined,
           role: "teacher",
           roleSpecificData: {
-            department_id: addFormData.department_id || null,
+            department_id: addFormData.department_id && addFormData.department_id !== "none" ? addFormData.department_id : null,
             qualification: addFormData.qualification || null,
             specialization: addFormData.specialization || null,
           },
@@ -186,7 +186,7 @@ const TeacherManagement = () => {
         .from("teachers")
         .update({
           employee_id: formData.employee_id,
-          department_id: formData.department_id || null,
+          department_id: formData.department_id && formData.department_id !== "none" ? formData.department_id : null,
           qualification: formData.qualification || null,
           specialization: formData.specialization || null,
           status: formData.status,
@@ -495,7 +495,7 @@ const TeacherManagement = () => {
                 <Select value={addFormData.department_id} onValueChange={(v) => setAddFormData(p => ({ ...p, department_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {departments.map(d => (
                       <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                     ))}
@@ -572,7 +572,7 @@ const TeacherManagement = () => {
                 <Select value={formData.department_id} onValueChange={(v) => setFormData(p => ({ ...p, department_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {departments.map(d => (
                       <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                     ))}
