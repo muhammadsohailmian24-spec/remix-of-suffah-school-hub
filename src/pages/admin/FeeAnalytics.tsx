@@ -2,12 +2,16 @@ import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, TrendingUp, TrendingDown, Wallet, AlertCircle, Users, Calendar } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, Wallet, AlertCircle, Users, Calendar, Download, FileSpreadsheet } from "lucide-react";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, Legend 
 } from "recharts";
+import { exportToCSV, exportToExcel, exportMultiSheetExcel } from "@/utils/exportUtils";
+import { toast } from "sonner";
 
 interface CollectionTrend {
   month: string;
@@ -230,6 +234,7 @@ const FeeAnalytics = () => {
   };
 
   const formatCurrency = (value: number) => `₦${value.toLocaleString()}`;
+  const formatCurrencyExport = (value: number) => value;
   
   const COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))"];
   const STATUS_COLORS: Record<string, string> = {
@@ -237,6 +242,128 @@ const FeeAnalytics = () => {
     partial: "#eab308",
     pending: "#94a3b8",
     overdue: "#ef4444",
+  };
+
+  const handleExportClassSummary = (format: 'csv' | 'excel') => {
+    if (classOutstanding.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const columns = [
+      { header: 'Class', key: 'className' },
+      { header: 'Total Fees (₦)', key: 'total', formatter: formatCurrencyExport },
+      { header: 'Collected (₦)', key: 'paid', formatter: formatCurrencyExport },
+      { header: 'Outstanding (₦)', key: 'outstanding', formatter: formatCurrencyExport },
+      { header: 'Collection Rate (%)', key: 'rate', formatter: (v: number) => v.toFixed(1) },
+    ];
+
+    const data = classOutstanding.map(cls => ({
+      ...cls,
+      rate: cls.total > 0 ? (cls.paid / cls.total) * 100 : 0,
+    }));
+
+    const filename = `fee-class-summary-${new Date().toISOString().split('T')[0]}`;
+    
+    if (format === 'csv') {
+      exportToCSV(data, columns, filename);
+    } else {
+      exportToExcel(data, columns, filename, 'Class Summary');
+    }
+    toast.success(`Exported to ${format.toUpperCase()}`);
+  };
+
+  const handleExportCollectionTrends = (format: 'csv' | 'excel') => {
+    if (collectionTrends.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const columns = [
+      { header: 'Month', key: 'month' },
+      { header: 'Assigned (₦)', key: 'assigned', formatter: formatCurrencyExport },
+      { header: 'Collected (₦)', key: 'collected', formatter: formatCurrencyExport },
+    ];
+
+    const filename = `fee-collection-trends-${new Date().toISOString().split('T')[0]}`;
+    
+    if (format === 'csv') {
+      exportToCSV(collectionTrends, columns, filename);
+    } else {
+      exportToExcel(collectionTrends, columns, filename, 'Collection Trends');
+    }
+    toast.success(`Exported to ${format.toUpperCase()}`);
+  };
+
+  const handleExportFullReport = () => {
+    const sheets = [
+      {
+        name: 'Summary',
+        data: [{
+          totalAssigned: stats.totalAssigned,
+          totalCollected: stats.totalCollected,
+          totalOutstanding: stats.totalOutstanding,
+          collectionRate: stats.collectionRate,
+          overdueCount: stats.overdueCount,
+          thisMonthCollection: stats.thisMonthCollection,
+          lastMonthCollection: stats.lastMonthCollection,
+        }],
+        columns: [
+          { header: 'Total Assigned (₦)', key: 'totalAssigned', formatter: formatCurrencyExport },
+          { header: 'Total Collected (₦)', key: 'totalCollected', formatter: formatCurrencyExport },
+          { header: 'Outstanding (₦)', key: 'totalOutstanding', formatter: formatCurrencyExport },
+          { header: 'Collection Rate (%)', key: 'collectionRate', formatter: (v: number) => v.toFixed(1) },
+          { header: 'Overdue Count', key: 'overdueCount' },
+          { header: 'This Month (₦)', key: 'thisMonthCollection', formatter: formatCurrencyExport },
+          { header: 'Last Month (₦)', key: 'lastMonthCollection', formatter: formatCurrencyExport },
+        ],
+      },
+      {
+        name: 'Collection Trends',
+        data: collectionTrends,
+        columns: [
+          { header: 'Month', key: 'month' },
+          { header: 'Assigned (₦)', key: 'assigned', formatter: formatCurrencyExport },
+          { header: 'Collected (₦)', key: 'collected', formatter: formatCurrencyExport },
+        ],
+      },
+      {
+        name: 'Class Summary',
+        data: classOutstanding.map(cls => ({
+          ...cls,
+          rate: cls.total > 0 ? (cls.paid / cls.total) * 100 : 0,
+        })),
+        columns: [
+          { header: 'Class', key: 'className' },
+          { header: 'Total Fees (₦)', key: 'total', formatter: formatCurrencyExport },
+          { header: 'Collected (₦)', key: 'paid', formatter: formatCurrencyExport },
+          { header: 'Outstanding (₦)', key: 'outstanding', formatter: formatCurrencyExport },
+          { header: 'Collection Rate (%)', key: 'rate', formatter: (v: number) => v.toFixed(1) },
+        ],
+      },
+      {
+        name: 'Fee Status',
+        data: feeStatuses,
+        columns: [
+          { header: 'Status', key: 'status' },
+          { header: 'Count', key: 'count' },
+          { header: 'Amount (₦)', key: 'amount', formatter: formatCurrencyExport },
+        ],
+      },
+      {
+        name: 'Payment Methods',
+        data: paymentMethods,
+        columns: [
+          { header: 'Method', key: 'method' },
+          { header: 'Transactions', key: 'count' },
+          { header: 'Amount (₦)', key: 'amount', formatter: formatCurrencyExport },
+        ],
+      },
+    ];
+
+    const filename = `fee-full-report-${new Date().toISOString().split('T')[0]}`;
+    exportMultiSheetExcel(sheets, filename);
+    toast.success("Full report exported to Excel");
   };
 
   if (loading) {
@@ -256,8 +383,39 @@ const FeeAnalytics = () => {
   return (
     <AdminLayout title="Fee Analytics" description="Monitor fee collection performance and trends">
       <div className="space-y-6">
-        {/* Period Selector */}
-        <div className="flex justify-end">
+        {/* Period Selector and Export */}
+        <div className="flex justify-between items-center flex-wrap gap-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Export Report
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => handleExportClassSummary('csv')}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Class Summary (CSV)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportClassSummary('excel')}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Class Summary (Excel)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportCollectionTrends('csv')}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Collection Trends (CSV)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportCollectionTrends('excel')}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Collection Trends (Excel)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportFullReport}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Full Report (Excel - Multi-sheet)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-40">
               <SelectValue />
