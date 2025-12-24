@@ -416,6 +416,113 @@ export type Database = {
           },
         ]
       }
+      fee_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          payment_date: string
+          payment_method: string
+          receipt_number: string | null
+          received_by: string | null
+          remarks: string | null
+          student_fee_id: string
+          transaction_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          payment_date?: string
+          payment_method?: string
+          receipt_number?: string | null
+          received_by?: string | null
+          remarks?: string | null
+          student_fee_id: string
+          transaction_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          payment_date?: string
+          payment_method?: string
+          receipt_number?: string | null
+          received_by?: string | null
+          remarks?: string | null
+          student_fee_id?: string
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_payments_student_fee_id_fkey"
+            columns: ["student_fee_id"]
+            isOneToOne: false
+            referencedRelation: "student_fees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fee_structures: {
+        Row: {
+          academic_year_id: string | null
+          amount: number
+          class_id: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          fee_type: string
+          id: string
+          is_recurring: boolean | null
+          name: string
+          recurring_period: string | null
+          updated_at: string
+        }
+        Insert: {
+          academic_year_id?: string | null
+          amount: number
+          class_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          fee_type?: string
+          id?: string
+          is_recurring?: boolean | null
+          name: string
+          recurring_period?: string | null
+          updated_at?: string
+        }
+        Update: {
+          academic_year_id?: string | null
+          amount?: number
+          class_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          fee_type?: string
+          id?: string
+          is_recurring?: boolean | null
+          name?: string
+          recurring_period?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_structures_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_structures_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -565,6 +672,60 @@ export type Database = {
           },
           {
             foreignKeyName: "results_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_fees: {
+        Row: {
+          amount: number
+          created_at: string
+          discount: number | null
+          due_date: string
+          fee_structure_id: string
+          final_amount: number
+          id: string
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          discount?: number | null
+          due_date: string
+          fee_structure_id: string
+          final_amount: number
+          id?: string
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          discount?: number | null
+          due_date?: string
+          fee_structure_id?: string
+          final_amount?: number
+          id?: string
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_fees_fee_structure_id_fkey"
+            columns: ["fee_structure_id"]
+            isOneToOne: false
+            referencedRelation: "fee_structures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_fees_student_id_fkey"
             columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "students"
