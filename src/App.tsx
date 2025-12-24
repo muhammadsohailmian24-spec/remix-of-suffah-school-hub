@@ -34,6 +34,7 @@ import StudentCourses from "./pages/student/Courses";
 import StudentAssignments from "./pages/student/Assignments";
 import StudentResults from "./pages/student/Results";
 import StudentTimetable from "./pages/student/Timetable";
+import StudentFees from "./pages/student/Fees";
 import ParentChildren from "./pages/parent/Children";
 import ParentAttendance from "./pages/parent/Attendance";
 import ParentResults from "./pages/parent/Results";
@@ -85,6 +86,7 @@ const App = () => (
           <Route path="/student/assignments" element={<StudentAssignments />} />
           <Route path="/student/results" element={<StudentResults />} />
           <Route path="/student/timetable" element={<StudentTimetable />} />
+          <Route path="/student/fees" element={<StudentFees />} />
           {/* Parent Routes */}
           <Route path="/parent/children" element={<ParentChildren />} />
           <Route path="/parent/attendance/:studentId" element={<ParentAttendance />} />

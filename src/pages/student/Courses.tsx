@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
-  GraduationCap, Bell, LogOut, BookOpen, FileText, Award, Calendar, Clock, Download
+  GraduationCap, Bell, LogOut, BookOpen, FileText, Award, Calendar, Clock, Download, Wallet
 } from "lucide-react";
 
 interface Subject {
@@ -73,6 +73,7 @@ const StudentCourses = () => {
             <Link to="/student/assignments" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent text-muted-foreground"><FileText className="w-5 h-5" />Assignments</Link>
             <Link to="/student/results" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent text-muted-foreground"><Award className="w-5 h-5" />Results</Link>
             <Link to="/student/timetable" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent text-muted-foreground"><Calendar className="w-5 h-5" />Timetable</Link>
+            <Link to="/student/fees" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent text-muted-foreground"><Wallet className="w-5 h-5" />Fee Status</Link>
           </nav>
         </aside>
 
