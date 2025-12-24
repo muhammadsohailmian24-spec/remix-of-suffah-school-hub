@@ -1,1 +1,7 @@
 project_id = "clillcatrbjzgfaejalg"
+
+[functions.send-notification]
+verify_jwt = false
+
+[functions.send-fee-notification]
+verify_jwt = false

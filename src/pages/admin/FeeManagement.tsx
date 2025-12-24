@@ -218,7 +218,25 @@ const FeeManagement = () => {
       return;
     }
 
-    toast.success("Fee assigned to student");
+    // Send notification to parents
+    try {
+      await supabase.functions.invoke("send-fee-notification", {
+        body: {
+          type: "fee_assigned",
+          studentId: assignForm.student_id,
+          feeDetails: {
+            feeName: feeStructure.name,
+            amount: finalAmount,
+            dueDate: feeStructure.due_date || new Date().toISOString().split('T')[0],
+          },
+        },
+      });
+      toast.success("Fee assigned and notification sent to parents");
+    } catch (notifError) {
+      console.error("Notification error:", notifError);
+      toast.success("Fee assigned (notification may not have been sent)");
+    }
+    
     setAssignFeeDialog(false);
     setAssignForm({ student_id: "", fee_structure_id: "", discount: "0" });
     fetchStudentFees();
@@ -263,7 +281,25 @@ const FeeManagement = () => {
         .eq("id", selectedStudentFee.id);
     }
 
-    toast.success(`Payment recorded. Receipt: ${receiptNumber}`);
+    // Send payment confirmation notification
+    try {
+      await supabase.functions.invoke("send-fee-notification", {
+        body: {
+          type: "payment_received",
+          studentId: selectedStudentFee.student_id,
+          paymentDetails: {
+            amount: parseFloat(paymentForm.amount),
+            receiptNumber: receiptNumber,
+            paymentMethod: paymentForm.payment_method,
+          },
+        },
+      });
+      toast.success(`Payment recorded and receipt sent. Receipt: ${receiptNumber}`);
+    } catch (notifError) {
+      console.error("Notification error:", notifError);
+      toast.success(`Payment recorded. Receipt: ${receiptNumber}`);
+    }
+    
     setPaymentDialog(false);
     setPaymentForm({ amount: "", payment_method: "cash", transaction_id: "", remarks: "" });
     setSelectedStudentFee(null);
