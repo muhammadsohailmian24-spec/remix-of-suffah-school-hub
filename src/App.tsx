@@ -7,8 +7,6 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Admissions from "./pages/Admissions";
-import AdminUsers from "./pages/admin/Users";
-import AdminUserManagement from "./pages/admin/UserManagement";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import StudentManagement from "./pages/admin/StudentManagement";
 import TeacherManagement from "./pages/admin/TeacherManagement";
@@ -19,6 +17,7 @@ import AdminAnalytics from "./pages/admin/Analytics";
 import AdminExams from "./pages/admin/Exams";
 import AdminTimetable from "./pages/admin/Timetable";
 import AdminDepartments from "./pages/admin/Departments";
+import AdmissionManagement from "./pages/admin/AdmissionManagement";
 import AnnouncementManagement from "./pages/admin/AnnouncementManagement";
 import Reports from "./pages/admin/Reports";
 import SystemSettings from "./pages/admin/SystemSettings";
@@ -59,15 +58,13 @@ const App = () => (
           <Route path="/admin/students" element={<StudentManagement />} />
           <Route path="/admin/teachers" element={<TeacherManagement />} />
           <Route path="/admin/parents" element={<ParentManagement />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
-          <Route path="/admin/user-management" element={<AdminUserManagement />} />
           <Route path="/admin/classes" element={<AdminClasses />} />
           <Route path="/admin/subjects" element={<AdminSubjects />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/admin/exams" element={<AdminExams />} />
           <Route path="/admin/timetable" element={<AdminTimetable />} />
           <Route path="/admin/departments" element={<AdminDepartments />} />
-          <Route path="/admin/admissions" element={<AdminUsers />} />
+          <Route path="/admin/admissions" element={<AdmissionManagement />} />
           <Route path="/admin/announcements" element={<AnnouncementManagement />} />
           <Route path="/admin/reports" element={<Reports />} />
           <Route path="/admin/settings" element={<SystemSettings />} />
