@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, User, GraduationCap, BookOpen, Calendar } from "lucide-react";
+import { ArrowLeft, User, GraduationCap, BookOpen, Calendar, Wallet } from "lucide-react";
 
 interface Child {
   id: string;
@@ -174,7 +174,7 @@ const ParentChildren = () => {
                     <BookOpen className="h-4 w-4 text-muted-foreground" />
                     <span>Grade {child.classes?.grade_level || "N/A"}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 pt-2">
+                  <div className="grid grid-cols-3 gap-2 pt-2">
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -190,6 +190,14 @@ const ParentChildren = () => {
                     >
                       <BookOpen className="h-4 w-4 mr-1" />
                       Results
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => navigate(`/parent/fees/${child.id}`)}
+                    >
+                      <Wallet className="h-4 w-4 mr-1" />
+                      Fees
                     </Button>
                   </div>
                 </CardContent>
