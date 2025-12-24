@@ -39,6 +39,7 @@ import ParentAttendance from "./pages/parent/Attendance";
 import ParentResults from "./pages/parent/Results";
 import ParentAnnouncements from "./pages/parent/Announcements";
 import ParentNotificationPreferences from "./pages/parent/NotificationPreferences";
+import ParentFees from "./pages/parent/Fees";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -90,6 +91,7 @@ const App = () => (
           <Route path="/parent/results/:studentId" element={<ParentResults />} />
           <Route path="/parent/announcements" element={<ParentAnnouncements />} />
           <Route path="/parent/notifications" element={<ParentNotificationPreferences />} />
+          <Route path="/parent/fees/:studentId" element={<ParentFees />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
