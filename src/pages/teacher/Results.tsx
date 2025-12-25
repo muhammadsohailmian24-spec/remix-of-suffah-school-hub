@@ -157,17 +157,20 @@ const TeacherResults = () => {
     }));
   };
 
-  const sendResultsNotification = async (classId: string, examName: string) => {
+  const sendResultsNotification = async (classId: string, examName: string, subjectName: string) => {
     try {
       const { error } = await supabase.functions.invoke("send-notification", {
         body: {
           type: "results_published",
           classId,
           title: examName,
-          details: `Results for "${examName}" have been published. Log in to view your grades.`,
+          examName,
+          subjectName,
+          details: `Results for "${examName}" (${subjectName}) have been published. Log in to view your grades and remarks.`,
         },
       });
       if (error) console.error("Notification error:", error);
+      else console.log("Results notification sent successfully");
     } catch (err) {
       console.error("Failed to send notification:", err);
     }
@@ -207,7 +210,8 @@ const TeacherResults = () => {
 
       // Send notifications when publishing
       if (publish && examData?.class_id) {
-        sendResultsNotification(examData.class_id, selectedExam.name);
+        const subjectName = selectedExam.subjects?.name || "Unknown Subject";
+        await sendResultsNotification(examData.class_id, selectedExam.name, subjectName);
       }
 
       toast({
