@@ -19,6 +19,8 @@ interface NotificationRequest {
   classId: string;
   title: string;
   details: string;
+  examName?: string;
+  subjectName?: string;
 }
 
 async function sendSMS(to: string, message: string): Promise<boolean> {
@@ -28,6 +30,14 @@ async function sendSMS(to: string, message: string): Promise<boolean> {
   }
 
   try {
+    // Format phone number for Pakistan
+    let formattedPhone = to;
+    if (to.startsWith("03")) {
+      formattedPhone = "+92" + to.substring(1);
+    } else if (!to.startsWith("+")) {
+      formattedPhone = "+" + to;
+    }
+
     const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
     const auth = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
 
@@ -38,7 +48,7 @@ async function sendSMS(to: string, message: string): Promise<boolean> {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
-        To: to,
+        To: formattedPhone,
         From: TWILIO_PHONE_NUMBER,
         Body: message,
       }),
@@ -46,11 +56,11 @@ async function sendSMS(to: string, message: string): Promise<boolean> {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error(`SMS failed to ${to}:`, error);
+      console.error(`SMS failed to ${formattedPhone}:`, error);
       return false;
     }
 
-    console.log(`SMS sent to ${to}`);
+    console.log(`SMS sent to ${formattedPhone}`);
     return true;
   } catch (error) {
     console.error(`SMS error to ${to}:`, error);
@@ -68,7 +78,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { type, classId, title, details }: NotificationRequest = await req.json();
+    const { type, classId, title, details, examName, subjectName }: NotificationRequest = await req.json();
 
     console.log(`Processing ${type} notification for class ${classId}`);
 
@@ -97,24 +107,24 @@ const handler = async (req: Request): Promise<Response> => {
     // Get student profiles for emails
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("email, full_name")
+      .select("email, full_name, user_id")
       .in("user_id", studentUserIds);
 
     // Get parent info
     const { data: studentParents } = await supabase
       .from("student_parents")
-      .select("parent_id")
+      .select("parent_id, student_id")
       .in("student_id", studentIds);
 
     let parentEmails: string[] = [];
-    let parentPhones: { phone: string; name: string }[] = [];
+    let parentPhones: { phone: string; name: string; studentName: string }[] = [];
 
     if (studentParents && studentParents.length > 0) {
       const parentIds = [...new Set(studentParents.map((sp: any) => sp.parent_id))];
       
       const { data: parents } = await supabase
         .from("parents")
-        .select("user_id")
+        .select("id, user_id")
         .in("id", parentIds);
       
       if (parents && parents.length > 0) {
@@ -122,15 +132,39 @@ const handler = async (req: Request): Promise<Response> => {
         
         const { data: parentProfiles } = await supabase
           .from("profiles")
-          .select("email, phone, full_name, sms_notifications_enabled")
+          .select("email, phone, full_name, sms_notifications_enabled, user_id")
           .in("user_id", parentUserIds);
         
         if (parentProfiles) {
           parentEmails = parentProfiles.map((p: any) => p.email);
-          // Get parents who have SMS enabled and have a phone number
-          parentPhones = parentProfiles
-            .filter((p: any) => p.sms_notifications_enabled && p.phone)
-            .map((p: any) => ({ phone: p.phone, name: p.full_name }));
+          
+          // Build parent phone list with student names
+          for (const parentProfile of parentProfiles) {
+            if (parentProfile.sms_notifications_enabled && parentProfile.phone) {
+              // Find which students this parent is linked to
+              const parent = parents.find((p: any) => p.user_id === parentProfile.user_id);
+              if (parent) {
+                const linkedStudentIds = studentParents
+                  .filter((sp: any) => sp.parent_id === parent.id)
+                  .map((sp: any) => sp.student_id);
+                
+                const linkedStudentUserIds = students
+                  ?.filter((s: any) => linkedStudentIds.includes(s.id))
+                  .map((s: any) => s.user_id) || [];
+                
+                const studentNames = profiles
+                  ?.filter((p: any) => linkedStudentUserIds.includes(p.user_id))
+                  .map((p: any) => p.full_name)
+                  .join(", ") || "your child";
+                
+                parentPhones.push({
+                  phone: parentProfile.phone,
+                  name: parentProfile.full_name,
+                  studentName: studentNames,
+                });
+              }
+            }
+          }
         }
       }
     }
@@ -139,23 +173,43 @@ const handler = async (req: Request): Promise<Response> => {
     const allEmails = [...new Set([...studentEmails, ...parentEmails])];
 
     const subject = type === "new_assignment" 
-      ? `New Assignment: ${title}`
-      : `Results Published: ${title}`;
+      ? `📚 New Assignment: ${title}`
+      : `📊 Results Published: ${title}`;
 
     const htmlContent = type === "new_assignment"
       ? `
-        <h1>📚 New Assignment Posted</h1>
-        <h2>${title}</h2>
-        <p>${details}</p>
-        <p>Please log in to the school portal to view the assignment details and submit your work.</p>
-        <p>Best regards,<br>School Management System</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); padding: 30px; border-radius: 12px; color: white; text-align: center;">
+            <h1 style="margin: 0;">📚 New Assignment Posted</h1>
+          </div>
+          <div style="padding: 30px; background: #f8fafc; border-radius: 0 0 12px 12px;">
+            <h2 style="color: #1e293b; margin-bottom: 20px;">${title}</h2>
+            <p style="color: #64748b; line-height: 1.6;">${details}</p>
+            <div style="margin-top: 30px; padding: 20px; background: #fff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+              <p style="margin: 0; color: #64748b;">Please log in to the school portal to view the assignment details and submit your work on time.</p>
+            </div>
+            <p style="margin-top: 30px; color: #94a3b8; font-size: 14px;">Best regards,<br><strong>The Suffah Public School & College</strong></p>
+          </div>
+        </div>
       `
       : `
-        <h1>📊 Exam Results Published</h1>
-        <h2>${title}</h2>
-        <p>${details}</p>
-        <p>Please log in to the school portal to view your results.</p>
-        <p>Best regards,<br>School Management System</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #22c55e, #16a34a); padding: 30px; border-radius: 12px; color: white; text-align: center;">
+            <h1 style="margin: 0;">📊 Exam Results Published</h1>
+          </div>
+          <div style="padding: 30px; background: #f8fafc; border-radius: 0 0 12px 12px;">
+            <h2 style="color: #1e293b; margin-bottom: 10px;">${examName || title}</h2>
+            ${subjectName ? `<p style="color: #64748b; margin-bottom: 20px;"><strong>Subject:</strong> ${subjectName}</p>` : ''}
+            <p style="color: #64748b; line-height: 1.6;">${details}</p>
+            <div style="margin-top: 30px; padding: 20px; background: #fff; border-radius: 8px; border-left: 4px solid #22c55e;">
+              <p style="margin: 0; color: #64748b;">Log in to the school portal to view detailed results, grades, and teacher remarks.</p>
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+              <p style="color: #16a34a; font-weight: bold;">🎓 Keep up the great work!</p>
+            </div>
+            <p style="margin-top: 30px; color: #94a3b8; font-size: 14px;">Best regards,<br><strong>The Suffah Public School & College</strong></p>
+          </div>
+        </div>
       `;
 
     let emailsSent = 0;
@@ -165,7 +219,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (allEmails.length > 0) {
       try {
         await resend.emails.send({
-          from: "School Notifications <onboarding@resend.dev>",
+          from: "The Suffah School <onboarding@resend.dev>",
           to: allEmails,
           subject: subject,
           html: htmlContent,
@@ -178,16 +232,20 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Send SMS to parents who opted in
-    const smsMessage = type === "new_assignment"
-      ? `📚 New Assignment: "${title}" has been posted. Due: ${details.split("Due date:")[1] || "Check portal"}. Log in to view details.`
-      : `📊 Results Published: "${title}". Log in to the school portal to view grades.`;
-
     for (const parent of parentPhones) {
+      let smsMessage = "";
+      
+      if (type === "new_assignment") {
+        smsMessage = `📚 New Assignment: "${title}" has been posted for ${parent.studentName}. Log in to view details. - The Suffah School`;
+      } else {
+        smsMessage = `📊 Results Published: "${examName || title}" results for ${parent.studentName} are now available. Log in to view grades. - The Suffah School`;
+      }
+      
       const sent = await sendSMS(parent.phone, smsMessage);
       if (sent) smsSent++;
     }
 
-    // Create in-app notifications
+    // Create in-app notifications for students
     const notifications = studentUserIds.map((userId: string) => ({
       user_id: userId,
       title: subject,
@@ -202,6 +260,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (notifError) {
       console.error("Error creating notifications:", notifError);
+    } else {
+      console.log(`Created ${notifications.length} in-app notifications`);
     }
 
     return new Response(
@@ -209,7 +269,8 @@ const handler = async (req: Request): Promise<Response> => {
         success: true, 
         emailsSent,
         smsSent,
-        message: `Sent ${emailsSent} emails and ${smsSent} SMS notifications`
+        inAppNotifications: studentUserIds.length,
+        message: `Sent ${emailsSent} emails, ${smsSent} SMS, and ${studentUserIds.length} in-app notifications`
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );

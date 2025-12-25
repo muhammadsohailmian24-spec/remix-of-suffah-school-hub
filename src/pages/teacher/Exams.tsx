@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Edit, Trash2, Award } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Award, ClipboardList } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
+import { Link } from "react-router-dom";
 
 interface Class {
   id: string;
@@ -286,12 +287,19 @@ const TeacherExams = () => {
                     <TableCell>{format(parseISO(exam.exam_date), "MMM d, yyyy")}</TableCell>
                     <TableCell>{exam.max_marks}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(exam)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(exam.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" asChild title="Enter Results">
+                          <Link to="/teacher/results">
+                            <ClipboardList className="h-4 w-4 text-primary" />
+                          </Link>
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(exam)} title="Edit">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(exam.id)} title="Delete">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
