@@ -394,34 +394,38 @@ const StudentAssignments = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assignment Feedback</DialogTitle>
-            <DialogDescription>{viewingAssignment?.title}</DialogDescription>
+            <DialogDescription>{viewingAssignment?.title || "Assignment"}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-lg bg-accent/50">
-              <div>
-                <p className="text-sm text-muted-foreground">Your Score</p>
-                <p className="text-2xl font-bold text-primary">
-                  {viewingSubmission?.marks_obtained}/{viewingAssignment?.max_marks}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Graded on</p>
-                <p className="text-sm">{viewingSubmission?.graded_at ? new Date(viewingSubmission.graded_at).toLocaleDateString() : "-"}</p>
-              </div>
-            </div>
-            {viewingSubmission?.feedback ? (
-              <div className="space-y-2">
-                <Label>Teacher's Feedback</Label>
-                <div className="p-4 rounded-lg bg-muted/50 text-sm whitespace-pre-wrap">
-                  {viewingSubmission.feedback}
+          {viewingSubmission && viewingAssignment ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-lg bg-accent/50">
+                <div>
+                  <p className="text-sm text-muted-foreground">Your Score</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {viewingSubmission.marks_obtained ?? 0}/{viewingAssignment.max_marks}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Graded on</p>
+                  <p className="text-sm">{viewingSubmission.graded_at ? new Date(viewingSubmission.graded_at).toLocaleDateString() : "-"}</p>
                 </div>
               </div>
-            ) : (
-              <div className="p-4 rounded-lg bg-muted/50 text-center text-muted-foreground">
-                No feedback provided
-              </div>
-            )}
-          </div>
+              {viewingSubmission.feedback ? (
+                <div className="space-y-2">
+                  <Label>Teacher's Feedback</Label>
+                  <div className="p-4 rounded-lg bg-muted/50 text-sm whitespace-pre-wrap">
+                    {viewingSubmission.feedback}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg bg-muted/50 text-center text-muted-foreground">
+                  No feedback provided
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-4 text-center text-muted-foreground">Loading...</div>
+          )}
           <DialogFooter>
             <Button onClick={() => setIsFeedbackOpen(false)}>Close</Button>
           </DialogFooter>
