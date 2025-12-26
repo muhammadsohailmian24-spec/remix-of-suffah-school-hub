@@ -139,16 +139,16 @@ const TeacherMaterials = () => {
       
       setUploadProgress(70);
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
+      // Get signed URL (secure - requires authentication)
+      const { data: urlData } = await supabase.storage
         .from('study-materials')
-        .getPublicUrl(fileName);
+        .createSignedUrl(fileName, 60 * 60 * 24 * 365); // 1 year expiry
 
       // Save to database
       const { error: dbError } = await supabase.from("study_materials").insert({
         title: formData.title,
         description: formData.description || null,
-        file_url: urlData.publicUrl,
+        file_url: urlData?.signedUrl || fileName,
         file_type: getFileType(selectedFile.name),
         teacher_id: teacherId,
         class_id: formData.class_id,

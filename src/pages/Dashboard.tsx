@@ -6,8 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { 
   GraduationCap, Users, BookOpen, Calendar, Bell, 
   LogOut, LayoutDashboard, FileText, ClipboardList,
-  TrendingUp, Clock, Award, MessageSquare, Settings,
-  UserPlus, School, BookMarked
+  Clock, Award, Settings, UserPlus, School, BookMarked
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
@@ -19,6 +18,26 @@ interface Profile {
   avatar_url?: string;
 }
 
+interface DashboardStats {
+  value: string;
+  label: string;
+  trend: string;
+  icon: any;
+}
+
+interface Announcement {
+  id: string;
+  title: string;
+  priority: string;
+  created_at: string;
+}
+
+interface Activity {
+  title: string;
+  time: string;
+  type: string;
+}
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -26,6 +45,9 @@ const Dashboard = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userRole, setUserRole] = useState<string>("student");
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
     const getUser = async () => {
@@ -38,7 +60,7 @@ const Dashboard = () => {
 
       setUser(session.user);
 
-      // Get profile using type assertion
+      // Get profile
       const { data: profileData } = await supabase
         .from("profiles" as any)
         .select("*")
@@ -47,14 +69,22 @@ const Dashboard = () => {
       
       if (profileData) setProfile(profileData as unknown as Profile);
 
-      // Get role using type assertion
+      // Get role
       const { data: roleData } = await supabase
         .from("user_roles" as any)
         .select("role")
         .eq("user_id", session.user.id)
         .maybeSingle();
       
-      if (roleData) setUserRole((roleData as any).role);
+      const role = roleData ? (roleData as any).role : "student";
+      setUserRole(role);
+      
+      // Fetch real data based on role
+      await Promise.all([
+        fetchStats(role, session.user.id),
+        fetchAnnouncements(),
+        fetchActivities(role, session.user.id),
+      ]);
       
       setLoading(false);
     };
@@ -69,6 +99,146 @@ const Dashboard = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const fetchStats = async (role: string, userId: string) => {
+    try {
+      switch (role) {
+        case "admin": {
+          const [studentsRes, teachersRes, classesRes, admissionsRes] = await Promise.all([
+            supabase.from("students" as any).select("id"),
+            supabase.from("teachers" as any).select("id"),
+            supabase.from("classes" as any).select("id"),
+            supabase.from("admissions" as any).select("id").eq("status", "pending"),
+          ]);
+          setStats([
+            { icon: Users, value: String((studentsRes.data || []).length), label: "Total Students", trend: "Enrolled" },
+            { icon: GraduationCap, value: String((teachersRes.data || []).length), label: "Teachers", trend: "Active faculty" },
+            { icon: School, value: String((classesRes.data || []).length), label: "Classes", trend: "All grades" },
+            { icon: UserPlus, value: String((admissionsRes.data || []).length), label: "Pending", trend: "Admission requests" },
+          ]);
+          break;
+        }
+        case "teacher": {
+          const { data: teacherData } = await supabase.from("teachers" as any).select("id").eq("user_id", userId).maybeSingle();
+          if (teacherData) {
+            const teacherId = (teacherData as any).id;
+            const [assignmentsRes, submissionsRes] = await Promise.all([
+              supabase.from("assignments" as any).select("id").eq("teacher_id", teacherId),
+              supabase.from("submissions" as any).select("id").is("marks_obtained", null),
+            ]);
+            const { data: timetableData } = await supabase.from("timetable" as any).select("class_id").eq("teacher_id", teacherId);
+            const uniqueClasses = new Set((timetableData || []).map((t: any) => t.class_id)).size;
+            
+            setStats([
+              { icon: BookOpen, value: String((assignmentsRes.data || []).length), label: "Assignments", trend: "Created" },
+              { icon: FileText, value: String((submissionsRes.data || []).length), label: "Pending", trend: "To grade" },
+              { icon: School, value: String(uniqueClasses), label: "Classes", trend: "Teaching" },
+              { icon: Clock, value: "-", label: "Hours", trend: "This week" },
+            ]);
+          }
+          break;
+        }
+        case "student": {
+          const { data: studentData } = await supabase.from("students" as any).select("id, class_id").eq("user_id", userId).maybeSingle();
+          if (studentData) {
+            const studentId = (studentData as any).id;
+            const [assignmentsRes, submissionsRes, attendanceRes] = await Promise.all([
+              supabase.from("assignments" as any).select("id").eq("status", "active"),
+              supabase.from("submissions" as any).select("assignment_id").eq("student_id", studentId),
+              supabase.from("attendance" as any).select("status").eq("student_id", studentId),
+            ]);
+            
+            const assignmentCount = (assignmentsRes.data || []).length;
+            const submittedIds = new Set((submissionsRes.data || []).map((s: any) => s.assignment_id));
+            const pendingCount = assignmentCount - submittedIds.size;
+            
+            const totalAttendance = (attendanceRes.data || []).length;
+            const presentCount = (attendanceRes.data || []).filter((a: any) => a.status === "present").length;
+            const attendancePercent = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : 0;
+            
+            setStats([
+              { icon: BookOpen, value: String(assignmentCount), label: "Assignments", trend: "Active" },
+              { icon: FileText, value: String(pendingCount > 0 ? pendingCount : 0), label: "Pending", trend: "To submit" },
+              { icon: Clock, value: `${attendancePercent}%`, label: "Attendance", trend: "Overall" },
+              { icon: Award, value: "-", label: "Grade", trend: "Average" },
+            ]);
+          }
+          break;
+        }
+        case "parent": {
+          const { data: parentData } = await supabase.from("parents" as any).select("id").eq("user_id", userId).maybeSingle();
+          if (parentData) {
+            const parentId = (parentData as any).id;
+            const { data: childrenData } = await supabase.from("student_parents" as any).select("student_id").eq("parent_id", parentId);
+            const childCount = (childrenData || []).length;
+            
+            const { data: notifData } = await supabase.from("notifications" as any).select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_read", false);
+            
+            setStats([
+              { icon: Users, value: String(childCount), label: "Children", trend: "Enrolled" },
+              { icon: Clock, value: "-", label: "Attendance", trend: "Average" },
+              { icon: Award, value: "-", label: "Grade", trend: "Average" },
+              { icon: Bell, value: String(notifData?.count || 0), label: "Unread", trend: "Notifications" },
+            ]);
+          }
+          break;
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  };
+
+  const fetchAnnouncements = async () => {
+    try {
+      const { data } = await supabase
+        .from("announcements" as any)
+        .select("id, title, priority, created_at")
+        .eq("is_published", true)
+        .order("created_at", { ascending: false })
+        .limit(4);
+      
+      setAnnouncements((data || []) as unknown as Announcement[]);
+    } catch (error) {
+      console.error("Error fetching announcements:", error);
+    }
+  };
+
+  const fetchActivities = async (role: string, userId: string) => {
+    try {
+      const { data: notifications } = await supabase
+        .from("notifications" as any)
+        .select("title, created_at, type")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(4);
+      
+      if (notifications && notifications.length > 0) {
+        const mapped = (notifications as any[]).map(n => ({
+          title: n.title,
+          time: formatTimeAgo(new Date(n.created_at)),
+          type: n.type === "warning" ? "warning" : n.type === "error" ? "warning" : "info",
+        }));
+        setActivities(mapped);
+      } else {
+        setActivities([]);
+      }
+    } catch (error) {
+      console.error("Error fetching activities:", error);
+    }
+  };
+
+  const formatTimeAgo = (date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    return `${diffDays} days ago`;
+  };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -124,41 +294,6 @@ const Dashboard = () => {
     }
   };
 
-  const getStats = () => {
-    switch (userRole) {
-      case "admin":
-        return [
-          { icon: Users, value: "485", label: "Total Students", trend: "+12 this month" },
-          { icon: GraduationCap, value: "52", label: "Teachers", trend: "Active faculty" },
-          { icon: School, value: "24", label: "Classes", trend: "All grades" },
-          { icon: UserPlus, value: "18", label: "Pending", trend: "Admission requests" },
-        ];
-      case "teacher":
-        return [
-          { icon: Users, value: "156", label: "Students", trend: "Across all classes" },
-          { icon: BookOpen, value: "4", label: "Subjects", trend: "Teaching this term" },
-          { icon: FileText, value: "8", label: "Pending", trend: "Submissions to grade" },
-          { icon: Clock, value: "24", label: "Classes", trend: "This week" },
-        ];
-      case "student":
-        return [
-          { icon: BookOpen, value: "6", label: "Subjects", trend: "+2 this semester" },
-          { icon: Clock, value: "92%", label: "Attendance", trend: "Last 30 days" },
-          { icon: FileText, value: "4", label: "Pending", trend: "Assignments due" },
-          { icon: Award, value: "A", label: "Grade", trend: "Current average" },
-        ];
-      case "parent":
-        return [
-          { icon: Users, value: "2", label: "Children", trend: "Enrolled students" },
-          { icon: Clock, value: "94%", label: "Attendance", trend: "Average" },
-          { icon: Award, value: "B+", label: "Grade", trend: "Average grade" },
-          { icon: Bell, value: "3", label: "Alerts", trend: "Unread" },
-        ];
-      default:
-        return [];
-    }
-  };
-
   const getSidebarLinks = () => {
     const baseLinks = [
       { icon: LayoutDashboard, label: "Dashboard", link: "/dashboard", active: true },
@@ -207,9 +342,6 @@ const Dashboard = () => {
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
-                3
-              </span>
             </Button>
             <div className="hidden md:flex items-center gap-3 px-3 py-2 rounded-lg bg-accent/50">
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -286,7 +418,7 @@ const Dashboard = () => {
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {getStats().map((stat, i) => (
+            {stats.map((stat, i) => (
               <Card key={i} className="card-hover">
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
@@ -333,26 +465,25 @@ const Dashboard = () => {
                   <Clock className="w-5 h-5 text-primary" />
                   Recent Activity
                 </CardTitle>
-                <CardDescription>Your latest actions and updates</CardDescription>
+                <CardDescription>Your latest notifications</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {[
-                  { title: "Math Assignment Submitted", time: "2 hours ago", type: "success" },
-                  { title: "New announcement posted", time: "5 hours ago", type: "info" },
-                  { title: "Physics test scheduled", time: "1 day ago", type: "warning" },
-                  { title: "Attendance marked", time: "2 days ago", type: "success" },
-                ].map((activity, i) => (
-                  <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors">
-                    <div className={`w-2 h-2 rounded-full ${
-                      activity.type === "success" ? "bg-success" : 
-                      activity.type === "warning" ? "bg-warning" : "bg-info"
-                    }`} />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{activity.title}</p>
-                      <p className="text-xs text-muted-foreground">{activity.time}</p>
+                {activities.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground">No recent activity</div>
+                ) : (
+                  activities.map((activity, i) => (
+                    <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors">
+                      <div className={`w-2 h-2 rounded-full ${
+                        activity.type === "success" ? "bg-success" : 
+                        activity.type === "warning" ? "bg-warning" : "bg-info"
+                      }`} />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{activity.title}</p>
+                        <p className="text-xs text-muted-foreground">{activity.time}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
 
@@ -365,25 +496,24 @@ const Dashboard = () => {
                 <CardDescription>Latest news and updates</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {[
-                  { title: "Winter Break Schedule", priority: "high", date: "Dec 20" },
-                  { title: "Sports Day Registration Open", priority: "normal", date: "Dec 18" },
-                  { title: "Parent-Teacher Meeting", priority: "high", date: "Dec 15" },
-                  { title: "Library Hours Extended", priority: "low", date: "Dec 12" },
-                ].map((announcement, i) => (
-                  <div key={i} className="flex items-start gap-4 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors cursor-pointer">
-                    <div className={`px-2 py-1 rounded text-xs font-medium shrink-0 ${
-                      announcement.priority === "high" ? "bg-destructive/10 text-destructive" : 
-                      announcement.priority === "low" ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
-                    }`}>
-                      {announcement.priority.toUpperCase()}
+                {announcements.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground">No announcements</div>
+                ) : (
+                  announcements.map((announcement, i) => (
+                    <div key={i} className="flex items-start gap-4 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors cursor-pointer">
+                      <div className={`px-2 py-1 rounded text-xs font-medium shrink-0 ${
+                        announcement.priority === "high" ? "bg-destructive/10 text-destructive" : 
+                        announcement.priority === "low" ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+                      }`}>
+                        {(announcement.priority || "normal").toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{announcement.title}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(announcement.created_at).toLocaleDateString()}</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{announcement.title}</p>
-                      <p className="text-xs text-muted-foreground">{announcement.date}</p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>
