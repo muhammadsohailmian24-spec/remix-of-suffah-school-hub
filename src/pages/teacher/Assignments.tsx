@@ -230,7 +230,11 @@ const TeacherAssignments = () => {
   };
 
   const handleGradeSubmit = async () => {
-    if (!gradingSubmission || !teacherId) return;
+    if (!gradingSubmission || !teacherId) {
+      console.error("Missing gradingSubmission or teacherId", { gradingSubmission, teacherId });
+      toast({ title: "Error", description: "Unable to save grade - missing data", variant: "destructive" });
+      return;
+    }
     
     const marks = parseInt(gradeData.marks);
     if (isNaN(marks) || marks < 0) {
@@ -238,18 +242,24 @@ const TeacherAssignments = () => {
       return;
     }
 
-    const { error } = await supabase
-      .from("submissions" as any)
+    console.log("Saving grade:", { submissionId: gradingSubmission.id, marks, feedback: gradeData.feedback, teacherId });
+
+    const { data, error } = await supabase
+      .from("submissions")
       .update({
         marks_obtained: marks,
         feedback: gradeData.feedback || null,
         graded_by: teacherId,
         graded_at: new Date().toISOString(),
-      } as any)
-      .eq("id", gradingSubmission.id);
+      })
+      .eq("id", gradingSubmission.id)
+      .select();
+
+    console.log("Grade save result:", { data, error });
 
     if (error) {
-      toast({ title: "Error", description: "Failed to save grade", variant: "destructive" });
+      console.error("Grade save error:", error);
+      toast({ title: "Error", description: `Failed to save grade: ${error.message}`, variant: "destructive" });
       return;
     }
 

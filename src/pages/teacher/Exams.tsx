@@ -125,6 +125,11 @@ const TeacherExams = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!formData.class_id || !formData.subject_id) {
+      toast({ title: "Error", description: "Please select a class and subject", variant: "destructive" });
+      return;
+    }
+
     const examData = {
       name: formData.name,
       exam_type: formData.exam_type,
@@ -137,17 +142,23 @@ const TeacherExams = () => {
       subject_id: formData.subject_id,
     };
 
+    console.log("Exam data to save:", examData);
+
     if (editingExam) {
-      const { error } = await supabase.from("exams").update(examData).eq("id", editingExam.id);
+      const { data, error } = await supabase.from("exams").update(examData).eq("id", editingExam.id).select();
+      console.log("Update result:", { data, error });
       if (error) {
-        toast({ title: "Error", description: "Failed to update exam", variant: "destructive" });
+        console.error("Exam update error:", error);
+        toast({ title: "Error", description: `Failed to update exam: ${error.message}`, variant: "destructive" });
         return;
       }
       toast({ title: "Success", description: "Exam updated" });
     } else {
-      const { error } = await supabase.from("exams").insert(examData);
+      const { data, error } = await supabase.from("exams").insert(examData).select();
+      console.log("Insert result:", { data, error });
       if (error) {
-        toast({ title: "Error", description: "Failed to create exam", variant: "destructive" });
+        console.error("Exam insert error:", error);
+        toast({ title: "Error", description: `Failed to create exam: ${error.message}`, variant: "destructive" });
         return;
       }
       toast({ title: "Success", description: "Exam scheduled" });
