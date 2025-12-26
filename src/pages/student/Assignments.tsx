@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { 
   GraduationCap, Bell, LogOut, BookOpen, FileText, Award, Calendar, 
-  Upload, CheckCircle, File
+  Upload, CheckCircle, File, MessageSquare
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,6 +31,8 @@ interface Submission {
   marks_obtained: number | null;
   is_late: boolean | null;
   submitted_at: string;
+  feedback: string | null;
+  graded_at: string | null;
 }
 
 const StudentAssignments = () => {
@@ -48,6 +50,11 @@ const StudentAssignments = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [studentId, setStudentId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  
+  // Feedback dialog
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [viewingSubmission, setViewingSubmission] = useState<Submission | null>(null);
+  const [viewingAssignment, setViewingAssignment] = useState<Assignment | null>(null);
 
   useEffect(() => {
     checkAuthAndFetch();
@@ -179,6 +186,12 @@ const StudentAssignments = () => {
     }
   };
 
+  const openFeedbackDialog = (assignment: Assignment, submission: Submission) => {
+    setViewingAssignment(assignment);
+    setViewingSubmission(submission);
+    setIsFeedbackOpen(true);
+  };
+
   const handleSignOut = async () => { await supabase.auth.signOut(); navigate("/"); };
 
   const getDeadlineStatus = (dueDate: string) => {
@@ -250,6 +263,7 @@ const StudentAssignments = () => {
                       const deadline = getDeadlineStatus(assignment.due_date);
                       const submission = submissions[assignment.id];
                       const isSubmitted = !!submission;
+                      const isGraded = submission?.marks_obtained !== null;
                       
                       return (
                         <TableRow key={assignment.id}>
@@ -267,16 +281,32 @@ const StudentAssignments = () => {
                           </TableCell>
                           <TableCell>{assignment.max_marks}</TableCell>
                           <TableCell>
-                            {isSubmitted ? (
-                              <Badge variant="default" className="bg-green-500/10 text-green-600 border-green-200">
+                            {isGraded ? (
+                              <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">
                                 <CheckCircle className="w-3 h-3 mr-1" />
-                                {submission.marks_obtained !== null ? `${submission.marks_obtained}/${assignment.max_marks}` : "Submitted"}
+                                {submission.marks_obtained}/{assignment.max_marks}
+                              </Badge>
+                            ) : isSubmitted ? (
+                              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Submitted
                               </Badge>
                             ) : (
                               <Badge variant="outline" className={deadline.color}>{deadline.label}</Badge>
                             )}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right space-x-2">
+                            {isGraded && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => openFeedbackDialog(assignment, submission)}
+                                className="gap-1"
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                                Feedback
+                              </Button>
+                            )}
                             <Dialog open={isDialogOpen && selectedAssignment?.id === assignment.id} onOpenChange={(open) => {
                               setIsDialogOpen(open);
                               if (open) {
@@ -358,6 +388,45 @@ const StudentAssignments = () => {
           </Card>
         </main>
       </div>
+
+      {/* Feedback Dialog */}
+      <Dialog open={isFeedbackOpen} onOpenChange={setIsFeedbackOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assignment Feedback</DialogTitle>
+            <DialogDescription>{viewingAssignment?.title}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-accent/50">
+              <div>
+                <p className="text-sm text-muted-foreground">Your Score</p>
+                <p className="text-2xl font-bold text-primary">
+                  {viewingSubmission?.marks_obtained}/{viewingAssignment?.max_marks}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground">Graded on</p>
+                <p className="text-sm">{viewingSubmission?.graded_at ? new Date(viewingSubmission.graded_at).toLocaleDateString() : "-"}</p>
+              </div>
+            </div>
+            {viewingSubmission?.feedback ? (
+              <div className="space-y-2">
+                <Label>Teacher's Feedback</Label>
+                <div className="p-4 rounded-lg bg-muted/50 text-sm whitespace-pre-wrap">
+                  {viewingSubmission.feedback}
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-lg bg-muted/50 text-center text-muted-foreground">
+                No feedback provided
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsFeedbackOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
