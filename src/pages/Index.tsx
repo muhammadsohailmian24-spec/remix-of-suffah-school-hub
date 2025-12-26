@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, Users, BookOpen, Award, ArrowRight, CheckCircle } from "lucide-react";
+import Gallery from "@/components/Gallery";
 
 const Index = () => {
   const features = [
@@ -34,6 +35,9 @@ const Index = () => {
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="nav-link">
               Features
+            </a>
+            <a href="#gallery" className="nav-link">
+              Gallery
             </a>
             <a href="#about" className="nav-link">
               About
@@ -136,6 +140,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Gallery Section */}
+      <Gallery />
 
       {/* About Section */}
       <section id="about" className="py-20 hero-gradient text-primary-foreground">

@@ -25,6 +25,7 @@ import RolesManagement from "./pages/admin/RolesManagement";
 import FeeManagement from "./pages/admin/FeeManagement";
 import FeeAnalytics from "./pages/admin/FeeAnalytics";
 import AttendanceOverview from "./pages/admin/AttendanceOverview";
+import GalleryManagement from "./pages/admin/GalleryManagement";
 import TeacherAttendance from "./pages/teacher/Attendance";
 import TeacherAssignments from "./pages/teacher/Assignments";
 import TeacherMaterials from "./pages/teacher/Materials";
@@ -78,6 +79,7 @@ const App = () => (
           <Route path="/admin/fees" element={<FeeManagement />} />
           <Route path="/admin/fee-analytics" element={<FeeAnalytics />} />
           <Route path="/admin/attendance" element={<AttendanceOverview />} />
+          <Route path="/admin/gallery" element={<GalleryManagement />} />
           {/* Teacher Routes */}
           <Route path="/teacher/attendance" element={<TeacherAttendance />} />
           <Route path="/teacher/assignments" element={<TeacherAssignments />} />
