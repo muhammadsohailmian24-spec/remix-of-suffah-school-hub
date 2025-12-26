@@ -93,32 +93,59 @@ const TeacherAssignments = () => {
     if (!session) { navigate("/auth"); return; }
 
     const { data: roleData } = await supabase
-      .from("user_roles" as any)
+      .from("user_roles")
       .select("role")
       .eq("user_id", session.user.id)
       .maybeSingle();
 
-    if (!roleData || (roleData as any).role !== "teacher") {
+    if (!roleData || roleData.role !== "teacher") {
       navigate("/dashboard");
       return;
     }
 
-    const { data: teacherData } = await supabase
-      .from("teachers" as any)
+    // Fetch teacher record
+    let { data: teacherData } = await supabase
+      .from("teachers")
       .select("id")
       .eq("user_id", session.user.id)
       .maybeSingle();
     
-    if (teacherData) setTeacherId((teacherData as any).id);
+    // If no teacher record exists, create one
+    if (!teacherData) {
+      console.log("No teacher record found, creating one...");
+      const employeeId = `EMP${new Date().getFullYear()}${Math.floor(1000 + Math.random() * 9000)}`;
+      const { data: newTeacher, error: createError } = await supabase
+        .from("teachers")
+        .insert({
+          user_id: session.user.id,
+          employee_id: employeeId,
+          joining_date: new Date().toISOString().split('T')[0],
+        })
+        .select("id")
+        .single();
+      
+      if (createError) {
+        console.error("Failed to create teacher record:", createError);
+        toast({ title: "Error", description: "Failed to initialize teacher profile", variant: "destructive" });
+      } else {
+        teacherData = newTeacher;
+        console.log("Created teacher record:", newTeacher);
+      }
+    }
+    
+    if (teacherData) {
+      setTeacherId(teacherData.id);
+      console.log("Teacher ID set:", teacherData.id);
+    }
 
     // Fetch classes and subjects
     const [classesRes, subjectsRes] = await Promise.all([
-      supabase.from("classes" as any).select("id, name").order("name"),
-      supabase.from("subjects" as any).select("id, name").order("name"),
+      supabase.from("classes").select("id, name").order("name"),
+      supabase.from("subjects").select("id, name").order("name"),
     ]);
 
-    setClasses((classesRes.data || []) as unknown as ClassData[]);
-    setSubjects((subjectsRes.data || []) as unknown as SubjectData[]);
+    setClasses((classesRes.data || []) as ClassData[]);
+    setSubjects((subjectsRes.data || []) as SubjectData[]);
 
     fetchAssignments();
   };
