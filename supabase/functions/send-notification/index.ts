@@ -15,8 +15,9 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: "new_assignment" | "results_published";
-  classId: string;
+  type: "new_assignment" | "results_published" | "assignment_graded";
+  classId?: string;
+  studentId?: string; // For individual student notifications
   title: string;
   details: string;
   examName?: string;
@@ -78,7 +79,154 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { type, classId, title, details, examName, subjectName }: NotificationRequest = await req.json();
+    const { type, classId, studentId, title, details, examName, subjectName }: NotificationRequest = await req.json();
+
+    console.log(`Processing ${type} notification`, { classId, studentId });
+
+    // Handle individual student notification (assignment_graded)
+    if (type === "assignment_graded" && studentId) {
+      console.log(`Processing assignment_graded for student ${studentId}`);
+      
+      // Get the student info
+      const { data: student, error: studentError } = await supabase
+        .from("students")
+        .select("id, user_id")
+        .eq("id", studentId)
+        .maybeSingle();
+      
+      if (studentError || !student) {
+        console.error("Error fetching student:", studentError);
+        return new Response(
+          JSON.stringify({ message: "Student not found", error: studentError?.message }),
+          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      // Get student profile
+      const { data: studentProfile } = await supabase
+        .from("profiles")
+        .select("email, full_name")
+        .eq("user_id", student.user_id)
+        .maybeSingle();
+
+      // Get parent info for this student
+      const { data: studentParents } = await supabase
+        .from("student_parents")
+        .select("parent_id")
+        .eq("student_id", studentId);
+
+      let parentEmails: string[] = [];
+      let parentPhones: { phone: string; name: string }[] = [];
+
+      if (studentParents && studentParents.length > 0) {
+        const parentIds = studentParents.map((sp: any) => sp.parent_id);
+        
+        const { data: parents } = await supabase
+          .from("parents")
+          .select("id, user_id")
+          .in("id", parentIds);
+        
+        if (parents && parents.length > 0) {
+          const parentUserIds = parents.map((p: any) => p.user_id);
+          
+          const { data: parentProfiles } = await supabase
+            .from("profiles")
+            .select("email, phone, full_name, sms_notifications_enabled")
+            .in("user_id", parentUserIds);
+          
+          if (parentProfiles) {
+            parentEmails = parentProfiles.map((p: any) => p.email).filter(Boolean);
+            parentPhones = parentProfiles
+              .filter((p: any) => p.sms_notifications_enabled && p.phone)
+              .map((p: any) => ({ phone: p.phone, name: p.full_name }));
+          }
+        }
+      }
+
+      const studentEmail = studentProfile?.email;
+      const studentName = studentProfile?.full_name || "Student";
+      const allEmails = [...new Set([studentEmail, ...parentEmails].filter(Boolean))];
+
+      const subject = `📝 Assignment Graded: ${title}`;
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 30px; border-radius: 12px; color: white; text-align: center;">
+            <h1 style="margin: 0;">📝 Assignment Graded</h1>
+          </div>
+          <div style="padding: 30px; background: #f8fafc; border-radius: 0 0 12px 12px;">
+            <h2 style="color: #1e293b; margin-bottom: 10px;">${title}</h2>
+            <p style="color: #64748b; line-height: 1.6;">${details}</p>
+            <div style="margin-top: 30px; padding: 20px; background: #fff; border-radius: 8px; border-left: 4px solid #f59e0b;">
+              <p style="margin: 0; color: #64748b;">Log in to the school portal to view detailed feedback and marks.</p>
+            </div>
+            <p style="margin-top: 30px; color: #94a3b8; font-size: 14px;">Best regards,<br><strong>The Suffah Public School & College</strong></p>
+          </div>
+        </div>
+      `;
+
+      let emailsSent = 0;
+      let smsSent = 0;
+
+      // Send emails
+      if (allEmails.length > 0) {
+        try {
+          await resend.emails.send({
+            from: "The Suffah School <onboarding@resend.dev>",
+            to: allEmails as string[],
+            subject: subject,
+            html: htmlContent,
+          });
+          emailsSent = allEmails.length;
+          console.log(`Emails sent to ${emailsSent} recipients`);
+        } catch (emailError) {
+          console.error("Email error:", emailError);
+        }
+      }
+
+      // Send SMS to parents who opted in
+      for (const parent of parentPhones) {
+        const smsMessage = `📝 Assignment "${title}" for ${studentName} has been graded. ${details} Log in to view feedback. - The Suffah School`;
+        const sent = await sendSMS(parent.phone, smsMessage);
+        if (sent) smsSent++;
+      }
+
+      // Create in-app notification for student
+      const { error: notifError } = await supabase
+        .from("notifications")
+        .insert({
+          user_id: student.user_id,
+          title: subject,
+          message: details,
+          type: "assignment",
+          link: "/student/assignments",
+        });
+
+      if (notifError) {
+        console.error("Error creating notification:", notifError);
+      } else {
+        console.log("Created in-app notification for student");
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          emailsSent,
+          smsSent,
+          inAppNotifications: 1,
+          message: `Sent ${emailsSent} emails, ${smsSent} SMS, and 1 in-app notification`
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Handle class-wide notifications (new_assignment, results_published)
+    if (!classId) {
+      console.log("No classId provided for class-wide notification");
+      return new Response(
+        JSON.stringify({ message: "classId is required for this notification type" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     console.log(`Processing ${type} notification for class ${classId}`);
 
