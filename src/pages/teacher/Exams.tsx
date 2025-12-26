@@ -67,16 +67,44 @@ const TeacherExams = () => {
 
   const fetchTeacherAndData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
 
-    const { data: teacher } = await supabase
+    // Fetch teacher record
+    let { data: teacher } = await supabase
       .from("teachers")
       .select("id")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
+
+    // If no teacher record exists, create one
+    if (!teacher) {
+      console.log("No teacher record found, creating one...");
+      const employeeId = `EMP${new Date().getFullYear()}${Math.floor(1000 + Math.random() * 9000)}`;
+      const { data: newTeacher, error: createError } = await supabase
+        .from("teachers")
+        .insert({
+          user_id: user.id,
+          employee_id: employeeId,
+          joining_date: new Date().toISOString().split('T')[0],
+        })
+        .select("id")
+        .single();
+      
+      if (createError) {
+        console.error("Failed to create teacher record:", createError);
+        toast({ title: "Error", description: "Failed to initialize teacher profile", variant: "destructive" });
+      } else {
+        teacher = newTeacher;
+        console.log("Created teacher record:", newTeacher);
+      }
+    }
 
     if (teacher) {
       setTeacherId(teacher.id);
+      console.log("Teacher ID set:", teacher.id);
     }
 
     const [classesRes, subjectsRes, examsRes] = await Promise.all([
