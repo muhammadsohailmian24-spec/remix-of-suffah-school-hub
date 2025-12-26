@@ -265,6 +265,7 @@ const Dashboard = () => {
         return [
           { icon: LayoutDashboard, label: "Admin Dashboard", desc: "Full admin panel", color: "bg-primary/10 text-primary", link: "/admin/dashboard" },
           { icon: Users, label: "Students", desc: "Manage students", color: "bg-info/10 text-info", link: "/admin/students" },
+          { icon: Calendar, label: "Exams", desc: "Schedule exams", color: "bg-destructive/10 text-destructive", link: "/admin/exams" },
           { icon: ClipboardList, label: "Admissions", desc: "Review applications", color: "bg-warning/10 text-warning", link: "/admin/admissions" },
           { icon: FileText, label: "Reports", desc: "View reports", color: "bg-success/10 text-success", link: "/admin/reports" },
         ];
@@ -272,6 +273,7 @@ const Dashboard = () => {
         return [
           { icon: ClipboardList, label: "Attendance", desc: "Mark attendance", color: "bg-primary/10 text-primary", link: "/teacher/attendance" },
           { icon: FileText, label: "Assignments", desc: "Create & grade", color: "bg-info/10 text-info", link: "/teacher/assignments" },
+          { icon: Calendar, label: "Exams", desc: "Schedule exams", color: "bg-destructive/10 text-destructive", link: "/teacher/exams" },
           { icon: Award, label: "Results", desc: "Enter marks", color: "bg-warning/10 text-warning", link: "/teacher/results" },
           { icon: BookMarked, label: "Materials", desc: "Upload resources", color: "bg-success/10 text-success", link: "/teacher/materials" },
         ];
