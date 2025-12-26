@@ -18,19 +18,23 @@ const Auth = () => {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Only redirect on SIGNED_IN event, not on initial load
+      if (event === 'SIGNED_IN' && session) {
+        navigate("/dashboard");
+      }
+    });
+
+    // Then check for existing session - but only if not coming from logout
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      // Only redirect if there's an active session
       if (session) {
         navigate("/dashboard");
       }
     };
     checkUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        navigate("/dashboard");
-      }
-    });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
