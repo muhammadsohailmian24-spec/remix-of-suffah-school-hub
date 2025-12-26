@@ -241,12 +241,26 @@ const Dashboard = () => {
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    toast({
-      title: "Signed out",
-      description: "You have been signed out successfully.",
-    });
-    navigate("/");
+    try {
+      // Clear local state first
+      setUser(null);
+      setProfile(null);
+      
+      // Sign out from Supabase
+      await supabase.auth.signOut({ scope: 'local' });
+      
+      toast({
+        title: "Signed out",
+        description: "You have been signed out successfully.",
+      });
+      
+      // Navigate to auth page
+      navigate("/auth", { replace: true });
+    } catch (error) {
+      console.error("Sign out error:", error);
+      // Force navigate even on error
+      navigate("/auth", { replace: true });
+    }
   };
 
   const getRoleBadgeClass = () => {
