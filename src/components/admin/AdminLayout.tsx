@@ -52,7 +52,7 @@ const AdminLayout = ({ children, title, description }: AdminLayoutProps) => {
             </div>
             <div>
               <h1 className="font-heading text-lg font-bold">The Suffah</h1>
-              <p className="text-xs text-muted-foreground">Super Admin Panel</p>
+              <p className="text-xs text-muted-foreground">Admin Panel</p>
             </div>
           </Link>
           <div className="flex items-center gap-4">
