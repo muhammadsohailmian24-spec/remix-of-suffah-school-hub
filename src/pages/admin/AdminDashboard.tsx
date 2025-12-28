@@ -4,11 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import AdminLayout from "@/components/admin/AdminLayout";
 import AbsentStudentsList from "@/components/AbsentStudentsList";
+import StudentSearchDialog from "@/components/admin/StudentSearchDialog";
 import {
   Users, GraduationCap, UserCheck, School, Clock, CheckCircle, 
-  XCircle, TrendingUp, Bell, Calendar, FileText, AlertTriangle, UserX
+  XCircle, TrendingUp, Bell, Calendar, FileText, AlertTriangle, UserX, Search
 } from "lucide-react";
 
 interface Stats {
@@ -32,6 +34,7 @@ interface Activity {
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   const [stats, setStats] = useState<Stats>({
     totalStudents: 0,
     totalTeachers: 0,
@@ -140,6 +143,24 @@ const AdminDashboard = () => {
 
   return (
     <AdminLayout title="Admin Dashboard" description="Manage your school from here">
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div 
+          className="relative cursor-pointer"
+          onClick={() => setSearchDialogOpen(true)}
+        >
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search student by name or ID..."
+            className="pl-10 cursor-pointer"
+            readOnly
+          />
+        </div>
+      </div>
+
+      {/* Student Search Dialog */}
+      <StudentSearchDialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
         {statCards.map((stat, i) => (

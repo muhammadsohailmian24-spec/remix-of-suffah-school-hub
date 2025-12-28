@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface CreateUserRequest {
-  email: string;
+  email?: string; // Optional for students who use ID-based login
   password: string;
   fullName: string;
   phone?: string;
@@ -64,8 +64,26 @@ serve(async (req) => {
     const body: CreateUserRequest = await req.json();
     const { email, password, fullName, phone, role, roleSpecificData } = body;
 
-    if (!email || !password || !fullName || !role) {
+    if (!password || !fullName || !role) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // For students, use student ID-based email format
+    let userEmail = email;
+    let studentId = roleSpecificData?.student_id;
+    
+    if (role === "student") {
+      // Generate student ID if not provided
+      if (!studentId) {
+        studentId = `STU${new Date().getFullYear()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      }
+      // Create email from student ID (studentid@suffah.local)
+      userEmail = `${studentId.toLowerCase()}@suffah.local`;
+    } else if (!email) {
+      return new Response(JSON.stringify({ error: "Email is required for non-student users" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -73,7 +91,7 @@ serve(async (req) => {
 
     // Create the user using admin API
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: userEmail,
       password,
       email_confirm: true,
       user_metadata: { full_name: fullName },
@@ -108,12 +126,11 @@ serve(async (req) => {
 
     // Create role-specific record
     if (role === "student") {
-      const studentId = roleSpecificData?.student_id || `STU${new Date().getFullYear()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
       const { error: studentError } = await supabaseAdmin
         .from("students")
         .insert({
           user_id: userId,
-          student_id: studentId,
+          student_id: studentId, // Use the studentId we generated/received earlier
           class_id: roleSpecificData?.class_id || null,
           status: "active",
         });
@@ -165,7 +182,8 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ 
       success: true, 
-      user: { id: userId, email: newUser.user.email } 
+      user: { id: userId, email: newUser.user.email },
+      student_id: role === "student" ? studentId : undefined
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

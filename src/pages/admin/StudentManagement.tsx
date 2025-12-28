@@ -66,7 +66,6 @@ const StudentManagement = () => {
 
   const [addFormData, setAddFormData] = useState({
     full_name: "",
-    email: "",
     password: "",
     phone: "",
     student_id: "",
@@ -149,7 +148,7 @@ const StudentManagement = () => {
 
       const response = await supabase.functions.invoke("create-user", {
         body: {
-          email: addFormData.email,
+          // No email needed for students - will be generated from student_id
           password: addFormData.password,
           fullName: addFormData.full_name,
           phone: addFormData.phone || undefined,
@@ -269,7 +268,6 @@ const StudentManagement = () => {
   const resetAddForm = () => {
     setAddFormData({
       full_name: "",
-      email: "",
       password: "",
       phone: "",
       student_id: "",
@@ -454,7 +452,9 @@ const StudentManagement = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Student</DialogTitle>
-            <DialogDescription>Create a new student account. They will be able to sign in with these credentials.</DialogDescription>
+            <DialogDescription>
+              Create a new student account. Students will login using their Student ID and password.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddStudent} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -468,16 +468,16 @@ const StudentManagement = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Email *</Label>
+                <Label>Student ID *</Label>
                 <Input
-                  type="email"
-                  value={addFormData.email}
-                  onChange={(e) => setAddFormData(p => ({ ...p, email: e.target.value }))}
-                  placeholder="student@example.com"
+                  value={addFormData.student_id}
+                  onChange={(e) => setAddFormData(p => ({ ...p, student_id: e.target.value.toUpperCase() }))}
+                  placeholder="e.g., STU2025001"
                   required
                 />
+                <p className="text-xs text-muted-foreground">This will be used for login</p>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 col-span-2">
                 <Label>Password *</Label>
                 <Input
                   type="password"
@@ -487,15 +487,7 @@ const StudentManagement = () => {
                   minLength={6}
                   required
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Student ID *</Label>
-                <Input
-                  value={addFormData.student_id}
-                  onChange={(e) => setAddFormData(p => ({ ...p, student_id: e.target.value }))}
-                  placeholder="e.g., STU2025001"
-                  required
-                />
+                <p className="text-xs text-muted-foreground">Student will use this password to login with their Student ID</p>
               </div>
               <div className="space-y-2">
                 <Label>Phone</Label>
@@ -505,7 +497,7 @@ const StudentManagement = () => {
                   placeholder="Phone number"
                 />
               </div>
-              <div className="space-y-2 col-span-2">
+              <div className="space-y-2">
                 <Label>Assign Class</Label>
                 <Select value={addFormData.class_id} onValueChange={(v) => setAddFormData(p => ({ ...p, class_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select class (optional)" /></SelectTrigger>
@@ -519,6 +511,11 @@ const StudentManagement = () => {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="bg-accent/50 p-3 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                <strong>Login credentials:</strong> Student ID: <code className="bg-background px-1 rounded">{addFormData.student_id || "..."}</code> + Password
+              </p>
             </div>
             <DialogFooter>
               <Button type="submit" className="hero-gradient text-primary-foreground" disabled={isSubmitting}>

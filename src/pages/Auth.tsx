@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { GraduationCap, Mail, Lock, ArrowLeft } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GraduationCap, Mail, Lock, ArrowLeft, User, IdCard } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,8 +15,12 @@ const Auth = () => {
   const { toast } = useToast();
   
   const [isLoading, setIsLoading] = useState(false);
+  // Staff/Admin login
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Student login
+  const [studentId, setStudentId] = useState("");
+  const [studentPassword, setStudentPassword] = useState("");
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -39,7 +44,7 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleStaffSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
@@ -59,6 +64,36 @@ const Auth = () => {
       toast({
         title: "Sign in failed",
         description: error.message || "Please check your credentials and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStudentSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      // Convert student ID to email format (studentid@suffah.local)
+      const studentEmail = `${studentId.toLowerCase().trim()}@suffah.local`;
+      
+      const { error } = await supabase.auth.signInWithPassword({
+        email: studentEmail,
+        password: studentPassword,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully signed in.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Sign in failed",
+        description: "Invalid Student ID or password. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -114,41 +149,97 @@ const Auth = () => {
               <CardDescription>Sign in to access your portal</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="signin-email"
-                      type="email"
-                      placeholder="you@example.com"
-                      className="pl-10"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="signin-password"
-                      type="password"
-                      placeholder="••••••••"
-                      className="pl-10"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <Button type="submit" className="w-full hero-gradient text-primary-foreground" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Sign In"}
-                </Button>
-              </form>
+              <Tabs defaultValue="student" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsTrigger value="student" className="gap-2">
+                    <GraduationCap className="w-4 h-4" />
+                    Student
+                  </TabsTrigger>
+                  <TabsTrigger value="staff" className="gap-2">
+                    <User className="w-4 h-4" />
+                    Staff
+                  </TabsTrigger>
+                </TabsList>
+                
+                {/* Student Login Tab */}
+                <TabsContent value="student">
+                  <form onSubmit={handleStudentSignIn} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="student-id">Student ID</Label>
+                      <div className="relative">
+                        <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="student-id"
+                          type="text"
+                          placeholder="e.g., STU001"
+                          className="pl-10"
+                          value={studentId}
+                          onChange={(e) => setStudentId(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Enter the ID provided by your school</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="student-password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="student-password"
+                          type="password"
+                          placeholder="••••••••"
+                          className="pl-10"
+                          value={studentPassword}
+                          onChange={(e) => setStudentPassword(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <Button type="submit" className="w-full hero-gradient text-primary-foreground" disabled={isLoading}>
+                      {isLoading ? "Signing in..." : "Sign In as Student"}
+                    </Button>
+                  </form>
+                </TabsContent>
+                
+                {/* Staff Login Tab */}
+                <TabsContent value="staff">
+                  <form onSubmit={handleStaffSignIn} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="signin-email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="signin-email"
+                          type="email"
+                          placeholder="you@example.com"
+                          className="pl-10"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signin-password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="signin-password"
+                          type="password"
+                          placeholder="••••••••"
+                          className="pl-10"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <Button type="submit" className="w-full hero-gradient text-primary-foreground" disabled={isLoading}>
+                      {isLoading ? "Signing in..." : "Sign In as Staff"}
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
               
               <div className="mt-6 pt-6 border-t text-center">
                 <p className="text-sm text-muted-foreground">
