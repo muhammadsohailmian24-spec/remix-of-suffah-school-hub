@@ -6,9 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-  GraduationCap, Bell, LogOut, BookOpen, FileText, Award, Calendar, TrendingUp
+  GraduationCap, Bell, LogOut, BookOpen, FileText, Award, Calendar, TrendingUp, Download, ClipboardList
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { downloadMarksCertificate } from "@/utils/generateMarksCertificatePdf";
+import { useToast } from "@/hooks/use-toast";
 
 interface Result {
   id: string;
@@ -28,9 +30,17 @@ interface Result {
 
 const StudentResults = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(true);
-  const [studentInfo, setStudentInfo] = useState<{ name: string; class: string } | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [studentInfo, setStudentInfo] = useState<{ 
+    name: string; 
+    class: string; 
+    studentId: string;
+    photoUrl?: string;
+    dateOfBirth?: string;
+  } | null>(null);
 
   useEffect(() => {
     checkAuthAndFetch();
@@ -51,7 +61,7 @@ const StudentResults = () => {
       // Get student record
       const { data: student } = await supabase
         .from("students")
-        .select("id, class_id")
+        .select("id, class_id, student_id")
         .eq("user_id", userId)
         .single();
 
@@ -63,7 +73,7 @@ const StudentResults = () => {
       // Get profile and class info
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, date_of_birth, photo_url")
         .eq("user_id", userId)
         .single();
 
@@ -80,6 +90,9 @@ const StudentResults = () => {
       setStudentInfo({
         name: profile?.full_name || "Student",
         class: className,
+        studentId: student.student_id,
+        photoUrl: (profile as any)?.photo_url || undefined,
+        dateOfBirth: profile?.date_of_birth || undefined,
       });
 
       // Fetch published results
@@ -113,6 +126,38 @@ const StudentResults = () => {
   const handleSignOut = async () => { 
     await supabase.auth.signOut(); 
     navigate("/"); 
+  };
+
+  const handleDownloadCertificate = async () => {
+    if (!studentInfo || results.length === 0) return;
+    setDownloading(true);
+    try {
+      const subjects = results.map(r => ({
+        name: r.exams?.subjects?.name || "Unknown",
+        maxMarks: r.exams?.max_marks || 100,
+        marksObtained: r.marks_obtained,
+        grade: r.grade || undefined,
+      }));
+
+      await downloadMarksCertificate({
+        studentName: studentInfo.name,
+        studentId: studentInfo.studentId,
+        rollNumber: studentInfo.studentId,
+        className: studentInfo.class,
+        session: new Date().getFullYear().toString(),
+        dateOfBirth: studentInfo.dateOfBirth,
+        examName: results[0]?.exams?.name || "Annual Examination",
+        subjects,
+        photoUrl: studentInfo.photoUrl,
+        schoolName: "THE SUFFAH PUBLIC SCHOOL & COLLEGE",
+        schoolAddress: "SAIDU SHARIF SWAT",
+      });
+      toast({ title: "Success", description: "Marks certificate downloaded" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to download certificate", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const getGradeBadge = (grade: string | null) => {
@@ -189,17 +234,26 @@ const StudentResults = () => {
             <Link to="/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent text-muted-foreground"><GraduationCap className="w-5 h-5" />Dashboard</Link>
             <Link to="/student/courses" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent text-muted-foreground"><BookOpen className="w-5 h-5" />My Courses</Link>
             <Link to="/student/assignments" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent text-muted-foreground"><FileText className="w-5 h-5" />Assignments</Link>
+            <Link to="/student/exams" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent text-muted-foreground"><ClipboardList className="w-5 h-5" />Exams</Link>
             <Link to="/student/results" className="flex items-center gap-3 px-4 py-3 rounded-lg bg-primary text-primary-foreground"><Award className="w-5 h-5" />Results</Link>
             <Link to="/student/timetable" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent text-muted-foreground"><Calendar className="w-5 h-5" />Timetable</Link>
           </nav>
         </aside>
 
         <main className="flex-1 p-6 lg:p-8">
-          <div className="mb-8">
-            <h1 className="font-heading text-3xl font-bold mb-2">My Results</h1>
-            <p className="text-muted-foreground">
-              {studentInfo?.name} {studentInfo?.class && `• ${studentInfo.class}`}
-            </p>
+          <div className="mb-8 flex items-center justify-between">
+            <div>
+              <h1 className="font-heading text-3xl font-bold mb-2">My Results</h1>
+              <p className="text-muted-foreground">
+                {studentInfo?.name} {studentInfo?.class && `• ${studentInfo.class}`}
+              </p>
+            </div>
+            {results.length > 0 && (
+              <Button onClick={handleDownloadCertificate} disabled={downloading}>
+                <Download className="w-4 h-4 mr-2" />
+                {downloading ? "Downloading..." : "Download Marks Certificate"}
+              </Button>
+            )}
           </div>
 
           {/* Summary Cards */}

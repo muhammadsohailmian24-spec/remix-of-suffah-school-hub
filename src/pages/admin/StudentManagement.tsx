@@ -386,7 +386,7 @@ const StudentManagement = () => {
                 <TableRow>
                   <TableHead>Student ID</TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
                   <TableHead>Class</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -395,9 +395,9 @@ const StudentManagement = () => {
               <TableBody>
                 {filteredStudents.map((student) => (
                   <TableRow key={student.id}>
-                    <TableCell className="font-mono">{student.student_id}</TableCell>
+                    <TableCell className="font-mono font-bold">{student.student_id}</TableCell>
                     <TableCell className="font-medium">{student.profile?.full_name || "-"}</TableCell>
-                    <TableCell>{student.profile?.email || "-"}</TableCell>
+                    <TableCell>{student.profile?.phone || "-"}</TableCell>
                     <TableCell>
                       {student.class ? `${student.class.name}${student.class.section ? ` - ${student.class.section}` : ""}` : "-"}
                     </TableCell>
@@ -555,8 +555,11 @@ const StudentManagement = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Email</Label>
-                <Input value={formData.email} disabled className="bg-muted" />
+                <Label>Phone</Label>
+                <Input
+                  value={formData.phone}
+                  onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Phone</Label>
