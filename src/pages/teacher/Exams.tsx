@@ -2,17 +2,18 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Edit, Trash2, Award, ClipboardList } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, ClipboardList, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 import { Link } from "react-router-dom";
+import { downloadAwardList } from "@/utils/generateAwardListPdf";
 
 interface Class {
   id: string;
@@ -233,6 +234,67 @@ const TeacherExams = () => {
     fetchTeacherAndData();
   };
 
+  const handleDownloadAwardList = async (exam: Exam) => {
+    // Fetch students for this class
+    const { data: studentsData } = await supabase
+      .from("students")
+      .select(`
+        id,
+        student_id,
+        profiles!students_user_id_fkey(full_name),
+        classes(name, section)
+      `)
+      .eq("class_id", exam.class_id)
+      .eq("status", "active")
+      .order("student_id");
+
+    if (!studentsData || studentsData.length === 0) {
+      toast({ title: "No students", description: "No students found in this class", variant: "destructive" });
+      return;
+    }
+
+    // Fetch father's name from parent records
+    const studentIds = studentsData.map(s => s.id);
+    const { data: parentLinks } = await supabase
+      .from("student_parents")
+      .select(`
+        student_id,
+        parents!inner(
+          profiles!parents_user_id_fkey(full_name)
+        )
+      `)
+      .in("student_id", studentIds)
+      .eq("is_primary", true);
+
+    const fatherNameMap = new Map<string, string>();
+    parentLinks?.forEach((link: any) => {
+      fatherNameMap.set(link.student_id, link.parents?.profiles?.full_name || "");
+    });
+
+    const students = studentsData.map((student: any, index) => ({
+      sr_no: index + 1,
+      student_id: student.student_id,
+      name: student.profiles?.full_name || "",
+      father_name: fatherNameMap.get(student.id) || "",
+    }));
+
+    const currentYear = new Date().getFullYear();
+    const classInfo = studentsData[0]?.classes;
+
+    await downloadAwardList({
+      session: `${currentYear}`,
+      date: format(parseISO(exam.exam_date), "dd-MMM-yyyy"),
+      className: classInfo?.name || exam.classes?.name || "",
+      section: classInfo?.section || "",
+      subject: exam.subjects?.name || "",
+      teacherName: "",
+      marks: String(exam.max_marks || ""),
+      students,
+    }, `Award-List-${exam.classes?.name}-${exam.subjects?.name}`);
+
+    toast({ title: "Downloaded", description: "Award list PDF downloaded successfully" });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -356,6 +418,9 @@ const TeacherExams = () => {
                     <TableCell>{exam.max_marks}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleDownloadAwardList(exam)} title="Download Award List">
+                          <Download className="h-4 w-4 text-primary" />
+                        </Button>
                         <Button variant="ghost" size="icon" asChild title="Enter Results">
                           <Link to="/teacher/results">
                             <ClipboardList className="h-4 w-4 text-primary" />
