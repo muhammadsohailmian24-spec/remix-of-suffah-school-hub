@@ -68,28 +68,15 @@ export const generateMarksCertificatePdf = async (data: MarksCertificateData) =>
   // Colors
   const darkColor: [number, number, number] = [0, 0, 0];
   const grayColor: [number, number, number] = [80, 80, 80];
+  const leftMargin = 15;
+  const rightMargin = 15;
+  const contentWidth = pageWidth - leftMargin - rightMargin;
 
-  // Header
-  doc.setFontSize(16);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...darkColor);
-  doc.text(data.schoolName || "THE SUFFAH PUBLIC SCHOOL & COLLEGE", pageWidth / 2, 20, { align: "center" });
-
-  doc.setFontSize(11);
-  doc.text(data.schoolAddress || "SAIDU SHARIF SWAT", pageWidth / 2, 28, { align: "center" });
-
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.text("PROVISIONAL AND DETAILED MARKS CERTIFICATE", pageWidth / 2, 40, { align: "center" });
-
-  doc.setFontSize(11);
-  doc.text(data.examName.toUpperCase(), pageWidth / 2, 48, { align: "center" });
-
-  // Photo box (right side)
-  const photoX = pageWidth - 45;
-  const photoY = 15;
-  const photoWidth = 25;
-  const photoHeight = 32;
+  // Photo box (right side) - draw first
+  const photoX = pageWidth - rightMargin - 30;
+  const photoY = 12;
+  const photoWidth = 28;
+  const photoHeight = 35;
 
   doc.setDrawColor(...grayColor);
   doc.setLineWidth(0.5);
@@ -101,7 +88,7 @@ export const generateMarksCertificatePdf = async (data: MarksCertificateData) =>
       img.crossOrigin = "anonymous";
       await new Promise<void>((resolve, reject) => {
         img.onload = () => {
-          doc.addImage(img, "JPEG", photoX, photoY, photoWidth, photoHeight);
+          doc.addImage(img, "JPEG", photoX + 0.5, photoY + 0.5, photoWidth - 1, photoHeight - 1);
           resolve();
         };
         img.onerror = reject;
@@ -109,60 +96,86 @@ export const generateMarksCertificatePdf = async (data: MarksCertificateData) =>
       });
     } catch (e) {
       // Photo placeholder if failed
+      doc.setFontSize(8);
+      doc.setTextColor(...grayColor);
+      doc.text("Photo", photoX + photoWidth / 2, photoY + photoHeight / 2, { align: "center" });
     }
   }
 
-  // Session and Group
-  let yPos = 60;
-  const leftMargin = 20;
+  // Header - School Name
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...darkColor);
+  doc.text(data.schoolName || "THE SUFFAH PUBLIC SCHOOL & COLLEGE", pageWidth / 2, 18, { align: "center" });
 
+  // School Address
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  doc.text(data.schoolAddress || "SAIDU SHARIF SWAT", pageWidth / 2, 26, { align: "center" });
+
+  // Certificate Title
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("PROVISIONAL AND DETAILED MARKS CERTIFICATE", pageWidth / 2, 38, { align: "center" });
+
+  // Exam Name
+  doc.setFontSize(12);
+  doc.text(data.examName.toUpperCase(), pageWidth / 2, 46, { align: "center" });
+
+  // Horizontal line under header
+  doc.setLineWidth(0.3);
+  doc.line(leftMargin, 50, pageWidth - rightMargin, 50);
+
+  // Session and Group - centered
+  let yPos = 58;
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(`Session`, pageWidth / 2 - 20, yPos);
+  doc.text("Session:", pageWidth / 2 - 25, yPos);
   doc.setFont("helvetica", "bold");
-  doc.text(`${data.session}`, pageWidth / 2 + 5, yPos);
+  doc.text(data.session, pageWidth / 2, yPos);
 
-  yPos += 8;
+  yPos += 7;
   doc.setFont("helvetica", "normal");
-  doc.text(`Group`, pageWidth / 2 - 20, yPos);
+  doc.text("Group:", pageWidth / 2 - 25, yPos);
   doc.setFont("helvetica", "bold");
-  doc.text(`(${data.group || data.className})`, pageWidth / 2 + 5, yPos);
+  doc.text(`(${data.group || data.className})`, pageWidth / 2, yPos);
 
-  // Student details
-  yPos += 15;
+  // Student details section
+  yPos += 12;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
 
-  // This is to certify line
-  doc.text("This is certify that", leftMargin, yPos);
+  // Row 1: Name and Enroll No
+  doc.text("This is to certify that", leftMargin, yPos);
   doc.setFont("helvetica", "bold");
-  doc.text(data.studentName, leftMargin + 40, yPos);
+  doc.text(data.studentName, leftMargin + 42, yPos);
   
   doc.setFont("helvetica", "normal");
-  doc.text("Enroll No", pageWidth - 70, yPos);
+  doc.text("Enroll No:", pageWidth - rightMargin - 55, yPos);
   doc.setFont("helvetica", "bold");
-  doc.text(data.studentId, pageWidth - 45, yPos);
+  doc.text(data.studentId, pageWidth - rightMargin - 30, yPos);
 
-  yPos += 8;
+  // Row 2: Father's Name and Roll No
+  yPos += 7;
   doc.setFont("helvetica", "normal");
   doc.text("Son/Daughter of", leftMargin, yPos);
   doc.setFont("helvetica", "bold");
-  doc.text(data.fatherName || "-", leftMargin + 40, yPos);
+  doc.text(data.fatherName || "-", leftMargin + 42, yPos);
   
   doc.setFont("helvetica", "normal");
-  doc.text("Roll No", pageWidth - 70, yPos);
+  doc.text("Roll No:", pageWidth - rightMargin - 55, yPos);
   doc.setFont("helvetica", "bold");
-  doc.text(data.rollNumber || data.studentId, pageWidth - 45, yPos);
+  doc.text(data.rollNumber || data.studentId, pageWidth - rightMargin - 30, yPos);
 
   // Certification text
-  yPos += 15;
+  yPos += 12;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   const certText = `has secured the marks shown against each subject in the ${data.examName} held in the month of ${data.examMonth || "examination"}.`;
-  doc.text(certText, leftMargin, yPos, { maxWidth: pageWidth - 40 });
+  doc.text(certText, leftMargin, yPos, { maxWidth: contentWidth });
 
   // Marks table
-  yPos += 15;
+  yPos += 10;
 
   // Calculate totals
   const totalMaxMarks = data.subjects.reduce((sum, sub) => sum + sub.maxMarks, 0);
@@ -170,23 +183,25 @@ export const generateMarksCertificatePdf = async (data: MarksCertificateData) =>
 
   autoTable(doc, {
     startY: yPos,
-    head: [["Subject", "Max Marks", "Marks Obtained", "In Words"]],
+    head: [["S.No", "Subject", "Max Marks", "Marks Obtained", "In Words"]],
     body: [
-      ...data.subjects.map((sub) => [
+      ...data.subjects.map((sub, index) => [
+        String(index + 1),
         sub.name,
         String(sub.maxMarks),
         String(sub.marksObtained),
         convertToWords(sub.marksObtained),
       ]),
-      ["Total", String(totalMaxMarks), String(totalObtained), convertToWords(totalObtained)],
+      ["", "TOTAL", String(totalMaxMarks), String(totalObtained), convertToWords(totalObtained)],
     ],
     headStyles: {
-      fillColor: [240, 240, 240],
+      fillColor: [220, 220, 220],
       textColor: darkColor,
       fontStyle: "bold",
       fontSize: 9,
       lineColor: [0, 0, 0],
       lineWidth: 0.3,
+      halign: "center",
     },
     bodyStyles: {
       fontSize: 9,
@@ -195,52 +210,65 @@ export const generateMarksCertificatePdf = async (data: MarksCertificateData) =>
       lineWidth: 0.3,
     },
     columnStyles: {
-      0: { cellWidth: 50 },
-      1: { cellWidth: 30, halign: "center" },
-      2: { cellWidth: 35, halign: "center" },
-      3: { cellWidth: 55 },
+      0: { cellWidth: 12, halign: "center" },
+      1: { cellWidth: 55 },
+      2: { cellWidth: 25, halign: "center" },
+      3: { cellWidth: 30, halign: "center" },
+      4: { cellWidth: 48 },
     },
-    margin: { left: leftMargin, right: leftMargin },
+    margin: { left: leftMargin, right: rightMargin },
     theme: "grid",
+    didParseCell: (data) => {
+      // Make the total row bold
+      if (data.row.index === data.table.body.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
   });
 
   // Date of Birth section
-  const tableEndY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 15;
+  const tableEndY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12;
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text("Date of Birth (In Figures)", leftMargin, tableEndY);
+  doc.text("Date of Birth (In Figures):", leftMargin, tableEndY);
   doc.setFont("helvetica", "bold");
-  doc.text(data.dateOfBirth || "-", leftMargin + 50, tableEndY);
+  doc.text(data.dateOfBirth || "-", leftMargin + 48, tableEndY);
 
   doc.setFont("helvetica", "normal");
-  doc.text("(In Words)", leftMargin + 20, tableEndY + 8);
+  doc.text("(In Words):", leftMargin + 20, tableEndY + 7);
   doc.setFont("helvetica", "bold");
-  doc.text(formatDateToWords(data.dateOfBirth), leftMargin + 50, tableEndY + 8);
+  doc.text(formatDateToWords(data.dateOfBirth), leftMargin + 48, tableEndY + 7);
 
-  // Prepared by section
-  const prepY = tableEndY + 25;
+  // Bottom section with prepared by and controller
+  const bottomY = tableEndY + 22;
+  
+  // Left side - Prepared by
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
-  doc.text(`Prepared and Checked by:`, leftMargin, prepY);
+  doc.text("Prepared and Checked by:", leftMargin, bottomY);
   doc.setFont("helvetica", "bold");
-  doc.text(data.preparedBy || "SCHOOL ADMINISTRATION", leftMargin + 45, prepY);
+  doc.text(data.preparedBy || "SCHOOL ADMINISTRATION", leftMargin, bottomY + 6);
 
   doc.setFont("helvetica", "normal");
-  doc.text(`Date Prepared:`, leftMargin, prepY + 7);
+  doc.text("Date Prepared:", leftMargin, bottomY + 14);
   doc.setFont("helvetica", "bold");
-  doc.text(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase(), leftMargin + 45, prepY + 7);
+  doc.text(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase(), leftMargin + 30, bottomY + 14);
 
   doc.setFont("helvetica", "normal");
-  doc.text(`Result Declaration Date:`, leftMargin, prepY + 14);
+  doc.text("Result Declaration Date:", leftMargin, bottomY + 21);
   doc.setFont("helvetica", "bold");
-  doc.text(data.resultDate || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase(), leftMargin + 45, prepY + 14);
+  doc.text(data.resultDate || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase(), leftMargin + 45, bottomY + 21);
 
-  // Controller of Examination signature
+  // Right side - Controller of Examination
+  const rightSideX = pageWidth - rightMargin - 60;
+  doc.setFont("helvetica", "normal");
+  doc.text("________________________", rightSideX, bottomY + 6);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.text("Controller of Examination", pageWidth - leftMargin - 50, prepY + 7);
-  doc.text(data.schoolName || "The Suffah Public School", pageWidth - leftMargin - 50, prepY + 14);
+  doc.text("Controller of Examination", rightSideX + 5, bottomY + 14);
+  doc.setFontSize(9);
+  doc.text(data.schoolName || "The Suffah Public School", rightSideX + 5, bottomY + 21);
 
   return doc;
 };

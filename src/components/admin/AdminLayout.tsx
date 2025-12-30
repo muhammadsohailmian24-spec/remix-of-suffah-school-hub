@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   GraduationCap, LayoutDashboard, Users, School, BookOpen, 
   ClipboardList, Bell, LogOut, Settings, UserCheck, UserPlus,
-  CalendarDays, Shield, Megaphone, BarChart3, CreditCard, TrendingUp, Image, Clock
+  CalendarDays, Shield, Megaphone, BarChart3, CreditCard, TrendingUp, Image, Clock, FileText
 } from "lucide-react";
 
 interface AdminLayoutProps {
@@ -21,6 +21,7 @@ const sidebarItems = [
   { icon: UserPlus, label: "Parents", link: "/admin/parents" },
   { icon: School, label: "Classes", link: "/admin/classes" },
   { icon: BookOpen, label: "Subjects", link: "/admin/subjects" },
+  { icon: FileText, label: "Exams", link: "/admin/exams" },
   { icon: Clock, label: "Timetable", link: "/admin/timetable" },
   { icon: CreditCard, label: "Fee Management", link: "/admin/fees" },
   { icon: TrendingUp, label: "Fee Analytics", link: "/admin/fee-analytics" },

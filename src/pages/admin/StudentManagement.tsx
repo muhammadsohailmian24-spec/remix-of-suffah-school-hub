@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Mail } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Mail, Upload, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Student {
   id: string;
@@ -25,6 +26,7 @@ interface Student {
     full_name: string;
     email: string;
     phone: string | null;
+    photo_url: string | null;
   };
   class?: {
     name: string;
@@ -54,6 +56,12 @@ const StudentManagement = () => {
   const [newPassword, setNewPassword] = useState("");
   const [sendEmailNotification, setSendEmailNotification] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
+  const [editPhotoPreview, setEditPhotoPreview] = useState<string | null>(null);
+  const addPhotoInputRef = useRef<HTMLInputElement>(null);
+  const editPhotoInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -109,7 +117,7 @@ const StudentManagement = () => {
     const userIds = studentsData?.map(s => s.user_id) || [];
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("user_id, full_name, email, phone")
+      .select("user_id, full_name, email, phone, photo_url")
       .in("user_id", userIds);
 
     const classIds = studentsData?.filter(s => s.class_id).map(s => s.class_id) || [];
@@ -138,6 +146,23 @@ const StudentManagement = () => {
     return `STU${year}${random}`;
   };
 
+  const uploadPhoto = async (file: File, studentId: string): Promise<string | null> => {
+    const fileExt = file.name.split('.').pop();
+    const filePath = `${studentId}.${fileExt}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from('student-photos')
+      .upload(filePath, file, { upsert: true });
+    
+    if (uploadError) {
+      console.error("Upload error:", uploadError);
+      return null;
+    }
+    
+    const { data } = supabase.storage.from('student-photos').getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -148,7 +173,6 @@ const StudentManagement = () => {
 
       const response = await supabase.functions.invoke("create-user", {
         body: {
-          // No email needed for students - will be generated from student_id
           password: addFormData.password,
           fullName: addFormData.full_name,
           phone: addFormData.phone || undefined,
@@ -168,6 +192,17 @@ const StudentManagement = () => {
         throw new Error(response.data.error);
       }
 
+      // Upload photo if provided
+      if (photoFile && response.data?.userId) {
+        const photoUrl = await uploadPhoto(photoFile, addFormData.student_id || response.data.userId);
+        if (photoUrl) {
+          await supabase
+            .from("profiles")
+            .update({ photo_url: photoUrl })
+            .eq("user_id", response.data.userId);
+        }
+      }
+
       toast({ title: "Success", description: "Student account created successfully" });
       setIsAddDialogOpen(false);
       resetAddForm();
@@ -181,37 +216,52 @@ const StudentManagement = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    if (editingStudent) {
-      const { error: studentError } = await supabase
-        .from("students")
-        .update({
-          student_id: formData.student_id,
-          class_id: formData.class_id && formData.class_id !== "none" ? formData.class_id : null,
-          status: formData.status,
-        })
-        .eq("id", editingStudent.id);
+    try {
+      if (editingStudent) {
+        const { error: studentError } = await supabase
+          .from("students")
+          .update({
+            student_id: formData.student_id,
+            class_id: formData.class_id && formData.class_id !== "none" ? formData.class_id : null,
+            status: formData.status,
+          })
+          .eq("id", editingStudent.id);
 
-      if (studentError) {
-        toast({ title: "Error", description: "Failed to update student", variant: "destructive" });
-        return;
+        if (studentError) {
+          toast({ title: "Error", description: "Failed to update student", variant: "destructive" });
+          return;
+        }
+
+        // Upload photo if changed
+        let photoUrl = editingStudent.profile?.photo_url || null;
+        if (editPhotoFile) {
+          const newPhotoUrl = await uploadPhoto(editPhotoFile, editingStudent.student_id);
+          if (newPhotoUrl) {
+            photoUrl = newPhotoUrl;
+          }
+        }
+
+        await supabase
+          .from("profiles")
+          .update({
+            full_name: formData.full_name,
+            phone: formData.phone || null,
+            photo_url: photoUrl,
+          })
+          .eq("user_id", editingStudent.user_id);
+
+        toast({ title: "Success", description: "Student updated successfully" });
       }
 
-      await supabase
-        .from("profiles")
-        .update({
-          full_name: formData.full_name,
-          phone: formData.phone || null,
-        })
-        .eq("user_id", editingStudent.user_id);
-
-      toast({ title: "Success", description: "Student updated successfully" });
+      setIsDialogOpen(false);
+      setEditingStudent(null);
+      resetForm();
+      fetchStudents();
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsDialogOpen(false);
-    setEditingStudent(null);
-    resetForm();
-    fetchStudents();
   };
 
   const handleToggleStatus = async (student: Student) => {
@@ -251,6 +301,8 @@ const StudentManagement = () => {
       class_id: student.class_id || "",
       status: student.status || "active",
     });
+    setEditPhotoPreview(student.profile?.photo_url || null);
+    setEditPhotoFile(null);
     setIsDialogOpen(true);
   };
 
@@ -273,6 +325,31 @@ const StudentManagement = () => {
       student_id: "",
       class_id: "",
     });
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (isEdit) {
+        setEditPhotoFile(file);
+        setEditPhotoPreview(URL.createObjectURL(file));
+      } else {
+        setPhotoFile(file);
+        setPhotoPreview(URL.createObjectURL(file));
+      }
+    }
+  };
+
+  const clearPhoto = (isEdit: boolean = false) => {
+    if (isEdit) {
+      setEditPhotoFile(null);
+      setEditPhotoPreview(null);
+    } else {
+      setPhotoFile(null);
+      setPhotoPreview(null);
+    }
   };
 
   const openResetPasswordDialog = (student: Student) => {
@@ -384,6 +461,7 @@ const StudentManagement = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Photo</TableHead>
                   <TableHead>Student ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
@@ -395,6 +473,12 @@ const StudentManagement = () => {
               <TableBody>
                 {filteredStudents.map((student) => (
                   <TableRow key={student.id}>
+                    <TableCell>
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={student.profile?.photo_url || undefined} alt={student.profile?.full_name} />
+                        <AvatarFallback>{student.profile?.full_name?.charAt(0) || "S"}</AvatarFallback>
+                      </Avatar>
+                    </TableCell>
                     <TableCell className="font-mono font-bold">{student.student_id}</TableCell>
                     <TableCell className="font-medium">{student.profile?.full_name || "-"}</TableCell>
                     <TableCell>{student.profile?.phone || "-"}</TableCell>
@@ -511,6 +595,44 @@ const StudentManagement = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Student Photo</Label>
+                <div className="flex items-center gap-4">
+                  {photoPreview ? (
+                    <div className="relative">
+                      <Avatar className="w-20 h-20">
+                        <AvatarImage src={photoPreview} />
+                        <AvatarFallback>Photo</AvatarFallback>
+                      </Avatar>
+                      <Button 
+                        type="button" 
+                        size="icon" 
+                        variant="destructive" 
+                        className="absolute -top-2 -right-2 w-6 h-6"
+                        onClick={() => clearPhoto(false)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div 
+                      className="w-20 h-20 border-2 border-dashed border-muted-foreground/30 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => addPhotoInputRef.current?.click()}
+                    >
+                      <Upload className="w-6 h-6 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground mt-1">Upload</span>
+                    </div>
+                  )}
+                  <input
+                    ref={addPhotoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handlePhotoChange(e, false)}
+                  />
+                  <p className="text-xs text-muted-foreground">Upload student photo (optional)</p>
+                </div>
+              </div>
             </div>
             <div className="bg-accent/50 p-3 rounded-lg">
               <p className="text-sm text-muted-foreground">
@@ -562,13 +684,6 @@ const StudentManagement = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  value={formData.phone}
-                  onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
                 <Label>Assign Class</Label>
                 <Select value={formData.class_id} onValueChange={(v) => setFormData(p => ({ ...p, class_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
@@ -592,10 +707,48 @@ const StudentManagement = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Student Photo</Label>
+                <div className="flex items-center gap-4">
+                  {editPhotoPreview ? (
+                    <div className="relative">
+                      <Avatar className="w-20 h-20">
+                        <AvatarImage src={editPhotoPreview} />
+                        <AvatarFallback>Photo</AvatarFallback>
+                      </Avatar>
+                      <Button 
+                        type="button" 
+                        size="icon" 
+                        variant="destructive" 
+                        className="absolute -top-2 -right-2 w-6 h-6"
+                        onClick={() => clearPhoto(true)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div 
+                      className="w-20 h-20 border-2 border-dashed border-muted-foreground/30 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => editPhotoInputRef.current?.click()}
+                    >
+                      <Upload className="w-6 h-6 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground mt-1">Upload</span>
+                    </div>
+                  )}
+                  <input
+                    ref={editPhotoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handlePhotoChange(e, true)}
+                  />
+                  <p className="text-xs text-muted-foreground">Update student photo</p>
+                </div>
+              </div>
             </div>
             <DialogFooter>
-              <Button type="submit" className="hero-gradient text-primary-foreground">
-                Update Student
+              <Button type="submit" className="hero-gradient text-primary-foreground" disabled={isSubmitting}>
+                {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Updating...</> : "Update Student"}
               </Button>
             </DialogFooter>
           </form>
