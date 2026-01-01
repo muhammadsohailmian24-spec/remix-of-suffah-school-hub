@@ -34,6 +34,7 @@ import TeacherExams from "./pages/teacher/Exams";
 import TeacherTimetable from "./pages/teacher/Timetable";
 import TeacherAnnouncements from "./pages/teacher/Announcements";
 import StudentCourses from "./pages/student/Courses";
+import StudentMaterials from "./pages/student/Materials";
 import StudentAssignments from "./pages/student/Assignments";
 import StudentExams from "./pages/student/Exams";
 import StudentResults from "./pages/student/Results";
@@ -91,6 +92,7 @@ const App = () => (
           <Route path="/teacher/announcements" element={<TeacherAnnouncements />} />
           {/* Student Routes */}
           <Route path="/student/courses" element={<StudentCourses />} />
+          <Route path="/student/materials" element={<StudentMaterials />} />
           <Route path="/student/assignments" element={<StudentAssignments />} />
           <Route path="/student/exams" element={<StudentExams />} />
           <Route path="/student/results" element={<StudentResults />} />
