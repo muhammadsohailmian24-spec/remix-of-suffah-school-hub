@@ -9,12 +9,66 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Edit, Trash2, Download, FileText, FileUser } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { ArrowLeft, Plus, Edit, Trash2, Download, FileText, FileUser, MoreHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 import { downloadAwardList } from "@/utils/generateAwardListPdf";
 import { downloadClassRollNumberSlips } from "@/utils/generateRollNumberSlipPdf";
 import SingleRollNumberSlipDialog from "@/components/admin/SingleRollNumberSlipDialog";
+
+interface ExamActionsDropdownProps {
+  exam: Exam;
+  onEdit: () => void;
+  onDelete: () => void;
+  onDownloadRollSlips: () => void;
+  onDownloadAwardList: () => void;
+}
+
+const ExamActionsDropdown = ({ exam, onEdit, onDelete, onDownloadRollSlips, onDownloadAwardList }: ExamActionsDropdownProps) => {
+  const [singleSlipOpen, setSingleSlipOpen] = useState(false);
+  
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48 bg-popover">
+          <DropdownMenuItem onClick={() => setSingleSlipOpen(true)}>
+            <FileUser className="mr-2 h-4 w-4" />
+            Single Roll Slip
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onDownloadRollSlips}>
+            <FileText className="mr-2 h-4 w-4" />
+            All Roll Slips
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onDownloadAwardList}>
+            <Download className="mr-2 h-4 w-4" />
+            Award List
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onEdit}>
+            <Edit className="mr-2 h-4 w-4" />
+            Edit Exam
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onDelete} className="text-destructive">
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Exam
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <SingleRollNumberSlipDialog 
+        examName={exam.name} 
+        examType={exam.exam_type}
+        open={singleSlipOpen}
+        onOpenChange={setSingleSlipOpen}
+      />
+    </>
+  );
+};
 
 interface Exam {
   id: string;
@@ -491,19 +545,13 @@ const AdminExams = () => {
                     <TableCell>{exam.start_time && exam.end_time ? `${exam.start_time} - ${exam.end_time}` : "-"}</TableCell>
                     <TableCell>{exam.max_marks} (Pass: {exam.passing_marks})</TableCell>
                     <TableCell className="text-right">
-                      <SingleRollNumberSlipDialog examName={exam.name} examType={exam.exam_type} />
-                      <Button variant="ghost" size="icon" onClick={() => handleDownloadRollNumberSlips(exam)} title="Download All Roll Number Slips">
-                        <FileText className="h-4 w-4 text-success" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDownloadAwardList(exam)} title="Download Award List">
-                        <Download className="h-4 w-4 text-primary" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(exam)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(exam.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <ExamActionsDropdown 
+                        exam={exam}
+                        onEdit={() => openEditDialog(exam)}
+                        onDelete={() => handleDelete(exam.id)}
+                        onDownloadRollSlips={() => handleDownloadRollNumberSlips(exam)}
+                        onDownloadAwardList={() => handleDownloadAwardList(exam)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

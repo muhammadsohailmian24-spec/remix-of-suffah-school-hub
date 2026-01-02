@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileUser, Search, Loader2 } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { downloadRollNumberSlip, RollNumberSlipData } from "@/utils/generateRollNumberSlipPdf";
@@ -11,6 +11,8 @@ import { downloadRollNumberSlip, RollNumberSlipData } from "@/utils/generateRoll
 interface SingleRollNumberSlipDialogProps {
   examName: string;
   examType: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 interface StudentResult {
@@ -21,8 +23,7 @@ interface StudentResult {
   class_id: string;
 }
 
-const SingleRollNumberSlipDialog = ({ examName }: SingleRollNumberSlipDialogProps) => {
-  const [open, setOpen] = useState(false);
+const SingleRollNumberSlipDialog = ({ examName, open, onOpenChange }: SingleRollNumberSlipDialogProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -36,23 +37,18 @@ const SingleRollNumberSlipDialog = ({ examName }: SingleRollNumberSlipDialogProp
 
     setSearching(true);
     try {
-      const { data: students, error } = await supabase
+      // Search by student_id first
+      const { data: studentsByStudentId, error: idError } = await supabase
         .from("students")
-        .select(`
-          id,
-          student_id,
-          class_id,
-          classes:class_id (name),
-          profiles:user_id (full_name)
-        `)
-        .or(`student_id.ilike.%${searchQuery}%`)
+        .select("id, student_id, class_id, user_id")
+        .ilike("student_id", `%${searchQuery}%`)
         .eq("status", "active")
         .limit(10);
 
-      if (error) throw error;
+      if (idError) throw idError;
 
-      // Also search by name
-      const { data: byName, error: nameError } = await supabase
+      // Search profiles by name
+      const { data: profilesByName, error: nameError } = await supabase
         .from("profiles")
         .select("user_id, full_name")
         .ilike("full_name", `%${searchQuery}%`)
@@ -60,36 +56,48 @@ const SingleRollNumberSlipDialog = ({ examName }: SingleRollNumberSlipDialogProp
 
       if (nameError) throw nameError;
 
-      const userIds = byName?.map(p => p.user_id) || [];
+      // Get students matching those profile user_ids
+      const userIds = profilesByName?.map(p => p.user_id) || [];
+      let studentsByName: any[] = [];
       
-      let nameStudents: any[] = [];
       if (userIds.length > 0) {
-        const { data: studentsByName } = await supabase
+        const { data, error } = await supabase
           .from("students")
-          .select(`
-            id,
-            student_id,
-            class_id,
-            classes:class_id (name),
-            profiles:user_id (full_name)
-          `)
+          .select("id, student_id, class_id, user_id")
           .in("user_id", userIds)
           .eq("status", "active");
         
-        nameStudents = studentsByName || [];
+        if (error) throw error;
+        studentsByName = data || [];
       }
 
-      // Combine and deduplicate
-      const allStudents = [...(students || []), ...nameStudents];
+      // Combine and deduplicate students
+      const allStudents = [...(studentsByStudentId || []), ...studentsByName];
       const uniqueStudents = allStudents.filter((student, index, self) =>
         index === self.findIndex(s => s.id === student.id)
       );
 
-      const results: StudentResult[] = uniqueStudents.map((s: any) => ({
+      // Fetch profiles and classes for all unique students
+      const allUserIds = uniqueStudents.map(s => s.user_id);
+      const allClassIds = [...new Set(uniqueStudents.map(s => s.class_id).filter(Boolean))];
+
+      const [profilesRes, classesRes] = await Promise.all([
+        allUserIds.length > 0 
+          ? supabase.from("profiles").select("user_id, full_name").in("user_id", allUserIds)
+          : { data: [] },
+        allClassIds.length > 0
+          ? supabase.from("classes").select("id, name").in("id", allClassIds)
+          : { data: [] }
+      ]);
+
+      const profilesMap = new Map((profilesRes.data || []).map(p => [p.user_id, p.full_name]));
+      const classesMap = new Map((classesRes.data || []).map(c => [c.id, c.name]));
+
+      const results: StudentResult[] = uniqueStudents.map(s => ({
         id: s.id,
         student_id: s.student_id,
-        full_name: s.profiles?.full_name || "Unknown",
-        class_name: s.classes?.name || "No Class",
+        full_name: profilesMap.get(s.user_id) || "Unknown",
+        class_name: classesMap.get(s.class_id) || "No Class",
         class_id: s.class_id,
       }));
 
@@ -108,44 +116,53 @@ const SingleRollNumberSlipDialog = ({ examName }: SingleRollNumberSlipDialogProp
   const handleDownload = async (student: StudentResult) => {
     setDownloading(true);
     try {
-      // Fetch exam schedule for this student's class
       const { data: exams, error: examsError } = await supabase
         .from("exams")
-        .select(`
-          id,
-          name,
-          exam_date,
-          start_time,
-          end_time,
-          subjects:subject_id (name)
-        `)
+        .select("id, name, exam_date, start_time, end_time, subject_id")
         .eq("class_id", student.class_id)
         .eq("name", examName)
         .order("exam_date", { ascending: true });
 
       if (examsError) throw examsError;
 
-      const subjects = (exams || []).map((exam: any) => ({
-        name: exam.subjects?.name || "Unknown",
+      // Fetch subject names
+      const subjectIds = [...new Set((exams || []).map(e => e.subject_id))];
+      const { data: subjects } = await supabase
+        .from("subjects")
+        .select("id, name")
+        .in("id", subjectIds);
+
+      const subjectsMap = new Map((subjects || []).map(s => [s.id, s.name]));
+
+      const examSubjects = (exams || []).map((exam: any) => ({
+        name: subjectsMap.get(exam.subject_id) || "Unknown",
         date: exam.exam_date,
         time: exam.start_time && exam.end_time 
           ? `${exam.start_time} - ${exam.end_time}` 
           : undefined,
       }));
 
-      // Get all students in this class sorted alphabetically to determine roll number
+      // Get roll number
       const { data: classStudents, error: classError } = await supabase
         .from("students")
-        .select("id, profiles:user_id (full_name)")
+        .select("id, user_id")
         .eq("class_id", student.class_id)
         .eq("status", "active");
 
       if (classError) throw classError;
 
+      const studentUserIds = (classStudents || []).map(s => s.user_id);
+      const { data: studentProfiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", studentUserIds);
+
+      const profilesMap = new Map((studentProfiles || []).map(p => [p.user_id, p.full_name]));
+
       const sortedStudents = (classStudents || [])
-        .map((s: any) => ({
+        .map(s => ({
           id: s.id,
-          name: s.profiles?.full_name || "",
+          name: profilesMap.get(s.user_id) || "",
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -155,13 +172,13 @@ const SingleRollNumberSlipDialog = ({ examName }: SingleRollNumberSlipDialogProp
         schoolName: "The Suffah",
         schoolAddress: "Saidu Sharif, Swat - Pakistan",
         examName: examName,
-        examDate: subjects[0]?.date || "",
+        examDate: examSubjects[0]?.date || "",
         studentName: student.full_name,
         studentId: student.student_id,
         rollNumber: rollNumber.toString(),
         className: student.class_name,
         fatherName: "",
-        subjects,
+        subjects: examSubjects,
       };
 
       await downloadRollNumberSlip(slipData);
@@ -174,12 +191,7 @@ const SingleRollNumberSlipDialog = ({ examName }: SingleRollNumberSlipDialogProp
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" title="Download Single Roll Number Slip">
-          <FileUser className="w-4 h-4" />
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Download Individual Roll Number Slip</DialogTitle>
