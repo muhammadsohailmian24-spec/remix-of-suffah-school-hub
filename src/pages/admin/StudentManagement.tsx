@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Mail, Upload, X } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -78,6 +79,12 @@ const StudentManagement = () => {
     phone: "",
     student_id: "",
     class_id: "",
+    date_of_birth: "",
+    father_name: "",
+    father_phone: "",
+    father_cnic: "",
+    address: "",
+    previous_school: "",
   });
 
   useEffect(() => {
@@ -171,6 +178,7 @@ const StudentManagement = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
+      // Create student account
       const response = await supabase.functions.invoke("create-user", {
         body: {
           password: addFormData.password,
@@ -184,26 +192,90 @@ const StudentManagement = () => {
         },
       });
 
-      if (response.error) {
-        throw new Error(response.error.message);
-      }
+      if (response.error) throw new Error(response.error.message);
+      if (response.data?.error) throw new Error(response.data.error);
 
-      if (response.data?.error) {
-        throw new Error(response.data.error);
-      }
+      const studentUserId = response.data?.user?.id;
 
       // Upload photo if provided
-      if (photoFile && response.data?.userId) {
-        const photoUrl = await uploadPhoto(photoFile, addFormData.student_id || response.data.userId);
+      if (photoFile && studentUserId) {
+        const photoUrl = await uploadPhoto(photoFile, addFormData.student_id || studentUserId);
         if (photoUrl) {
           await supabase
             .from("profiles")
-            .update({ photo_url: photoUrl })
-            .eq("user_id", response.data.userId);
+            .update({ 
+              photo_url: photoUrl,
+              date_of_birth: addFormData.date_of_birth || null,
+              address: addFormData.address || null,
+            })
+            .eq("user_id", studentUserId);
+        }
+      } else if (studentUserId) {
+        // Update profile with DOB and address even without photo
+        await supabase
+          .from("profiles")
+          .update({ 
+            date_of_birth: addFormData.date_of_birth || null,
+            address: addFormData.address || null,
+          })
+          .eq("user_id", studentUserId);
+      }
+
+      // Update student record with previous_school
+      if (studentUserId && addFormData.previous_school) {
+        await supabase
+          .from("students")
+          .update({ previous_school: addFormData.previous_school })
+          .eq("user_id", studentUserId);
+      }
+
+      // Create parent account if Father's CNIC is provided
+      if (addFormData.father_cnic && addFormData.father_name) {
+        const parentResponse = await supabase.functions.invoke("create-user", {
+          body: {
+            password: addFormData.password, // Same password as student initially
+            fullName: addFormData.father_name,
+            phone: addFormData.father_phone || undefined,
+            role: "parent",
+            roleSpecificData: {
+              father_cnic: addFormData.father_cnic,
+              relationship: "father",
+            },
+          },
+        });
+
+        // Link parent to student if parent was created successfully
+        if (!parentResponse.error && parentResponse.data?.user?.id) {
+          const parentUserId = parentResponse.data.user.id;
+          
+          // Get the parent record
+          const { data: parentRecord } = await supabase
+            .from("parents")
+            .select("id")
+            .eq("user_id", parentUserId)
+            .maybeSingle();
+
+          // Get the student record
+          const { data: studentRecord } = await supabase
+            .from("students")
+            .select("id")
+            .eq("user_id", studentUserId)
+            .maybeSingle();
+
+          // Link them
+          if (parentRecord && studentRecord) {
+            await supabase
+              .from("student_parents")
+              .insert({
+                parent_id: parentRecord.id,
+                student_id: studentRecord.id,
+                is_primary: true,
+              });
+          }
         }
       }
 
-      toast({ title: "Success", description: "Student account created successfully" });
+      toast({ title: "Success", description: "Student and parent accounts created successfully" });
       setIsAddDialogOpen(false);
       resetAddForm();
       fetchStudents();
@@ -324,6 +396,12 @@ const StudentManagement = () => {
       phone: "",
       student_id: "",
       class_id: "",
+      date_of_birth: "",
+      father_name: "",
+      father_phone: "",
+      father_cnic: "",
+      address: "",
+      previous_school: "",
     });
     setPhotoFile(null);
     setPhotoPreview(null);
@@ -541,60 +619,8 @@ const StudentManagement = () => {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddStudent} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Full Name *</Label>
-                <Input
-                  value={addFormData.full_name}
-                  onChange={(e) => setAddFormData(p => ({ ...p, full_name: e.target.value }))}
-                  placeholder="Student's full name"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Student ID *</Label>
-                <Input
-                  value={addFormData.student_id}
-                  onChange={(e) => setAddFormData(p => ({ ...p, student_id: e.target.value.toUpperCase() }))}
-                  placeholder="e.g., STU2025001"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">This will be used for login</p>
-              </div>
-              <div className="space-y-2 col-span-2">
-                <Label>Password *</Label>
-                <Input
-                  type="password"
-                  value={addFormData.password}
-                  onChange={(e) => setAddFormData(p => ({ ...p, password: e.target.value }))}
-                  placeholder="Min. 6 characters"
-                  minLength={6}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">Student will use this password to login with their Student ID</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  value={addFormData.phone}
-                  onChange={(e) => setAddFormData(p => ({ ...p, phone: e.target.value }))}
-                  placeholder="Phone number"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Assign Class</Label>
-                <Select value={addFormData.class_id} onValueChange={(v) => setAddFormData(p => ({ ...p, class_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select class (optional)" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No class</SelectItem>
-                    {classes.map(c => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}{c.section ? ` - ${c.section}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="grid grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto pr-2">
+              {/* Student Photo */}
               <div className="space-y-2 col-span-2">
                 <Label>Student Photo</Label>
                 <div className="flex items-center gap-4">
@@ -630,13 +656,135 @@ const StudentManagement = () => {
                     className="hidden"
                     onChange={(e) => handlePhotoChange(e, false)}
                   />
-                  <p className="text-xs text-muted-foreground">Upload student photo (optional)</p>
+                  <p className="text-xs text-muted-foreground">Upload passport-size photo</p>
                 </div>
+              </div>
+
+              {/* Student Info Section */}
+              <div className="col-span-2 border-b pb-1 pt-2">
+                <p className="text-sm font-semibold text-muted-foreground">Student Information</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Full Name *</Label>
+                <Input
+                  value={addFormData.full_name}
+                  onChange={(e) => setAddFormData(p => ({ ...p, full_name: e.target.value }))}
+                  placeholder="Student's full name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Date of Birth *</Label>
+                <Input
+                  type="date"
+                  value={addFormData.date_of_birth}
+                  onChange={(e) => setAddFormData(p => ({ ...p, date_of_birth: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Student ID *</Label>
+                <Input
+                  value={addFormData.student_id}
+                  onChange={(e) => setAddFormData(p => ({ ...p, student_id: e.target.value.toUpperCase() }))}
+                  placeholder="e.g., STU2025001"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Used for login</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Password *</Label>
+                <Input
+                  type="password"
+                  value={addFormData.password}
+                  onChange={(e) => setAddFormData(p => ({ ...p, password: e.target.value }))}
+                  placeholder="Min. 6 characters"
+                  minLength={6}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  value={addFormData.phone}
+                  onChange={(e) => setAddFormData(p => ({ ...p, phone: e.target.value }))}
+                  placeholder="+92 300 1234567"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Assign Class</Label>
+                <Select value={addFormData.class_id} onValueChange={(v) => setAddFormData(p => ({ ...p, class_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No class</SelectItem>
+                    {classes.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}{c.section ? ` - ${c.section}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Father/Guardian Section */}
+              <div className="col-span-2 border-b pb-1 pt-2">
+                <p className="text-sm font-semibold text-muted-foreground">Father/Guardian Information</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Father's Name *</Label>
+                <Input
+                  value={addFormData.father_name}
+                  onChange={(e) => setAddFormData(p => ({ ...p, father_name: e.target.value }))}
+                  placeholder="Father's full name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Father's Phone *</Label>
+                <Input
+                  value={addFormData.father_phone}
+                  onChange={(e) => setAddFormData(p => ({ ...p, father_phone: e.target.value }))}
+                  placeholder="+92 300 1234567"
+                  required
+                />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Father's CNIC *</Label>
+                <Input
+                  value={addFormData.father_cnic}
+                  onChange={(e) => setAddFormData(p => ({ ...p, father_cnic: e.target.value }))}
+                  placeholder="12345-1234567-1"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Used as parent login username</p>
+              </div>
+
+              {/* Address & Previous Education */}
+              <div className="col-span-2 border-b pb-1 pt-2">
+                <p className="text-sm font-semibold text-muted-foreground">Address & Previous Education</p>
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Address *</Label>
+                <Input
+                  value={addFormData.address}
+                  onChange={(e) => setAddFormData(p => ({ ...p, address: e.target.value }))}
+                  placeholder="Full address"
+                  required
+                />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Previous School</Label>
+                <Input
+                  value={addFormData.previous_school}
+                  onChange={(e) => setAddFormData(p => ({ ...p, previous_school: e.target.value }))}
+                  placeholder="Name of previous school (if any)"
+                />
               </div>
             </div>
             <div className="bg-accent/50 p-3 rounded-lg">
               <p className="text-sm text-muted-foreground">
-                <strong>Login credentials:</strong> Student ID: <code className="bg-background px-1 rounded">{addFormData.student_id || "..."}</code> + Password
+                <strong>Student Login:</strong> ID: <code className="bg-background px-1 rounded">{addFormData.student_id || "..."}</code> + Password<br />
+                <strong>Parent Login:</strong> CNIC: <code className="bg-background px-1 rounded">{addFormData.father_cnic || "..."}</code> + Password
               </p>
             </div>
             <DialogFooter>
