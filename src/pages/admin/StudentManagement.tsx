@@ -84,9 +84,13 @@ const StudentManagement = () => {
     father_name: "",
     father_phone: "",
     father_cnic: "",
+    father_email: "",
+    parent_password: "",
     address: "",
     previous_school: "",
   });
+  
+  const [lastStudentId, setLastStudentId] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuthAndFetch();
@@ -107,7 +111,7 @@ const StudentManagement = () => {
       return; 
     }
 
-    await Promise.all([fetchStudents(), fetchClasses()]);
+    await Promise.all([fetchStudents(), fetchClasses(), fetchLastStudentId()]);
     setLoading(false);
   };
 
@@ -146,6 +150,19 @@ const StudentManagement = () => {
   const fetchClasses = async () => {
     const { data } = await supabase.from("classes").select("id, name, section").order("grade_level");
     setClasses(data || []);
+  };
+
+  const fetchLastStudentId = async () => {
+    const { data } = await supabase
+      .from("students")
+      .select("student_id")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    if (data?.student_id) {
+      setLastStudentId(data.student_id);
+    }
   };
 
   const generateStudentId = () => {
@@ -234,9 +251,10 @@ const StudentManagement = () => {
       if (addFormData.father_cnic && addFormData.father_name) {
         const parentResponse = await supabase.functions.invoke("create-user", {
           body: {
-            password: addFormData.password, // Same password as student initially
+            password: addFormData.parent_password,
             fullName: addFormData.father_name,
             phone: addFormData.father_phone || undefined,
+            email: addFormData.father_email || undefined,
             role: "parent",
             roleSpecificData: {
               father_cnic: addFormData.father_cnic,
@@ -401,6 +419,8 @@ const StudentManagement = () => {
       father_name: "",
       father_phone: "",
       father_cnic: "",
+      father_email: "",
+      parent_password: "",
       address: "",
       previous_school: "",
     });
@@ -701,7 +721,21 @@ const StudentManagement = () => {
                   placeholder="e.g., STU2025001"
                   required
                 />
+                {lastStudentId && (
+                  <p className="text-xs text-primary font-medium">Last used ID: {lastStudentId}</p>
+                )}
                 <p className="text-xs text-muted-foreground">Used for login</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Student Password *</Label>
+                <Input
+                  type="password"
+                  value={addFormData.password}
+                  onChange={(e) => setAddFormData(p => ({ ...p, password: e.target.value }))}
+                  placeholder="Min. 6 characters"
+                  minLength={6}
+                  required
+                />
               </div>
               <div className="space-y-2">
                 <Label>Password *</Label>
@@ -739,7 +773,7 @@ const StudentManagement = () => {
 
               {/* Father/Guardian Section */}
               <div className="col-span-2 border-b pb-1 pt-2">
-                <p className="text-sm font-semibold text-muted-foreground">Father/Guardian Information</p>
+                <p className="text-sm font-semibold text-muted-foreground">Father/Guardian Information & Login</p>
               </div>
               <div className="space-y-2">
                 <Label>Father's Name *</Label>
@@ -759,7 +793,7 @@ const StudentManagement = () => {
                   required
                 />
               </div>
-              <div className="space-y-2 col-span-2">
+              <div className="space-y-2">
                 <Label>Father's CNIC *</Label>
                 <Input
                   value={addFormData.father_cnic}
@@ -768,6 +802,27 @@ const StudentManagement = () => {
                   required
                 />
                 <p className="text-xs text-muted-foreground">Used as parent login username</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Parent Password *</Label>
+                <Input
+                  type="password"
+                  value={addFormData.parent_password}
+                  onChange={(e) => setAddFormData(p => ({ ...p, parent_password: e.target.value }))}
+                  placeholder="Min. 6 characters"
+                  minLength={6}
+                  required
+                />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Father's Email</Label>
+                <Input
+                  type="email"
+                  value={addFormData.father_email}
+                  onChange={(e) => setAddFormData(p => ({ ...p, father_email: e.target.value }))}
+                  placeholder="email@example.com (for notifications)"
+                />
+                <p className="text-xs text-muted-foreground">Used to send notifications (optional)</p>
               </div>
 
               {/* Address & Previous Education */}
