@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Edit, Trash2, Download, FileText } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Download, FileText, FileUser } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 import { downloadAwardList } from "@/utils/generateAwardListPdf";
 import { downloadClassRollNumberSlips } from "@/utils/generateRollNumberSlipPdf";
+import SingleRollNumberSlipDialog from "@/components/admin/SingleRollNumberSlipDialog";
 
 interface Exam {
   id: string;
@@ -490,7 +491,8 @@ const AdminExams = () => {
                     <TableCell>{exam.start_time && exam.end_time ? `${exam.start_time} - ${exam.end_time}` : "-"}</TableCell>
                     <TableCell>{exam.max_marks} (Pass: {exam.passing_marks})</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleDownloadRollNumberSlips(exam)} title="Download Roll Number Slips">
+                      <SingleRollNumberSlipDialog examName={exam.name} examType={exam.exam_type} />
+                      <Button variant="ghost" size="icon" onClick={() => handleDownloadRollNumberSlips(exam)} title="Download All Roll Number Slips">
                         <FileText className="h-4 w-4 text-success" />
                       </Button>
                       <Button variant="ghost" size="icon" onClick={() => handleDownloadAwardList(exam)} title="Download Award List">
