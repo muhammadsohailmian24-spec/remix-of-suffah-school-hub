@@ -42,12 +42,14 @@ import StudentResults from "./pages/student/Results";
 import StudentTimetable from "./pages/student/Timetable";
 import StudentFees from "./pages/student/Fees";
 import StudentAttendance from "./pages/student/Attendance";
+import StudentSettings from "./pages/student/Settings";
 import ParentChildren from "./pages/parent/Children";
 import ParentAttendance from "./pages/parent/Attendance";
 import ParentResults from "./pages/parent/Results";
 import ParentAnnouncements from "./pages/parent/Announcements";
 import ParentNotificationPreferences from "./pages/parent/NotificationPreferences";
 import ParentFees from "./pages/parent/Fees";
+import ParentSettings from "./pages/parent/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -101,6 +103,7 @@ const App = () => (
           <Route path="/student/timetable" element={<StudentTimetable />} />
           <Route path="/student/fees" element={<StudentFees />} />
           <Route path="/student/attendance" element={<StudentAttendance />} />
+          <Route path="/student/settings" element={<StudentSettings />} />
           {/* Parent Routes */}
           <Route path="/parent/children" element={<ParentChildren />} />
           <Route path="/parent/attendance/:studentId" element={<ParentAttendance />} />
@@ -108,6 +111,7 @@ const App = () => (
           <Route path="/parent/announcements" element={<ParentAnnouncements />} />
           <Route path="/parent/notifications" element={<ParentNotificationPreferences />} />
           <Route path="/parent/fees/:studentId" element={<ParentFees />} />
+          <Route path="/parent/settings" element={<ParentSettings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
