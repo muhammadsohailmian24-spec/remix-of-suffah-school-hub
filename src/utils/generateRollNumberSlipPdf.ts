@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-interface RollNumberSlipData {
+export interface RollNumberSlipData {
   studentName: string;
   studentId: string;
   fatherName?: string;

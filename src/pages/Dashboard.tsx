@@ -290,6 +290,7 @@ const Dashboard = () => {
           { icon: Calendar, label: "Exams", desc: "Schedule exams", color: "bg-destructive/10 text-destructive", link: "/teacher/exams" },
           { icon: Award, label: "Results", desc: "Enter marks", color: "bg-warning/10 text-warning", link: "/teacher/results" },
           { icon: BookMarked, label: "Materials", desc: "Upload resources", color: "bg-success/10 text-success", link: "/teacher/materials" },
+          { icon: Clock, label: "Timetable", desc: "View schedule", color: "bg-secondary/10 text-secondary", link: "/teacher/timetable" },
         ];
       case "student":
         return [
