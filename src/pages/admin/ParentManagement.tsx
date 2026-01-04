@@ -73,6 +73,7 @@ const ParentManagement = () => {
     occupation: "",
     relationship: "parent",
     linked_student_id: "",
+    father_cnic: "",
   });
 
   useEffect(() => {
@@ -184,7 +185,7 @@ const ParentManagement = () => {
 
       const response = await supabase.functions.invoke("create-user", {
         body: {
-          email: addFormData.email,
+          email: addFormData.email || undefined,
           password: addFormData.password,
           fullName: addFormData.full_name,
           phone: addFormData.phone || undefined,
@@ -192,6 +193,7 @@ const ParentManagement = () => {
           roleSpecificData: {
             occupation: addFormData.occupation || null,
             relationship: addFormData.relationship,
+            father_cnic: addFormData.father_cnic,
           },
         },
       });
@@ -376,6 +378,7 @@ const ParentManagement = () => {
       occupation: "",
       relationship: "parent",
       linked_student_id: "",
+      father_cnic: "",
     });
   };
 
@@ -551,13 +554,22 @@ const ParentManagement = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Email *</Label>
+                <Label>Father's CNIC *</Label>
+                <Input
+                  value={addFormData.father_cnic}
+                  onChange={(e) => setAddFormData(p => ({ ...p, father_cnic: e.target.value }))}
+                  placeholder="XXXXX-XXXXXXX-X"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Used for parent login</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Email (for notifications)</Label>
                 <Input
                   type="email"
                   value={addFormData.email}
                   onChange={(e) => setAddFormData(p => ({ ...p, email: e.target.value }))}
                   placeholder="parent@example.com"
-                  required
                 />
               </div>
               <div className="space-y-2">
