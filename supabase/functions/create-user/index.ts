@@ -84,6 +84,27 @@ serve(async (req) => {
       }
       // Create email from student ID (studentid@suffah.local)
       userEmail = `${studentId.toLowerCase()}@suffah.local`;
+      
+      // Check if student ID already exists, generate new one if so
+      let attempts = 0;
+      while (attempts < 10) {
+        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+        const emailExists = existingUsers?.users?.some(u => u.email === userEmail);
+        
+        if (!emailExists) break;
+        
+        // Generate a new student ID
+        studentId = `STU${new Date().getFullYear()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+        userEmail = `${studentId.toLowerCase()}@suffah.local`;
+        attempts++;
+      }
+      
+      if (attempts >= 10) {
+        return new Response(JSON.stringify({ error: "Could not generate unique student ID. Please try again." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     } else if (role === "parent") {
       // For parents, use CNIC as the login identifier
       if (!fatherCnic) {
@@ -95,6 +116,19 @@ serve(async (req) => {
       // Clean CNIC and use as email format
       const cleanCnic = fatherCnic.replace(/-/g, "");
       userEmail = `${cleanCnic}@suffah.local`;
+      
+      // Check if parent with this CNIC already exists
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+      const existingParent = existingUsers?.users?.find(u => u.email === userEmail);
+      
+      if (existingParent) {
+        return new Response(JSON.stringify({ 
+          error: "A parent account with this CNIC already exists. Please use a different CNIC or edit the existing parent." 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     } else if (!email) {
       return new Response(JSON.stringify({ error: "Email is required for staff users" }), {
         status: 400,
@@ -112,6 +146,17 @@ serve(async (req) => {
 
     if (createError) {
       console.error("Error creating user:", createError);
+      // Provide more helpful error messages
+      if (createError.message.includes("already been registered")) {
+        return new Response(JSON.stringify({ 
+          error: role === "student" 
+            ? "This student ID is already in use. Please use a different ID or leave blank to auto-generate."
+            : "A user with this email/CNIC already exists."
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ error: createError.message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
