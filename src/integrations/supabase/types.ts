@@ -822,7 +822,14 @@ export type Database = {
           class_id: string | null
           created_at: string
           emergency_contact: string | null
+          father_cnic: string | null
+          father_email: string | null
+          father_name: string | null
+          father_phone: string | null
+          guardian_occupation: string | null
           id: string
+          mother_name: string | null
+          mother_phone: string | null
           previous_school: string | null
           status: string | null
           student_id: string
@@ -836,7 +843,14 @@ export type Database = {
           class_id?: string | null
           created_at?: string
           emergency_contact?: string | null
+          father_cnic?: string | null
+          father_email?: string | null
+          father_name?: string | null
+          father_phone?: string | null
+          guardian_occupation?: string | null
           id?: string
+          mother_name?: string | null
+          mother_phone?: string | null
           previous_school?: string | null
           status?: string | null
           student_id: string
@@ -850,7 +864,14 @@ export type Database = {
           class_id?: string | null
           created_at?: string
           emergency_contact?: string | null
+          father_cnic?: string | null
+          father_email?: string | null
+          father_name?: string | null
+          father_phone?: string | null
+          guardian_occupation?: string | null
           id?: string
+          mother_name?: string | null
+          mother_phone?: string | null
           previous_school?: string | null
           status?: string | null
           student_id?: string

@@ -9,14 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Mail, Upload, X, MoreHorizontal } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
+import { downloadAdmissionForm, AdmissionFormData } from "@/utils/generateAdmissionFormPdf";
 interface Student {
   id: string;
   student_id: string;
@@ -24,11 +24,22 @@ interface Student {
   class_id: string | null;
   status: string;
   admission_date: string;
+  father_name: string | null;
+  father_phone: string | null;
+  father_cnic: string | null;
+  father_email: string | null;
+  mother_name: string | null;
+  mother_phone: string | null;
+  guardian_occupation: string | null;
+  previous_school: string | null;
   profile?: {
     full_name: string;
     email: string;
     phone: string | null;
     photo_url: string | null;
+    date_of_birth?: string | null;
+    address?: string | null;
+    gender?: string | null;
   };
   class?: {
     name: string;
@@ -85,10 +96,15 @@ const StudentManagement = () => {
     father_phone: "",
     father_cnic: "",
     father_email: "",
-    parent_password: "",
+    mother_name: "",
+    mother_phone: "",
+    occupation: "",
     address: "",
     previous_school: "",
   });
+
+  const [lastCreatedStudent, setLastCreatedStudent] = useState<AdmissionFormData | null>(null);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   
   const [lastStudentId, setLastStudentId] = useState<string | null>(null);
 
@@ -129,7 +145,7 @@ const StudentManagement = () => {
     const userIds = studentsData?.map(s => s.user_id) || [];
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("user_id, full_name, email, phone, photo_url")
+      .select("user_id, full_name, email, phone, photo_url, date_of_birth, address, gender")
       .in("user_id", userIds);
 
     const classIds = studentsData?.filter(s => s.class_id).map(s => s.class_id) || [];
@@ -214,10 +230,12 @@ const StudentManagement = () => {
       if (response.data?.error) throw new Error(response.data.error);
 
       const studentUserId = response.data?.user?.id;
+      const finalStudentId = response.data?.student_id || addFormData.student_id;
+      let photoUrl: string | null = null;
 
       // Upload photo if provided
       if (photoFile && studentUserId) {
-        const photoUrl = await uploadPhoto(photoFile, addFormData.student_id || studentUserId);
+        photoUrl = await uploadPhoto(photoFile, finalStudentId || studentUserId);
         if (photoUrl) {
           await supabase
             .from("profiles")
@@ -239,63 +257,59 @@ const StudentManagement = () => {
           .eq("user_id", studentUserId);
       }
 
-      // Update student record with previous_school
-      if (studentUserId && addFormData.previous_school) {
+      // Update student record with parent info and previous_school (stored in students table, no parent account)
+      if (studentUserId) {
         await supabase
           .from("students")
-          .update({ previous_school: addFormData.previous_school })
+          .update({ 
+            previous_school: addFormData.previous_school || null,
+            father_name: addFormData.father_name || null,
+            father_phone: addFormData.father_phone || null,
+            father_cnic: addFormData.father_cnic || null,
+            father_email: addFormData.father_email || null,
+            mother_name: addFormData.mother_name || null,
+            mother_phone: addFormData.mother_phone || null,
+            guardian_occupation: addFormData.occupation || null,
+          })
           .eq("user_id", studentUserId);
       }
 
-      // Create parent account if Father's CNIC is provided
-      if (addFormData.father_cnic && addFormData.father_name) {
-        const parentResponse = await supabase.functions.invoke("create-user", {
-          body: {
-            password: addFormData.parent_password,
-            fullName: addFormData.father_name,
-            phone: addFormData.father_phone || undefined,
-            email: addFormData.father_email || undefined,
-            role: "parent",
-            roleSpecificData: {
-              father_cnic: addFormData.father_cnic,
-              relationship: "father",
-            },
-          },
-        });
-
-        // Link parent to student if parent was created successfully
-        if (!parentResponse.error && parentResponse.data?.user?.id) {
-          const parentUserId = parentResponse.data.user.id;
-          
-          // Get the parent record
-          const { data: parentRecord } = await supabase
-            .from("parents")
-            .select("id")
-            .eq("user_id", parentUserId)
-            .maybeSingle();
-
-          // Get the student record
-          const { data: studentRecord } = await supabase
-            .from("students")
-            .select("id")
-            .eq("user_id", studentUserId)
-            .maybeSingle();
-
-          // Link them
-          if (parentRecord && studentRecord) {
-            await supabase
-              .from("student_parents")
-              .insert({
-                parent_id: parentRecord.id,
-                student_id: studentRecord.id,
-                is_primary: true,
-              });
-          }
+      // Get class info for admission form
+      let className = "";
+      let section = "";
+      if (addFormData.class_id && addFormData.class_id !== "none") {
+        const classInfo = classes.find(c => c.id === addFormData.class_id);
+        if (classInfo) {
+          className = classInfo.name;
+          section = classInfo.section || "";
         }
       }
 
-      toast({ title: "Success", description: "Student and parent accounts created successfully" });
+      // Prepare data for admission form download
+      const admissionData: AdmissionFormData = {
+        studentName: addFormData.full_name,
+        studentId: finalStudentId,
+        dateOfBirth: addFormData.date_of_birth,
+        phone: addFormData.phone,
+        className,
+        section,
+        admissionDate: new Date().toLocaleDateString(),
+        address: addFormData.address,
+        previousSchool: addFormData.previous_school,
+        fatherName: addFormData.father_name,
+        fatherPhone: addFormData.father_phone,
+        fatherCnic: addFormData.father_cnic,
+        fatherEmail: addFormData.father_email,
+        motherName: addFormData.mother_name,
+        motherPhone: addFormData.mother_phone,
+        occupation: addFormData.occupation,
+        photoUrl: photoUrl || undefined,
+      };
+
+      setLastCreatedStudent(admissionData);
+      toast({ title: "Success", description: "Student created successfully" });
       setIsAddDialogOpen(false);
+      setShowSuccessDialog(true);
       resetAddForm();
       fetchStudents();
     } catch (error: any) {
@@ -303,6 +317,32 @@ const StudentManagement = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleDownloadAdmissionForm = async (student: Student) => {
+    const classInfo = student.class;
+    const admissionData: AdmissionFormData = {
+      studentName: student.profile?.full_name || "",
+      studentId: student.student_id,
+      dateOfBirth: student.profile?.date_of_birth || "",
+      gender: student.profile?.gender || undefined,
+      phone: student.profile?.phone || undefined,
+      className: classInfo?.name || "",
+      section: classInfo?.section || undefined,
+      admissionDate: student.admission_date,
+      address: student.profile?.address || undefined,
+      previousSchool: student.previous_school || undefined,
+      fatherName: student.father_name || "",
+      fatherPhone: student.father_phone || "",
+      fatherCnic: student.father_cnic || "",
+      fatherEmail: student.father_email || undefined,
+      motherName: student.mother_name || undefined,
+      motherPhone: student.mother_phone || undefined,
+      occupation: student.guardian_occupation || undefined,
+      photoUrl: student.profile?.photo_url || undefined,
+    };
+    await downloadAdmissionForm(admissionData);
+    toast({ title: "Downloaded", description: "Admission form downloaded successfully" });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -420,7 +460,9 @@ const StudentManagement = () => {
       father_phone: "",
       father_cnic: "",
       father_email: "",
-      parent_password: "",
+      mother_name: "",
+      mother_phone: "",
+      occupation: "",
       address: "",
       previous_school: "",
     });
@@ -601,6 +643,10 @@ const StudentManagement = () => {
                             <Pencil className="w-4 h-4 mr-2" />
                             Edit Student
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDownloadAdmissionForm(student)}>
+                            <FileDown className="w-4 h-4 mr-2" />
+                            Download Admission Form
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openResetPasswordDialog(student)}>
                             <KeyRound className="w-4 h-4 mr-2" />
                             Reset Password
@@ -773,7 +819,7 @@ const StudentManagement = () => {
 
               {/* Father/Guardian Section */}
               <div className="col-span-2 border-b pb-1 pt-2">
-                <p className="text-sm font-semibold text-muted-foreground">Father/Guardian Information & Login</p>
+                <p className="text-sm font-semibold text-muted-foreground">Father/Guardian Information</p>
               </div>
               <div className="space-y-2">
                 <Label>Father's Name *</Label>
@@ -801,28 +847,39 @@ const StudentManagement = () => {
                   placeholder="12345-1234567-1"
                   required
                 />
-                <p className="text-xs text-muted-foreground">Used as parent login username</p>
               </div>
               <div className="space-y-2">
-                <Label>Parent Password *</Label>
-                <Input
-                  type="password"
-                  value={addFormData.parent_password}
-                  onChange={(e) => setAddFormData(p => ({ ...p, parent_password: e.target.value }))}
-                  placeholder="Min. 6 characters"
-                  minLength={6}
-                  required
-                />
-              </div>
-              <div className="space-y-2 col-span-2">
                 <Label>Father's Email</Label>
                 <Input
                   type="email"
                   value={addFormData.father_email}
                   onChange={(e) => setAddFormData(p => ({ ...p, father_email: e.target.value }))}
-                  placeholder="email@example.com (for notifications)"
+                  placeholder="email@example.com (optional)"
                 />
-                <p className="text-xs text-muted-foreground">Used to send notifications (optional)</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Mother's Name</Label>
+                <Input
+                  value={addFormData.mother_name}
+                  onChange={(e) => setAddFormData(p => ({ ...p, mother_name: e.target.value }))}
+                  placeholder="Mother's full name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Mother's Phone</Label>
+                <Input
+                  value={addFormData.mother_phone}
+                  onChange={(e) => setAddFormData(p => ({ ...p, mother_phone: e.target.value }))}
+                  placeholder="+92 300 1234567"
+                />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Guardian's Occupation</Label>
+                <Input
+                  value={addFormData.occupation}
+                  onChange={(e) => setAddFormData(p => ({ ...p, occupation: e.target.value }))}
+                  placeholder="e.g., Teacher, Engineer, etc."
+                />
               </div>
 
               {/* Address & Previous Education */}
@@ -850,7 +907,7 @@ const StudentManagement = () => {
             <div className="bg-accent/50 p-3 rounded-lg">
               <p className="text-sm text-muted-foreground">
                 <strong>Student Login:</strong> ID: <code className="bg-background px-1 rounded">{addFormData.student_id || "..."}</code> + Password<br />
-                <strong>Parent Login:</strong> CNIC: <code className="bg-background px-1 rounded">{addFormData.father_cnic || "..."}</code> + Password
+                <span className="text-xs">Parent account can be created later from Parent Management</span>
               </p>
             </div>
             <DialogFooter>
@@ -1015,6 +1072,50 @@ const StudentManagement = () => {
               </Button>
             </DialogFooter>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Success Dialog with Download Option */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-success flex items-center gap-2">
+              <UserCheck className="w-5 h-5" />
+              Student Created Successfully
+            </DialogTitle>
+            <DialogDescription>
+              The student account has been created. You can now download the admission form.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {lastCreatedStudent && (
+              <div className="bg-muted p-4 rounded-lg space-y-2">
+                <p><strong>Name:</strong> {lastCreatedStudent.studentName}</p>
+                <p><strong>Student ID:</strong> {lastCreatedStudent.studentId}</p>
+                <p><strong>Father's Name:</strong> {lastCreatedStudent.fatherName}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowSuccessDialog(false)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={async () => {
+                if (lastCreatedStudent) {
+                  await downloadAdmissionForm(lastCreatedStudent);
+                  toast({ title: "Downloaded", description: "Admission form downloaded" });
+                }
+              }}
+              className="hero-gradient text-primary-foreground"
+            >
+              <FileDown className="w-4 h-4 mr-2" />
+              Download Admission Form
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AdminLayout>
