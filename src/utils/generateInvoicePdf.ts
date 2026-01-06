@@ -32,8 +32,8 @@ export const generateInvoicePdf = (data: InvoiceData) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   
-  // Colors
-  const primaryColor: [number, number, number] = [41, 98, 255];
+  // Colors - Royal Blue theme
+  const primaryColor: [number, number, number] = [30, 100, 180];
   const darkColor: [number, number, number] = [30, 30, 30];
   const grayColor: [number, number, number] = [100, 100, 100];
   
@@ -97,7 +97,7 @@ export const generateInvoicePdf = (data: InvoiceData) => {
   
   // Status badge
   const statusColors: Record<string, [number, number, number]> = {
-    paid: [34, 197, 94],
+    paid: [30, 100, 180],
     partial: [234, 179, 8],
     pending: [148, 163, 184],
     overdue: [239, 68, 68],
@@ -155,13 +155,13 @@ export const generateInvoicePdf = (data: InvoiceData) => {
   yPos += 8;
   doc.setTextColor(...grayColor);
   doc.text("Discount:", pageWidth - 85, yPos);
-  doc.setTextColor(34, 197, 94);
+  doc.setTextColor(30, 100, 180);
   doc.text(`-PKR ${data.discount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
   
   yPos += 8;
   doc.setTextColor(...grayColor);
   doc.text("Paid:", pageWidth - 85, yPos);
-  doc.setTextColor(34, 197, 94);
+  doc.setTextColor(30, 100, 180);
   doc.text(`-PKR ${data.paidAmount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
   
   // Total due line

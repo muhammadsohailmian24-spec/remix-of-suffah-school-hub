@@ -26,8 +26,8 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   
-  // Colors
-  const primaryColor: [number, number, number] = [30, 64, 175];
+  // Colors - Royal Blue theme
+  const primaryColor: [number, number, number] = [30, 100, 180];
   const darkColor: [number, number, number] = [30, 30, 30];
   const grayColor: [number, number, number] = [100, 100, 100];
   const lightGray: [number, number, number] = [240, 240, 240];

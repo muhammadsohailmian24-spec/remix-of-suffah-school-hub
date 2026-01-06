@@ -25,8 +25,8 @@ export const generateRollNumberSlipPdf = async (data: RollNumberSlipData) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   
-  // Colors
-  const primaryColor: [number, number, number] = [30, 64, 175];
+  // Colors - Royal Blue theme
+  const primaryColor: [number, number, number] = [30, 100, 180];
   const darkColor: [number, number, number] = [30, 30, 30];
   const grayColor: [number, number, number] = [100, 100, 100];
 
@@ -184,7 +184,8 @@ export const generateClassRollNumberSlips = async (students: RollNumberSlipData[
   // Generate all in one doc
   const combinedDoc = new jsPDF();
   const pageWidth = combinedDoc.internal.pageSize.getWidth();
-  const primaryColor: [number, number, number] = [30, 64, 175];
+  // Colors - Royal Blue theme
+  const primaryColor: [number, number, number] = [30, 100, 180];
   const darkColor: [number, number, number] = [30, 30, 30];
   const grayColor: [number, number, number] = [100, 100, 100];
 

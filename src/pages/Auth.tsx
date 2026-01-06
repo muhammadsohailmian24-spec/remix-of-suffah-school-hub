@@ -110,10 +110,12 @@ const Auth = () => {
           </Link>
         </div>
         
-        <div className="space-y-6">
-          <div className="w-16 h-16 rounded-xl bg-primary-foreground/10 backdrop-blur flex items-center justify-center">
-            <GraduationCap className="w-8 h-8 text-primary-foreground" />
-          </div>
+          <div className="space-y-6">
+            <img 
+              src="/images/school-logo.jpg" 
+              alt="The Suffah Public School & College" 
+              className="w-20 h-20 rounded-full object-cover shadow-lg border-2 border-primary-foreground/20"
+            />
           <h1 className="font-heading text-4xl font-bold text-primary-foreground">
             The Suffah<br />Public School & College
           </h1>
@@ -132,9 +134,11 @@ const Auth = () => {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-lg hero-gradient flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
-            </div>
+            <img 
+              src="/images/school-logo.jpg" 
+              alt="The Suffah Public School & College" 
+              className="w-10 h-10 rounded-full object-cover shadow-md"
+            />
             <div>
               <h1 className="font-heading text-lg font-bold">The Suffah</h1>
               <p className="text-xs text-muted-foreground">Public School & College</p>

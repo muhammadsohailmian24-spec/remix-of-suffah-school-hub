@@ -24,9 +24,11 @@ const Index = () => {
       <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg hero-gradient flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
-            </div>
+            <img 
+              src="/images/school-logo.jpg" 
+              alt="The Suffah Public School & College" 
+              className="w-12 h-12 rounded-full object-cover shadow-md"
+            />
             <div>
               <h1 className="font-heading text-lg font-bold text-foreground">The Suffah</h1>
               <p className="text-xs text-muted-foreground">Public School & College</p>
@@ -166,8 +168,12 @@ const Index = () => {
               </ul>
             </div>
             <div className="relative">
-              <div className="w-full h-80 rounded-2xl bg-primary-foreground/10 backdrop-blur flex items-center justify-center">
-                <GraduationCap className="w-32 h-32 text-primary-foreground/30" />
+              <div className="w-full h-80 rounded-2xl bg-primary-foreground/10 backdrop-blur flex items-center justify-center p-6">
+                <img 
+                  src="/images/school-logo.jpg" 
+                  alt="The Suffah Public School & College" 
+                  className="max-w-full max-h-full object-contain rounded-xl"
+                />
               </div>
             </div>
           </div>
@@ -179,9 +185,11 @@ const Index = () => {
         <div className="container mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-primary-foreground" />
-              </div>
+              <img 
+                src="/images/school-logo.jpg" 
+                alt="The Suffah Public School & College" 
+                className="w-12 h-12 rounded-full object-cover"
+              />
               <div>
                 <h3 className="font-heading font-bold">The Suffah Public School & College</h3>
                 <p className="text-sm text-muted">Excellence in Education</p>
