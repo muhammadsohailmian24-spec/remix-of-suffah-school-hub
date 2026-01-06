@@ -61,14 +61,14 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        emerald: {
-          50: "hsl(var(--emerald-50))",
-          100: "hsl(var(--emerald-100))",
-          500: "hsl(var(--emerald-500))",
-          600: "hsl(var(--emerald-600))",
-          700: "hsl(var(--emerald-700))",
-          800: "hsl(var(--emerald-800))",
-          900: "hsl(var(--emerald-900))",
+        blue: {
+          50: "hsl(var(--blue-50))",
+          100: "hsl(var(--blue-100))",
+          500: "hsl(var(--blue-500))",
+          600: "hsl(var(--blue-600))",
+          700: "hsl(var(--blue-700))",
+          800: "hsl(var(--blue-800))",
+          900: "hsl(var(--blue-900))",
         },
         gold: {
           50: "hsl(var(--gold-50))",

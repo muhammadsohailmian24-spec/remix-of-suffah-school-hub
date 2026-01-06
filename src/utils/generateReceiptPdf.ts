@@ -25,8 +25,8 @@ export const generateReceiptPdf = (data: ReceiptData) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   
-  // Colors
-  const primaryColor: [number, number, number] = [34, 197, 94];
+  // Colors - Royal Blue theme
+  const primaryColor: [number, number, number] = [30, 100, 180];
   const darkColor: [number, number, number] = [30, 30, 30];
   const grayColor: [number, number, number] = [100, 100, 100];
   
@@ -53,7 +53,7 @@ export const generateReceiptPdf = (data: ReceiptData) => {
   doc.text("PAYMENT RECEIPT", pageWidth - 20, 65, { align: "right" });
   
   // Receipt details box
-  doc.setFillColor(240, 253, 244);
+  doc.setFillColor(235, 245, 255);
   doc.rect(pageWidth - 90, 70, 70, 28, "F");
   
   doc.setFontSize(10);
@@ -150,7 +150,7 @@ export const generateReceiptPdf = (data: ReceiptData) => {
   yPos += 10;
   doc.setTextColor(...grayColor);
   doc.text("This Payment:", pageWidth - 90, yPos);
-  doc.setTextColor(34, 197, 94);
+  doc.setTextColor(30, 100, 180);
   doc.setFont("helvetica", "bold");
   doc.text(`PKR ${data.paymentAmount.toLocaleString()}`, pageWidth - 25, yPos, { align: "right" });
   
@@ -163,7 +163,7 @@ export const generateReceiptPdf = (data: ReceiptData) => {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   if (data.balanceAfterPayment <= 0) {
-    doc.setTextColor(34, 197, 94);
+    doc.setTextColor(30, 100, 180);
     doc.text("FULLY PAID", pageWidth - 90, yPos);
     doc.text("PKR 0", pageWidth - 25, yPos, { align: "right" });
   } else {
