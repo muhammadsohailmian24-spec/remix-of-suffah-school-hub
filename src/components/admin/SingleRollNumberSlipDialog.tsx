@@ -174,7 +174,7 @@ const SingleRollNumberSlipDialog = ({ examName, open, onOpenChange }: SingleRoll
 
       const slipData: RollNumberSlipData = {
         schoolName: "The Suffah",
-        schoolAddress: "Saidu Sharif, Swat - Pakistan",
+        schoolAddress: "Madyan Swat, Pakistan",
         examName: examName,
         examDate: examSubjects[0]?.date || "",
         studentName: student.full_name,

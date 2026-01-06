@@ -111,7 +111,7 @@ export const generateMarksCertificatePdf = async (data: MarksCertificateData) =>
   // School Address
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
-  doc.text(data.schoolAddress || "SAIDU SHARIF SWAT", pageWidth / 2, 26, { align: "center" });
+  doc.text(data.schoolAddress || "MADYAN SWAT, PAKISTAN", pageWidth / 2, 26, { align: "center" });
 
   // Certificate Title
   doc.setFontSize(14);

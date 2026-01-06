@@ -41,7 +41,7 @@ export const generateRollNumberSlipPdf = async (data: RollNumberSlipData) => {
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(data.schoolAddress || "Saidu Sharif, Swat - Pakistan", pageWidth / 2, 23, { align: "center" });
+  doc.text(data.schoolAddress || "Madyan Swat, Pakistan", pageWidth / 2, 23, { align: "center" });
 
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
@@ -204,7 +204,7 @@ export const generateClassRollNumberSlips = async (students: RollNumberSlipData[
 
     combinedDoc.setFontSize(10);
     combinedDoc.setFont("helvetica", "normal");
-    combinedDoc.text(data.schoolAddress || "Saidu Sharif, Swat - Pakistan", pageWidth / 2, 23, { align: "center" });
+    combinedDoc.text(data.schoolAddress || "Madyan Swat, Pakistan", pageWidth / 2, 23, { align: "center" });
 
     combinedDoc.setFontSize(12);
     combinedDoc.setFont("helvetica", "bold");

@@ -96,8 +96,6 @@ const StudentManagement = () => {
     father_phone: "",
     father_cnic: "",
     father_email: "",
-    mother_name: "",
-    mother_phone: "",
     occupation: "",
     address: "",
     previous_school: "",
@@ -259,7 +257,7 @@ const StudentManagement = () => {
 
       // Update student record with parent info and previous_school (stored in students table, no parent account)
       if (studentUserId) {
-        await supabase
+        const { data: studentRecord } = await supabase
           .from("students")
           .update({ 
             previous_school: addFormData.previous_school || null,
@@ -267,11 +265,39 @@ const StudentManagement = () => {
             father_phone: addFormData.father_phone || null,
             father_cnic: addFormData.father_cnic || null,
             father_email: addFormData.father_email || null,
-            mother_name: addFormData.mother_name || null,
-            mother_phone: addFormData.mother_phone || null,
             guardian_occupation: addFormData.occupation || null,
           })
-          .eq("user_id", studentUserId);
+          .eq("user_id", studentUserId)
+          .select("id")
+          .single();
+
+        // Auto-link to existing parent account if CNIC matches
+        if (addFormData.father_cnic && studentRecord) {
+          const cleanCnic = addFormData.father_cnic.replace(/-/g, "");
+          
+          // Check if parent with this CNIC exists
+          const { data: existingParent } = await supabase
+            .from("parents")
+            .select("id, user_id")
+            .eq("father_cnic", cleanCnic)
+            .maybeSingle();
+
+          if (existingParent) {
+            // Link student to existing parent
+            await supabase
+              .from("student_parents")
+              .insert({
+                parent_id: existingParent.id,
+                student_id: studentRecord.id,
+                is_primary: true,
+              });
+            
+            toast({ 
+              title: "Student Auto-Linked", 
+              description: "Student was automatically linked to existing parent account with matching CNIC" 
+            });
+          }
+        }
       }
 
       // Get class info for admission form
@@ -300,8 +326,6 @@ const StudentManagement = () => {
         fatherPhone: addFormData.father_phone,
         fatherCnic: addFormData.father_cnic,
         fatherEmail: addFormData.father_email,
-        motherName: addFormData.mother_name,
-        motherPhone: addFormData.mother_phone,
         occupation: addFormData.occupation,
         photoUrl: photoUrl || undefined,
       };
@@ -336,8 +360,6 @@ const StudentManagement = () => {
       fatherPhone: student.father_phone || "",
       fatherCnic: student.father_cnic || "",
       fatherEmail: student.father_email || undefined,
-      motherName: student.mother_name || undefined,
-      motherPhone: student.mother_phone || undefined,
       occupation: student.guardian_occupation || undefined,
       photoUrl: student.profile?.photo_url || undefined,
     };
@@ -460,8 +482,6 @@ const StudentManagement = () => {
       father_phone: "",
       father_cnic: "",
       father_email: "",
-      mother_name: "",
-      mother_phone: "",
       occupation: "",
       address: "",
       previous_school: "",
@@ -784,17 +804,6 @@ const StudentManagement = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Password *</Label>
-                <Input
-                  type="password"
-                  value={addFormData.password}
-                  onChange={(e) => setAddFormData(p => ({ ...p, password: e.target.value }))}
-                  placeholder="Min. 6 characters"
-                  minLength={6}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
                 <Label>Phone</Label>
                 <Input
                   value={addFormData.phone}
@@ -855,22 +864,6 @@ const StudentManagement = () => {
                   value={addFormData.father_email}
                   onChange={(e) => setAddFormData(p => ({ ...p, father_email: e.target.value }))}
                   placeholder="email@example.com (optional)"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Mother's Name</Label>
-                <Input
-                  value={addFormData.mother_name}
-                  onChange={(e) => setAddFormData(p => ({ ...p, mother_name: e.target.value }))}
-                  placeholder="Mother's full name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Mother's Phone</Label>
-                <Input
-                  value={addFormData.mother_phone}
-                  onChange={(e) => setAddFormData(p => ({ ...p, mother_phone: e.target.value }))}
-                  placeholder="+92 300 1234567"
                 />
               </div>
               <div className="space-y-2 col-span-2">

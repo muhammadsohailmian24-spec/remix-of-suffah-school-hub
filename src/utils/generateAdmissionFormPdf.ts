@@ -16,8 +16,6 @@ export interface AdmissionFormData {
   fatherPhone: string;
   fatherCnic: string;
   fatherEmail?: string;
-  motherName?: string;
-  motherPhone?: string;
   occupation?: string;
   photoUrl?: string;
   schoolName?: string;
@@ -45,7 +43,7 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(data.schoolAddress || "Saidu Sharif, Swat - Pakistan", pageWidth / 2, 23, { align: "center" });
+  doc.text(data.schoolAddress || "Madyan Swat, Pakistan", pageWidth / 2, 23, { align: "center" });
 
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
@@ -137,7 +135,6 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
   const parentInfo = [
     ["Father's Name:", data.fatherName, "CNIC:", data.fatherCnic],
     ["Phone:", data.fatherPhone, "Email:", data.fatherEmail || "-"],
-    ["Mother's Name:", data.motherName || "-", "Mother's Phone:", data.motherPhone || "-"],
     ["Occupation:", data.occupation || "-", "", ""],
   ];
 

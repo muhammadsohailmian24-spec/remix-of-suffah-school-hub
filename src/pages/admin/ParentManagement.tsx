@@ -19,6 +19,7 @@ interface Parent {
   user_id: string;
   occupation: string | null;
   relationship: string | null;
+  father_cnic: string | null;
   profile?: {
     full_name: string;
     email: string;
@@ -421,10 +422,16 @@ const ParentManagement = () => {
     }
   };
 
-  const filteredParents = parents.filter(p => 
-    p.profile?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.profile?.email?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredParents = parents.filter(p => {
+    const query = searchQuery.toLowerCase();
+    const cnicQuery = searchQuery.replace(/-/g, "");
+    return (
+      p.profile?.full_name?.toLowerCase().includes(query) ||
+      p.profile?.email?.toLowerCase().includes(query) ||
+      p.father_cnic?.includes(cnicQuery) ||
+      p.father_cnic?.replace(/-/g, "").includes(cnicQuery)
+    );
+  });
 
   return (
     <AdminLayout title="Parent Management" description="Manage parents and their linked students">
@@ -451,7 +458,7 @@ const ParentManagement = () => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name or email..."
+                placeholder="Search by name, email or CNIC..."
                 className="pl-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -479,7 +486,7 @@ const ParentManagement = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
+                  <TableHead>CNIC</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Relationship</TableHead>
                   <TableHead>Linked Students</TableHead>
@@ -490,7 +497,7 @@ const ParentManagement = () => {
                 {filteredParents.map((parent) => (
                   <TableRow key={parent.id}>
                     <TableCell className="font-medium">{parent.profile?.full_name || "-"}</TableCell>
-                    <TableCell>{parent.profile?.email || "-"}</TableCell>
+                    <TableCell className="font-mono text-sm">{parent.father_cnic || "-"}</TableCell>
                     <TableCell>{parent.profile?.phone || "-"}</TableCell>
                     <TableCell className="capitalize">{parent.relationship || "-"}</TableCell>
                     <TableCell>
