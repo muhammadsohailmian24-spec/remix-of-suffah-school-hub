@@ -34,17 +34,17 @@ const Index = () => {
               <p className="text-xs text-primary-foreground/70">Public School & College</p>
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="nav-link-hover">
+          <div className="hidden md:flex items-center gap-4">
+            <a href="#features" className="nav-link-3d">
               Features
             </a>
-            <a href="#gallery" className="nav-link-hover">
+            <a href="#gallery" className="nav-link-3d">
               Gallery
             </a>
-            <a href="#about" className="nav-link-hover">
+            <a href="#about" className="nav-link-3d">
               About
             </a>
-            <Link to="/admissions" className="nav-link-hover">
+            <Link to="/admissions" className="nav-link-3d">
               Admissions
             </Link>
           </div>
