@@ -4,9 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
-  GraduationCap, Users, BookOpen, Calendar, Bell, 
+  Users, BookOpen, Calendar, Bell, 
   LogOut, LayoutDashboard, FileText, ClipboardList,
-  Clock, Award, Settings, UserPlus, School, BookMarked
+  Clock, Award, Settings, UserPlus, School, BookMarked, GraduationCap
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
@@ -352,9 +352,11 @@ const Dashboard = () => {
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg hero-gradient flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-primary-foreground" />
-              </div>
+              <img 
+                src="/images/school-logo.jpg" 
+                alt="The Suffah Public School & College" 
+                className="w-10 h-10 rounded-full object-cover shadow-md"
+              />
               <div>
                 <h1 className="font-heading text-lg font-bold">The Suffah</h1>
                 <p className="text-xs text-muted-foreground">Management System</p>

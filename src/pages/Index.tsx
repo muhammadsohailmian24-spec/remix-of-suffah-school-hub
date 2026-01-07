@@ -21,7 +21,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-b border-border shadow-sm">
+      <nav className="fixed top-0 left-0 right-0 z-50 hero-gradient border-b border-primary/20 shadow-lg">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img 
@@ -30,32 +30,32 @@ const Index = () => {
               className="w-12 h-12 rounded-full object-cover shadow-md"
             />
             <div>
-              <h1 className="font-heading text-lg font-bold text-foreground">The Suffah</h1>
-              <p className="text-xs text-muted-foreground">Public School & College</p>
+              <h1 className="font-heading text-lg font-bold text-primary-foreground">The Suffah</h1>
+              <p className="text-xs text-primary-foreground/70">Public School & College</p>
             </div>
           </div>
           <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="nav-link">
+            <a href="#features" className="nav-link-hover">
               Features
             </a>
-            <a href="#gallery" className="nav-link">
+            <a href="#gallery" className="nav-link-hover">
               Gallery
             </a>
-            <a href="#about" className="nav-link">
+            <a href="#about" className="nav-link-hover">
               About
             </a>
-            <Link to="/admissions" className="nav-link">
+            <Link to="/admissions" className="nav-link-hover">
               Admissions
             </Link>
           </div>
           <div className="flex items-center gap-3">
             <Link to="/auth">
-              <Button variant="ghost" size="sm" className="nav-btn-hover">
+              <Button variant="ghost" size="sm" className="nav-btn-hover text-primary-foreground hover:bg-primary-foreground/10">
                 Sign In
               </Button>
             </Link>
             <Link to="/auth?mode=signup">
-              <Button size="sm" className="hero-gradient text-primary-foreground nav-btn-glow">
+              <Button size="sm" className="bg-gold-500 hover:bg-gold-600 text-foreground nav-btn-glow">
                 Get Started
               </Button>
             </Link>

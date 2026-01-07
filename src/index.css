@@ -217,6 +217,25 @@
     @apply w-full;
   }
 
+  /* Navigation Link Hover Effects for Hero Navbar */
+  .nav-link-hover {
+    @apply relative px-4 py-2 text-sm font-medium text-primary-foreground/80 transition-all duration-300;
+  }
+
+  .nav-link-hover::after {
+    content: '';
+    @apply absolute bottom-0 left-0 w-0 h-0.5 bg-gold-400 transition-all duration-300;
+  }
+
+  .nav-link-hover:hover {
+    @apply text-primary-foreground;
+    text-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+  }
+
+  .nav-link-hover:hover::after {
+    @apply w-full;
+  }
+
   /* Navigation Button Hover Effects */
   .nav-btn-hover {
     @apply relative overflow-hidden transition-all duration-300;
