@@ -34,24 +34,40 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
 
   // Header
   doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, pageWidth, 35, "F");
+  doc.rect(0, 0, pageWidth, 40, "F");
+
+  // Add logo
+  try {
+    const logoImg = new Image();
+    logoImg.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      logoImg.onload = () => {
+        doc.addImage(logoImg, "JPEG", 15, 5, 25, 30);
+        resolve();
+      };
+      logoImg.onerror = reject;
+      logoImg.src = "/images/school-logo.jpg";
+    });
+  } catch (e) {
+    // Continue without logo if it fails
+  }
 
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.text(data.schoolName || "The Suffah Public School & College", pageWidth / 2, 15, { align: "center" });
+  doc.text(data.schoolName || "The Suffah Public School & College", pageWidth / 2 + 10, 15, { align: "center" });
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(data.schoolAddress || "Madyan Swat, Pakistan", pageWidth / 2, 23, { align: "center" });
+  doc.text(data.schoolAddress || "Madyan Swat, Pakistan", pageWidth / 2 + 10, 23, { align: "center" });
 
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text("ADMISSION FORM", pageWidth / 2, 31, { align: "center" });
+  doc.text("ADMISSION FORM", pageWidth / 2 + 10, 33, { align: "center" });
 
   // Photo box (right side)
   const photoX = pageWidth - 50;
-  const photoY = 45;
+  const photoY = 50;
   const photoWidth = 35;
   const photoHeight = 45;
 
@@ -83,7 +99,7 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
   }
 
   const leftMargin = 15;
-  let yPos = 45;
+  let yPos = 50;
 
   // Student Information Section
   doc.setFillColor(...lightGray);

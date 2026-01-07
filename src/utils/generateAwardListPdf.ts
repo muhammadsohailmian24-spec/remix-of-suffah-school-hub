@@ -37,12 +37,24 @@ export const generateAwardListPdf = async (data: AwardListData): Promise<jsPDF> 
     const imgHeight = 25;
     doc.addImage(headerImg, 'PNG', margin, 5, imgWidth, imgHeight);
   } catch (error) {
-    // Fallback text header if image fails
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('The Suffah Public School & College', pageWidth / 2, 15, { align: 'center' });
-    doc.setFontSize(10);
-    doc.text('PSRA Reg. No. 200445000302 | BISE Reg. No. 434-B/Swat-C', pageWidth / 2, 22, { align: 'center' });
+    // Try to load and add logo if header fails
+    try {
+      const logoImg = await loadImage('/images/school-logo.jpg');
+      doc.addImage(logoImg, 'JPEG', margin, 5, 20, 25);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('The Suffah Public School & College', margin + 25, 15);
+      doc.setFontSize(10);
+      doc.text('PSRA Reg. No. 200445000302 | BISE Reg. No. 434-B/Swat-C', margin + 25, 22);
+      doc.text('Madyan Swat, Pakistan', margin + 25, 28);
+    } catch {
+      // Fallback text header if both images fail
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('The Suffah Public School & College', pageWidth / 2, 15, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text('PSRA Reg. No. 200445000302 | BISE Reg. No. 434-B/Swat-C', pageWidth / 2, 22, { align: 'center' });
+    }
   }
 
   const startY = 35;

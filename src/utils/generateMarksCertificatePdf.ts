@@ -102,16 +102,32 @@ export const generateMarksCertificatePdf = async (data: MarksCertificateData) =>
     }
   }
 
+  // Add logo
+  try {
+    const logoImg = new Image();
+    logoImg.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      logoImg.onload = () => {
+        doc.addImage(logoImg, "JPEG", leftMargin, 8, 22, 28);
+        resolve();
+      };
+      logoImg.onerror = reject;
+      logoImg.src = "/images/school-logo.jpg";
+    });
+  } catch (e) {
+    // Continue without logo if it fails
+  }
+
   // Header - School Name
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...darkColor);
-  doc.text(data.schoolName || "THE SUFFAH PUBLIC SCHOOL & COLLEGE", pageWidth / 2, 18, { align: "center" });
+  doc.text(data.schoolName || "THE SUFFAH PUBLIC SCHOOL & COLLEGE", pageWidth / 2 + 10, 18, { align: "center" });
 
   // School Address
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
-  doc.text(data.schoolAddress || "MADYAN SWAT, PAKISTAN", pageWidth / 2, 26, { align: "center" });
+  doc.text(data.schoolAddress || "MADYAN SWAT, PAKISTAN", pageWidth / 2 + 10, 26, { align: "center" });
 
   // Certificate Title
   doc.setFontSize(14);

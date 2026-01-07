@@ -623,7 +623,7 @@ const FeeManagement = () => {
                                 variant="ghost" 
                                 size="sm"
                                 title="Download Invoice"
-                                onClick={() => {
+                                onClick={async () => {
                                   const feePayments = payments
                                     .filter(p => p.student_fee_id === sf.id)
                                     .map(p => ({
@@ -633,7 +633,7 @@ const FeeManagement = () => {
                                       receiptNumber: p.receipt_number
                                     }));
                                   
-                                  downloadInvoice({
+                                  await downloadInvoice({
                                     invoiceNumber: `INV-${sf.id.slice(0, 8).toUpperCase()}`,
                                     invoiceDate: new Date(sf.created_at || Date.now()).toLocaleDateString(),
                                     dueDate: new Date(sf.due_date).toLocaleDateString(),
@@ -657,7 +657,7 @@ const FeeManagement = () => {
                                 variant="ghost" 
                                 size="sm"
                                 title="Print Invoice"
-                                onClick={() => {
+                                onClick={async () => {
                                   const feePayments = payments
                                     .filter(p => p.student_fee_id === sf.id)
                                     .map(p => ({
@@ -667,7 +667,7 @@ const FeeManagement = () => {
                                       receiptNumber: p.receipt_number
                                     }));
                                   
-                                  printInvoice({
+                                  await printInvoice({
                                     invoiceNumber: `INV-${sf.id.slice(0, 8).toUpperCase()}`,
                                     invoiceDate: new Date(sf.created_at || Date.now()).toLocaleDateString(),
                                     dueDate: new Date(sf.due_date).toLocaleDateString(),
@@ -799,8 +799,8 @@ const FeeManagement = () => {
                                 size="sm" 
                                 variant="ghost"
                                 title="Download Receipt"
-                                onClick={() => {
-                                  downloadReceipt({
+                                onClick={async () => {
+                                  await downloadReceipt({
                                     receiptNumber: payment.receipt_number || `RCP-${payment.id.slice(0, 8).toUpperCase()}`,
                                     paymentDate: new Date(payment.payment_date).toLocaleString(),
                                     studentName: sf?.student?.profiles?.full_name || "Unknown",
@@ -822,8 +822,8 @@ const FeeManagement = () => {
                                 size="sm" 
                                 variant="ghost"
                                 title="Print Receipt"
-                                onClick={() => {
-                                  printReceipt({
+                                onClick={async () => {
+                                  await printReceipt({
                                     receiptNumber: payment.receipt_number || `RCP-${payment.id.slice(0, 8).toUpperCase()}`,
                                     paymentDate: new Date(payment.payment_date).toLocaleString(),
                                     studentName: sf?.student?.profiles?.full_name || "Unknown",

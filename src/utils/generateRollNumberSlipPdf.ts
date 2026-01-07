@@ -32,24 +32,40 @@ export const generateRollNumberSlipPdf = async (data: RollNumberSlipData) => {
 
   // Header
   doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, pageWidth, 35, "F");
+  doc.rect(0, 0, pageWidth, 40, "F");
+
+  // Add logo
+  try {
+    const logoImg = new Image();
+    logoImg.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      logoImg.onload = () => {
+        doc.addImage(logoImg, "JPEG", 15, 5, 25, 30);
+        resolve();
+      };
+      logoImg.onerror = reject;
+      logoImg.src = "/images/school-logo.jpg";
+    });
+  } catch (e) {
+    // Continue without logo if it fails
+  }
 
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.text(data.schoolName || "The Suffah Public School & College", pageWidth / 2, 15, { align: "center" });
+  doc.text(data.schoolName || "The Suffah Public School & College", pageWidth / 2 + 10, 15, { align: "center" });
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(data.schoolAddress || "Madyan Swat, Pakistan", pageWidth / 2, 23, { align: "center" });
+  doc.text(data.schoolAddress || "Madyan Swat, Pakistan", pageWidth / 2 + 10, 23, { align: "center" });
 
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text("EXAMINATION ROLL NUMBER SLIP", pageWidth / 2, 31, { align: "center" });
+  doc.text("EXAMINATION ROLL NUMBER SLIP", pageWidth / 2 + 10, 33, { align: "center" });
 
   // Photo box (right side)
   const photoX = pageWidth - 50;
-  const photoY = 45;
+  const photoY = 50;
   const photoWidth = 30;
   const photoHeight = 40;
 
@@ -81,7 +97,7 @@ export const generateRollNumberSlipPdf = async (data: RollNumberSlipData) => {
   }
 
   // Student details (left side)
-  let yPos = 50;
+  let yPos = 55;
   const leftMargin = 20;
 
   doc.setTextColor(...darkColor);
@@ -105,7 +121,7 @@ export const generateRollNumberSlipPdf = async (data: RollNumberSlipData) => {
   });
 
   // Exam schedule table
-  yPos = 100;
+  yPos = 105;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(...primaryColor);
@@ -196,24 +212,40 @@ export const generateClassRollNumberSlips = async (students: RollNumberSlipData[
     
     // Header
     combinedDoc.setFillColor(...primaryColor);
-    combinedDoc.rect(0, 0, pageWidth, 35, "F");
+    combinedDoc.rect(0, 0, pageWidth, 40, "F");
+
+    // Add logo
+    try {
+      const logoImg = new Image();
+      logoImg.crossOrigin = "anonymous";
+      await new Promise<void>((resolve, reject) => {
+        logoImg.onload = () => {
+          combinedDoc.addImage(logoImg, "JPEG", 15, 5, 25, 30);
+          resolve();
+        };
+        logoImg.onerror = reject;
+        logoImg.src = "/images/school-logo.jpg";
+      });
+    } catch (e) {
+      // Continue without logo if it fails
+    }
 
     combinedDoc.setTextColor(255, 255, 255);
     combinedDoc.setFontSize(18);
     combinedDoc.setFont("helvetica", "bold");
-    combinedDoc.text(data.schoolName || "The Suffah Public School & College", pageWidth / 2, 15, { align: "center" });
+    combinedDoc.text(data.schoolName || "The Suffah Public School & College", pageWidth / 2 + 10, 15, { align: "center" });
 
     combinedDoc.setFontSize(10);
     combinedDoc.setFont("helvetica", "normal");
-    combinedDoc.text(data.schoolAddress || "Madyan Swat, Pakistan", pageWidth / 2, 23, { align: "center" });
+    combinedDoc.text(data.schoolAddress || "Madyan Swat, Pakistan", pageWidth / 2 + 10, 23, { align: "center" });
 
     combinedDoc.setFontSize(12);
     combinedDoc.setFont("helvetica", "bold");
-    combinedDoc.text("EXAMINATION ROLL NUMBER SLIP", pageWidth / 2, 31, { align: "center" });
+    combinedDoc.text("EXAMINATION ROLL NUMBER SLIP", pageWidth / 2 + 10, 33, { align: "center" });
 
     // Photo box
     const photoX = pageWidth - 50;
-    const photoY = 45;
+    const photoY = 50;
     const photoWidth = 30;
     const photoHeight = 40;
 
@@ -245,7 +277,7 @@ export const generateClassRollNumberSlips = async (students: RollNumberSlipData[
     }
 
     // Student details
-    let yPos = 50;
+    let yPos = 55;
     const leftMargin = 20;
 
     combinedDoc.setTextColor(...darkColor);
@@ -269,7 +301,7 @@ export const generateClassRollNumberSlips = async (students: RollNumberSlipData[
     });
 
     // Exam schedule
-    yPos = 100;
+    yPos = 105;
     combinedDoc.setFont("helvetica", "bold");
     combinedDoc.setFontSize(12);
     combinedDoc.setTextColor(...primaryColor);

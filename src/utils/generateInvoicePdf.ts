@@ -28,7 +28,7 @@ interface InvoiceData {
 }
 
 
-export const generateInvoicePdf = (data: InvoiceData) => {
+export const generateInvoicePdf = async (data: InvoiceData) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   
@@ -39,60 +39,76 @@ export const generateInvoicePdf = (data: InvoiceData) => {
   
   // Header background
   doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, pageWidth, 45, "F");
+  doc.rect(0, 0, pageWidth, 50, "F");
+  
+  // Add logo
+  try {
+    const logoImg = new Image();
+    logoImg.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      logoImg.onload = () => {
+        doc.addImage(logoImg, "JPEG", 15, 8, 28, 34);
+        resolve();
+      };
+      logoImg.onerror = reject;
+      logoImg.src = "/images/school-logo.jpg";
+    });
+  } catch (e) {
+    // Continue without logo if it fails
+  }
   
   // School name
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(22);
   doc.setFont("helvetica", "bold");
-  doc.text(data.schoolName || "The Suffah Public School & College", 20, 20);
+  doc.text(data.schoolName || "The Suffah Public School & College", 50, 20);
   
   // School info
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(data.schoolAddress || "Knowledge is Power - Since 2009", 20, 28);
-  doc.text(`Phone: ${data.schoolPhone || "+92 000 000 0000"} | Email: ${data.schoolEmail || "info@suffah.edu.pk"}`, 20, 35);
+  doc.text(data.schoolAddress || "Madyan Swat, Pakistan", 50, 28);
+  doc.text(`Phone: ${data.schoolPhone || "+92 000 000 0000"} | Email: ${data.schoolEmail || "info@suffah.edu.pk"}`, 50, 36);
   
   // Invoice title
   doc.setTextColor(...darkColor);
   doc.setFontSize(28);
   doc.setFont("helvetica", "bold");
-  doc.text("INVOICE", pageWidth - 20, 65, { align: "right" });
+  doc.text("INVOICE", pageWidth - 20, 70, { align: "right" });
   
   // Invoice details box
   doc.setFillColor(245, 247, 250);
-  doc.rect(pageWidth - 90, 70, 70, 35, "F");
+  doc.rect(pageWidth - 90, 75, 70, 35, "F");
   
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...grayColor);
-  doc.text("Invoice Number:", pageWidth - 85, 80);
-  doc.text("Invoice Date:", pageWidth - 85, 88);
-  doc.text("Due Date:", pageWidth - 85, 96);
+  doc.text("Invoice Number:", pageWidth - 85, 85);
+  doc.text("Invoice Date:", pageWidth - 85, 93);
+  doc.text("Due Date:", pageWidth - 85, 101);
   
   doc.setTextColor(...darkColor);
   doc.setFont("helvetica", "bold");
-  doc.text(data.invoiceNumber, pageWidth - 25, 80, { align: "right" });
-  doc.text(data.invoiceDate, pageWidth - 25, 88, { align: "right" });
-  doc.text(data.dueDate, pageWidth - 25, 96, { align: "right" });
+  doc.text(data.invoiceNumber, pageWidth - 25, 85, { align: "right" });
+  doc.text(data.invoiceDate, pageWidth - 25, 93, { align: "right" });
+  doc.text(data.dueDate, pageWidth - 25, 101, { align: "right" });
   
   // Bill To section
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...primaryColor);
-  doc.text("BILL TO", 20, 75);
+  doc.text("BILL TO", 20, 80);
   
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...darkColor);
-  doc.text(data.studentName, 20, 85);
+  doc.text(data.studentName, 20, 90);
   
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(...grayColor);
-  doc.text(`Student ID: ${data.studentId}`, 20, 92);
+  doc.text(`Student ID: ${data.studentId}`, 20, 97);
   if (data.className) {
-    doc.text(`Class: ${data.className}`, 20, 99);
+    doc.text(`Class: ${data.className}`, 20, 104);
   }
   
   // Status badge
@@ -105,15 +121,15 @@ export const generateInvoicePdf = (data: InvoiceData) => {
   const statusColor = statusColors[data.status] || statusColors.pending;
   
   doc.setFillColor(...statusColor);
-  doc.roundedRect(pageWidth - 55, 110, 35, 10, 2, 2, "F");
+  doc.roundedRect(pageWidth - 55, 115, 35, 10, 2, 2, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
-  doc.text(data.status.toUpperCase(), pageWidth - 37.5, 117, { align: "center" });
+  doc.text(data.status.toUpperCase(), pageWidth - 37.5, 122, { align: "center" });
   
   // Fee details table
   autoTable(doc, {
-    startY: 130,
+    startY: 135,
     head: [["Description", "Fee Type", "Amount"]],
     body: [
       [data.feeName, data.feeType.charAt(0).toUpperCase() + data.feeType.slice(1), `PKR ${data.amount.toLocaleString()}`],
@@ -224,13 +240,13 @@ export const generateInvoicePdf = (data: InvoiceData) => {
   return doc;
 };
 
-export const downloadInvoice = (data: InvoiceData) => {
-  const doc = generateInvoicePdf(data);
+export const downloadInvoice = async (data: InvoiceData) => {
+  const doc = await generateInvoicePdf(data);
   doc.save(`Invoice-${data.invoiceNumber}.pdf`);
 };
 
-export const printInvoice = (data: InvoiceData) => {
-  const doc = generateInvoicePdf(data);
+export const printInvoice = async (data: InvoiceData) => {
+  const doc = await generateInvoicePdf(data);
   doc.autoPrint();
   window.open(doc.output("bloburl"), "_blank");
 };

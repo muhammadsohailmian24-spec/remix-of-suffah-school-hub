@@ -21,7 +21,7 @@ interface ReceiptData {
   schoolEmail?: string;
 }
 
-export const generateReceiptPdf = (data: ReceiptData) => {
+export const generateReceiptPdf = async (data: ReceiptData) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   
@@ -32,71 +32,87 @@ export const generateReceiptPdf = (data: ReceiptData) => {
   
   // Header background
   doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, pageWidth, 45, "F");
+  doc.rect(0, 0, pageWidth, 50, "F");
+  
+  // Add logo
+  try {
+    const logoImg = new Image();
+    logoImg.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      logoImg.onload = () => {
+        doc.addImage(logoImg, "JPEG", 15, 8, 28, 34);
+        resolve();
+      };
+      logoImg.onerror = reject;
+      logoImg.src = "/images/school-logo.jpg";
+    });
+  } catch (e) {
+    // Continue without logo if it fails
+  }
   
   // School name
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(22);
   doc.setFont("helvetica", "bold");
-  doc.text(data.schoolName || "The Suffah Public School & College", 20, 20);
+  doc.text(data.schoolName || "The Suffah Public School & College", 50, 20);
   
   // School info
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(data.schoolAddress || "Knowledge is Power - Since 2009", 20, 28);
-  doc.text(`Phone: ${data.schoolPhone || "+92 000 000 0000"} | Email: ${data.schoolEmail || "info@suffah.edu.pk"}`, 20, 35);
+  doc.text(data.schoolAddress || "Madyan Swat, Pakistan", 50, 28);
+  doc.text(`Phone: ${data.schoolPhone || "+92 000 000 0000"} | Email: ${data.schoolEmail || "info@suffah.edu.pk"}`, 50, 36);
   
   // Receipt title
   doc.setTextColor(...darkColor);
   doc.setFontSize(28);
   doc.setFont("helvetica", "bold");
-  doc.text("PAYMENT RECEIPT", pageWidth - 20, 65, { align: "right" });
+  doc.text("PAYMENT RECEIPT", pageWidth - 20, 70, { align: "right" });
   
   // Receipt details box
   doc.setFillColor(235, 245, 255);
-  doc.rect(pageWidth - 90, 70, 70, 28, "F");
+  doc.rect(pageWidth - 90, 75, 70, 28, "F");
   
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...grayColor);
-  doc.text("Receipt Number:", pageWidth - 85, 80);
-  doc.text("Payment Date:", pageWidth - 85, 88);
+  doc.text("Receipt Number:", pageWidth - 85, 85);
+  doc.text("Payment Date:", pageWidth - 85, 93);
   
   doc.setTextColor(...darkColor);
   doc.setFont("helvetica", "bold");
-  doc.text(data.receiptNumber, pageWidth - 25, 80, { align: "right" });
-  doc.text(data.paymentDate, pageWidth - 25, 88, { align: "right" });
+  doc.text(data.receiptNumber, pageWidth - 25, 85, { align: "right" });
+  doc.text(data.paymentDate, pageWidth - 25, 93, { align: "right" });
   
   // Received From section
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...primaryColor);
-  doc.text("RECEIVED FROM", 20, 75);
+  doc.text("RECEIVED FROM", 20, 80);
   
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...darkColor);
-  doc.text(data.studentName, 20, 85);
+  doc.text(data.studentName, 20, 90);
   
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(...grayColor);
-  doc.text(`Student ID: ${data.studentId}`, 20, 92);
+  doc.text(`Student ID: ${data.studentId}`, 20, 97);
   if (data.className) {
-    doc.text(`Class: ${data.className}`, 20, 99);
+    doc.text(`Class: ${data.className}`, 20, 104);
   }
   
   // Payment confirmation badge
   doc.setFillColor(...primaryColor);
-  doc.roundedRect(20, 110, 50, 12, 2, 2, "F");
+  doc.roundedRect(20, 115, 50, 12, 2, 2, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
-  doc.text("PAYMENT CONFIRMED", 45, 118, { align: "center" });
+  doc.text("PAYMENT CONFIRMED", 45, 123, { align: "center" });
   
   // Payment details table
   autoTable(doc, {
-    startY: 135,
+    startY: 140,
     head: [["Description", "Fee Type", "Payment Method", "Amount Paid"]],
     body: [
       [
@@ -196,13 +212,13 @@ export const generateReceiptPdf = (data: ReceiptData) => {
   return doc;
 };
 
-export const downloadReceipt = (data: ReceiptData) => {
-  const doc = generateReceiptPdf(data);
+export const downloadReceipt = async (data: ReceiptData) => {
+  const doc = await generateReceiptPdf(data);
   doc.save(`Receipt-${data.receiptNumber}.pdf`);
 };
 
-export const printReceipt = (data: ReceiptData) => {
-  const doc = generateReceiptPdf(data);
+export const printReceipt = async (data: ReceiptData) => {
+  const doc = await generateReceiptPdf(data);
   doc.autoPrint();
   window.open(doc.output("bloburl"), "_blank");
 };

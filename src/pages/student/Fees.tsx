@@ -192,7 +192,7 @@ const StudentFees = () => {
     overdue: fees.filter(f => f.status === "overdue").length,
   };
 
-  const handleDownloadInvoice = (fee: StudentFee) => {
+  const handleDownloadInvoice = async (fee: StudentFee) => {
     const feePayments = payments
       .filter(p => p.student_fee_id === fee.id)
       .map(p => ({
@@ -202,7 +202,7 @@ const StudentFees = () => {
         receiptNumber: p.receipt_number,
       }));
 
-    downloadInvoice({
+    await downloadInvoice({
       invoiceNumber: `INV-${fee.id.slice(0, 8).toUpperCase()}`,
       invoiceDate: new Date(fee.created_at).toLocaleDateString(),
       dueDate: new Date(fee.due_date).toLocaleDateString(),
