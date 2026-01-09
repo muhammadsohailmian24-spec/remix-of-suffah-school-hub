@@ -238,7 +238,7 @@ const TeacherExams = () => {
     // Fetch students for this class with proper join
     const { data: studentsData, error: studentsError } = await supabase
       .from("students")
-      .select("id, student_id, user_id, class_id")
+      .select("id, student_id, user_id, class_id, father_name")
       .eq("class_id", exam.class_id)
       .eq("status", "active")
       .order("student_id");
@@ -270,43 +270,36 @@ const TeacherExams = () => {
       .eq("id", exam.class_id)
       .single();
 
-    // Fetch father's name from parent records
+    // Fetch results for this exam
     const studentIds = studentsData.map(s => s.id);
-    const { data: parentLinks } = await supabase
-      .from("student_parents")
-      .select("student_id, parent_id")
-      .in("student_id", studentIds)
-      .eq("is_primary", true);
+    const { data: resultsData } = await supabase
+      .from("results")
+      .select("student_id, marks_obtained")
+      .eq("exam_id", exam.id)
+      .in("student_id", studentIds);
 
-    const fatherNameMap = new Map<string, string>();
-    if (parentLinks && parentLinks.length > 0) {
-      const parentIds = parentLinks.map(p => p.parent_id);
-      const { data: parents } = await supabase
-        .from("parents")
-        .select("id, user_id")
-        .in("id", parentIds);
+    const resultsMap = new Map(resultsData?.map(r => [r.student_id, r.marks_obtained]) || []);
 
-      if (parents) {
-        const parentUserIds = parents.map(p => p.user_id);
-        const { data: parentProfiles } = await supabase
-          .from("profiles")
-          .select("user_id, full_name")
-          .in("user_id", parentUserIds);
-
-        const parentProfileMap = new Map(parentProfiles?.map(p => [p.user_id, p.full_name]) || []);
-        const parentIdToName = new Map(parents.map(p => [p.id, parentProfileMap.get(p.user_id) || ""]));
-
-        parentLinks.forEach(link => {
-          fatherNameMap.set(link.student_id, parentIdToName.get(link.parent_id) || "");
-        });
-      }
+    // Get current teacher's name
+    const { data: { session } } = await supabase.auth.getSession();
+    let teacherName = "";
+    if (session?.user?.id) {
+      const { data: teacherProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", session.user.id)
+        .single();
+      teacherName = teacherProfile?.full_name || "";
     }
 
     const students = studentsData.map((student, index) => ({
       sr_no: index + 1,
       student_id: student.student_id,
       name: profileMap.get(student.user_id) || "",
-      father_name: fatherNameMap.get(student.id) || "",
+      father_name: student.father_name || "",
+      theory_marks: resultsMap.get(student.id) || "",
+      practical_marks: "",
+      total_marks: resultsMap.get(student.id) || "",
     }));
 
     const currentYear = new Date().getFullYear();
@@ -317,8 +310,8 @@ const TeacherExams = () => {
       className: classData?.name || exam.classes?.name || "",
       section: classData?.section || "",
       subject: exam.subjects?.name || "",
-      teacherName: "",
-      marks: String(exam.max_marks || ""),
+      teacherName,
+      maxMarks: String(exam.max_marks || "100"),
       students,
     }, `Award-List-${exam.classes?.name}-${exam.subjects?.name}`);
 

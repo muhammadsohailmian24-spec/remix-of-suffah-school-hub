@@ -1,12 +1,14 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { format } from 'date-fns';
 
 interface StudentInfo {
   sr_no: number;
   student_id: string;
   name: string;
   father_name: string;
+  theory_marks?: number | string;
+  practical_marks?: number | string;
+  total_marks?: number | string;
 }
 
 interface AwardListData {
@@ -16,7 +18,7 @@ interface AwardListData {
   section: string;
   subject: string;
   teacherName: string;
-  marks: string;
+  maxMarks: string;
   students: StudentInfo[];
 }
 
@@ -57,61 +59,62 @@ export const generateAwardListPdf = async (data: AwardListData): Promise<jsPDF> 
     }
   }
 
-  const startY = 35;
+  const startY = 38;
 
-  // Session and Date row
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Session: ${data.session}`, margin, startY);
-  doc.text(data.date, margin + 50, startY);
-
-  // Award List title box
-  const titleWidth = 50;
+  // Award List title box - centered
+  const titleWidth = 55;
   const titleX = pageWidth / 2 - titleWidth / 2;
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(0);
   doc.rect(titleX, startY - 5, titleWidth, 8, 'FD');
-  doc.setFontSize(10);
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.text('Subject Wise Award-List', pageWidth / 2, startY, { align: 'center' });
 
-  // Class and Marks
-  doc.text(`Class: ${data.className}`, pageWidth - margin - 50, startY);
-  doc.text(`Marks:`, pageWidth - margin - 15, startY);
-  doc.line(pageWidth - margin - 10, startY, pageWidth - margin, startY);
+  // Row 1: Session, Date, Max Marks
+  const row1Y = startY + 10;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Session: ${data.session}`, margin, row1Y);
+  doc.text(`Date: ${data.date}`, pageWidth / 2 - 20, row1Y);
+  doc.text(`Max Marks: ${data.maxMarks}`, pageWidth - margin - 40, row1Y);
 
-  // Subject and Section row
-  const row2Y = startY + 8;
-  doc.text('Subject:', margin, row2Y);
-  doc.line(margin + 18, row2Y, margin + 45, row2Y);
-  
-  doc.text('Teacher Name:', pageWidth / 2 - 30, row2Y);
-  doc.line(pageWidth / 2 - 2, row2Y, pageWidth / 2 + 35, row2Y);
-  
-  doc.text(`Section: ${data.section}`, pageWidth - margin - 35, row2Y);
+  // Row 2: Class, Section
+  const row2Y = row1Y + 7;
+  doc.text(`Class: ${data.className}`, margin, row2Y);
+  doc.text(`Section: ${data.section || 'N/A'}`, pageWidth / 2 - 20, row2Y);
+
+  // Row 3: Subject, Teacher Name
+  const row3Y = row2Y + 7;
+  doc.text(`Subject: ${data.subject}`, margin, row3Y);
+  doc.text(`Teacher: ${data.teacherName || 'N/A'}`, pageWidth / 2 - 20, row3Y);
+
+  // Separator line
+  doc.setLineWidth(0.3);
+  doc.line(margin, row3Y + 4, pageWidth - margin, row3Y + 4);
 
   // Table
-  const tableStartY = row2Y + 8;
+  const tableStartY = row3Y + 8;
 
   autoTable(doc, {
     startY: tableStartY,
     head: [[
-      { content: 'Sr.no', styles: { halign: 'center' } },
-      { content: 'Student-ID', styles: { halign: 'center' } },
-      { content: 'Name', styles: { halign: 'left' } },
-      { content: 'Father-Name', styles: { halign: 'left' } },
+      { content: 'Sr.No', styles: { halign: 'center' } },
+      { content: 'Student ID', styles: { halign: 'center' } },
+      { content: 'Student Name', styles: { halign: 'left' } },
+      { content: 'Father Name', styles: { halign: 'left' } },
       { content: 'Theory', styles: { halign: 'center' } },
       { content: 'Practical', styles: { halign: 'center' } },
-      { content: 'Total Marks', styles: { halign: 'center' } },
+      { content: 'Total', styles: { halign: 'center' } },
     ]],
     body: data.students.map((student, index) => [
       { content: (index + 1).toString(), styles: { halign: 'center' } },
       { content: student.student_id, styles: { halign: 'center' } },
       { content: student.name, styles: { halign: 'left' } },
       { content: student.father_name, styles: { halign: 'left' } },
-      { content: '', styles: { halign: 'center' } },
-      { content: '', styles: { halign: 'center' } },
-      { content: '', styles: { halign: 'center' } },
+      { content: student.theory_marks?.toString() || '', styles: { halign: 'center' } },
+      { content: student.practical_marks?.toString() || '', styles: { halign: 'center' } },
+      { content: student.total_marks?.toString() || '', styles: { halign: 'center' } },
     ]),
     margin: { left: margin, right: margin },
     styles: {
@@ -121,7 +124,7 @@ export const generateAwardListPdf = async (data: AwardListData): Promise<jsPDF> 
       lineWidth: 0.3,
     },
     headStyles: {
-      fillColor: [255, 255, 255],
+      fillColor: [240, 240, 240],
       textColor: [0, 0, 0],
       fontStyle: 'bold',
       lineWidth: 0.3,
@@ -135,12 +138,12 @@ export const generateAwardListPdf = async (data: AwardListData): Promise<jsPDF> 
     },
     columnStyles: {
       0: { cellWidth: 12 },
-      1: { cellWidth: 25 },
-      2: { cellWidth: 45 },
-      3: { cellWidth: 45 },
-      4: { cellWidth: 20 },
-      5: { cellWidth: 20 },
-      6: { cellWidth: 23 },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 42 },
+      3: { cellWidth: 42 },
+      4: { cellWidth: 22 },
+      5: { cellWidth: 22 },
+      6: { cellWidth: 22 },
     },
   });
 
