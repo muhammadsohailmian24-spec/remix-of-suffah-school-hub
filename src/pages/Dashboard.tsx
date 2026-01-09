@@ -10,6 +10,12 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Profile {
   id: string;
@@ -38,6 +44,15 @@ interface Activity {
   type: string;
 }
 
+interface UserNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  created_at: string;
+  is_read: boolean;
+}
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -47,6 +62,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [notificationOpen, setNotificationOpen] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
@@ -84,6 +101,7 @@ const Dashboard = () => {
         fetchStats(role, session.user.id),
         fetchAnnouncements(),
         fetchActivities(role, session.user.id),
+        fetchNotifications(session.user.id),
       ]);
       
       setLoading(false);
@@ -228,6 +246,31 @@ const Dashboard = () => {
     }
   };
 
+  const fetchNotifications = async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from("notifications" as any)
+        .select("id, title, message, type, created_at, is_read")
+        .eq("user_id", userId)
+        .eq("is_read", false)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      
+      setNotifications((data || []) as unknown as UserNotification[]);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    }
+  };
+
+  const markNotificationAsRead = async (notificationId: string) => {
+    await supabase
+      .from("notifications")
+      .update({ is_read: true } as never)
+      .eq("id", notificationId);
+    
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+  };
+
   const formatTimeAgo = (date: Date) => {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -365,9 +408,55 @@ const Dashboard = () => {
           </div>
           
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5" />
-            </Button>
+            <Popover open={notificationOpen} onOpenChange={setNotificationOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative">
+                  <Bell className="w-5 h-5" />
+                  {notifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
+                      {notifications.length}
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="end">
+                <div className="p-4 border-b border-border">
+                  <h4 className="font-semibold">Notifications</h4>
+                  <p className="text-xs text-muted-foreground">
+                    {notifications.length > 0 ? `${notifications.length} unread notification(s)` : "No new notifications"}
+                  </p>
+                </div>
+                <ScrollArea className="max-h-64">
+                  {notifications.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      All caught up! No new notifications.
+                    </div>
+                  ) : (
+                    <div className="p-2 space-y-1">
+                      {notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          className="p-3 rounded-lg hover:bg-accent transition-colors cursor-pointer"
+                          onClick={() => markNotificationAsRead(notification.id)}
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className={`w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${
+                              notification.type === "warning" ? "bg-warning" : 
+                              notification.type === "error" ? "bg-destructive" : "bg-primary"
+                            }`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{notification.title}</p>
+                              <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{formatTimeAgo(new Date(notification.created_at))}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
             <div className="hidden md:flex items-center gap-3 px-3 py-2 rounded-lg bg-accent/50">
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <span className="text-sm font-medium text-primary">
