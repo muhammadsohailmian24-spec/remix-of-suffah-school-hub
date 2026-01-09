@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Plus, Edit, Trash2, Download, FileText, FileUser, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Download, FileText, FileUser, MoreHorizontal, ClipboardList } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 import { downloadAwardList } from "@/utils/generateAwardListPdf";
@@ -23,9 +23,10 @@ interface ExamActionsDropdownProps {
   onDelete: () => void;
   onDownloadRollSlips: () => void;
   onDownloadAwardList: () => void;
+  onEnterResults: () => void;
 }
 
-const ExamActionsDropdown = ({ exam, onEdit, onDelete, onDownloadRollSlips, onDownloadAwardList }: ExamActionsDropdownProps) => {
+const ExamActionsDropdown = ({ exam, onEdit, onDelete, onDownloadRollSlips, onDownloadAwardList, onEnterResults }: ExamActionsDropdownProps) => {
   const [singleSlipOpen, setSingleSlipOpen] = useState(false);
   
   return (
@@ -50,6 +51,10 @@ const ExamActionsDropdown = ({ exam, onEdit, onDelete, onDownloadRollSlips, onDo
             Award List
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onEnterResults}>
+            <ClipboardList className="mr-2 h-4 w-4" />
+            Enter Results
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={onEdit}>
             <Edit className="mr-2 h-4 w-4" />
             Edit Exam
@@ -573,6 +578,7 @@ const AdminExams = () => {
                         onDelete={() => handleDelete(exam.id)}
                         onDownloadRollSlips={() => handleDownloadRollNumberSlips(exam)}
                         onDownloadAwardList={() => handleDownloadAwardList(exam)}
+                        onEnterResults={() => navigate("/admin/results")}
                       />
                     </TableCell>
                   </TableRow>
