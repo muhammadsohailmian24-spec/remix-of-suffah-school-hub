@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import AdminLayout from "@/components/admin/AdminLayout";
 import AbsentStudentsList from "@/components/AbsentStudentsList";
-import { CalendarIcon, Users, UserCheck, UserX, Clock, Send, Download, FileDown, User } from "lucide-react";
+import { CalendarIcon, Users, UserCheck, UserX, Clock, Send, Download, FileDown, User, Scan } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -319,6 +319,16 @@ const AttendanceOverview = () => {
         >
           <Send className="w-4 h-4 mr-2" />
           {sendingNotifications ? "Sending..." : "Notify Parents of Absences"}
+        </Button>
+
+        {/* Barcode Scanner Button */}
+        <Button 
+          variant="outline" 
+          className="border-success text-success hover:bg-success/10"
+          onClick={() => navigate("/admin/attendance/scanner")}
+        >
+          <Scan className="w-4 h-4 mr-2" />
+          Barcode Scanner
         </Button>
 
         {/* Download Attendance Button */}

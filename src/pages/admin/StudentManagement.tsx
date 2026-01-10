@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail, CreditCard } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { downloadAdmissionForm, AdmissionFormData } from "@/utils/generateAdmissionFormPdf";
+import { downloadStudentCard, StudentCardData } from "@/utils/generateStudentCardPdf";
 interface Student {
   id: string;
   student_id: string;
@@ -378,6 +379,22 @@ const StudentManagement = () => {
     toast({ title: "Downloaded", description: "Admission form downloaded successfully" });
   };
 
+  const handleDownloadStudentCard = async (student: Student) => {
+    const classInfo = student.class;
+    const cardData: StudentCardData = {
+      studentId: student.student_id,
+      studentName: student.profile?.full_name || "",
+      fatherName: student.father_name || "",
+      className: classInfo?.name || "Unassigned",
+      section: classInfo?.section || undefined,
+      phone: student.profile?.phone || undefined,
+      address: student.profile?.address || undefined,
+      photoUrl: student.profile?.photo_url || undefined,
+    };
+    await downloadStudentCard(cardData);
+    toast({ title: "Downloaded", description: "Student ID card downloaded successfully" });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -679,6 +696,10 @@ const StudentManagement = () => {
                           <DropdownMenuItem onClick={() => handleDownloadAdmissionForm(student)}>
                             <FileDown className="w-4 h-4 mr-2" />
                             Download Admission Form
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDownloadStudentCard(student)}>
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Download ID Card
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openResetPasswordDialog(student)}>
                             <KeyRound className="w-4 h-4 mr-2" />
