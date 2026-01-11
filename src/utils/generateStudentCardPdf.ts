@@ -1,11 +1,13 @@
 import jsPDF from "jspdf";
-import JsBarcode from "jsbarcode";
+import QRCode from "qrcode";
 
-// Colors - Royal Blue and Gold theme (matching school branding)
-const primaryColor: [number, number, number] = [30, 100, 180];
+// Modern color palette - matching school theme
+const primaryColor: [number, number, number] = [30, 100, 180]; // Royal Blue
+const accentColor: [number, number, number] = [200, 35, 70]; // Modern magenta/crimson accent
 const goldColor: [number, number, number] = [180, 140, 50];
-const darkColor: [number, number, number] = [30, 30, 30];
+const darkColor: [number, number, number] = [40, 40, 40];
 const whiteColor: [number, number, number] = [255, 255, 255];
+const lightGray: [number, number, number] = [245, 245, 245];
 
 export interface StudentCardData {
   studentId: string;
@@ -17,7 +19,9 @@ export interface StudentCardData {
   phone?: string;
   address?: string;
   photoUrl?: string;
+  dateOfBirth?: string;
   validUntil?: string;
+  joinDate?: string;
   schoolName?: string;
   schoolAddress?: string;
 }
@@ -37,27 +41,26 @@ const loadLogo = async (): Promise<HTMLImageElement | null> => {
   }
 };
 
-const generateBarcodeImage = (studentId: string): string => {
-  // Create a canvas element for the barcode
-  const canvas = document.createElement("canvas");
-  
-  JsBarcode(canvas, studentId, {
-    format: "CODE128",
-    width: 2,
-    height: 40,
-    displayValue: true,
-    fontSize: 12,
-    textMargin: 2,
-    margin: 5,
-    background: "#ffffff",
-    lineColor: "#000000",
-  });
-  
-  return canvas.toDataURL("image/png");
+const generateQRCodeImage = async (studentId: string): Promise<string> => {
+  try {
+    const qrDataUrl = await QRCode.toDataURL(studentId, {
+      width: 150,
+      margin: 1,
+      color: {
+        dark: "#1E64B4",
+        light: "#FFFFFF",
+      },
+      errorCorrectionLevel: "H",
+    });
+    return qrDataUrl;
+  } catch (e) {
+    console.error("QR Code generation failed:", e);
+    return "";
+  }
 };
 
 export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsPDF> => {
-  // Card size: 85.6mm x 53.98mm (standard ID card size)
+  // Card size: 85.6mm x 53.98mm (standard ID card size - CR80)
   const cardWidth = 85.6;
   const cardHeight = 53.98;
   
@@ -68,47 +71,51 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   });
 
   const logoImg = await loadLogo();
+  const qrCodeImg = await generateQRCodeImage(data.studentId);
   const schoolName = data.schoolName || "The Suffah Public School & College";
-  const schoolAddress = data.schoolAddress || "Madyan Swat, Pakistan";
 
   // ===== FRONT SIDE =====
   
-  // Background gradient effect (solid blue header)
-  doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, cardWidth, 18, "F");
-  
-  // Gold accent line
-  doc.setFillColor(...goldColor);
-  doc.rect(0, 18, cardWidth, 1.5, "F");
+  // White background
+  doc.setFillColor(...whiteColor);
+  doc.rect(0, 0, cardWidth, cardHeight, "F");
 
-  // Logo
+  // Top accent stripe with gradient effect
+  doc.setFillColor(...accentColor);
+  doc.rect(0, 0, cardWidth, 3, "F");
+  
+  // Decorative curved element at top-right corner
+  doc.setFillColor(...accentColor);
+  // Simulated lanyard holder visual (top right corner decorative element)
+  doc.ellipse(cardWidth - 5, -5, 12, 12, "F");
+
+  // Logo placement - top left with elegant positioning
   if (logoImg) {
-    doc.addImage(logoImg, "PNG", 3, 2, 14, 14);
+    doc.addImage(logoImg, "PNG", 4, 5, 12, 12);
   }
-
-  // School name in header
-  doc.setTextColor(...whiteColor);
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.text(schoolName, cardWidth / 2 + 5, 7, { align: "center" });
   
-  doc.setFontSize(6);
+  // School name - elegant typography
+  doc.setTextColor(...primaryColor);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.text(schoolName, 18, 10);
+  
+  // Subtitle
+  doc.setFontSize(5);
   doc.setFont("helvetica", "normal");
-  doc.text(schoolAddress, cardWidth / 2 + 5, 11, { align: "center" });
-  
-  doc.setFontSize(7);
-  doc.setFont("helvetica", "bold");
-  doc.text("STUDENT IDENTITY CARD", cardWidth / 2 + 5, 15.5, { align: "center" });
+  doc.setTextColor(120, 120, 120);
+  doc.text("STUDENT IDENTITY CARD", 18, 14);
 
-  // Photo area
-  const photoX = 5;
-  const photoY = 22;
-  const photoWidth = 20;
-  const photoHeight = 25;
+  // Photo area - centered with elegant border
+  const photoX = cardWidth / 2 - 10;
+  const photoY = 18;
+  const photoSize = 20;
   
+  // Photo background circle/frame
+  doc.setFillColor(...lightGray);
   doc.setDrawColor(...primaryColor);
-  doc.setLineWidth(0.5);
-  doc.rect(photoX, photoY, photoWidth, photoHeight);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(photoX, photoY, photoSize, photoSize, 2, 2, "FD");
   
   if (data.photoUrl) {
     try {
@@ -116,7 +123,7 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
       img.crossOrigin = "anonymous";
       await new Promise<void>((resolve, reject) => {
         img.onload = () => {
-          doc.addImage(img, "JPEG", photoX, photoY, photoWidth, photoHeight);
+          doc.addImage(img, "JPEG", photoX + 0.5, photoY + 0.5, photoSize - 1, photoSize - 1);
           resolve();
         };
         img.onerror = reject;
@@ -125,119 +132,141 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
     } catch (e) {
       doc.setFontSize(6);
       doc.setTextColor(...primaryColor);
-      doc.text("Photo", photoX + photoWidth / 2, photoY + photoHeight / 2, { align: "center" });
+      doc.text("Photo", photoX + photoSize / 2, photoY + photoSize / 2, { align: "center" });
     }
   } else {
     doc.setFontSize(6);
     doc.setTextColor(...primaryColor);
-    doc.text("Photo", photoX + photoWidth / 2, photoY + photoHeight / 2, { align: "center" });
+    doc.text("Photo", photoX + photoSize / 2, photoY + photoSize / 2 + 2, { align: "center" });
   }
 
-  // Student details
-  const detailsX = 28;
-  let detailsY = 23;
-  
+  // Student name - centered below photo
   doc.setTextColor(...darkColor);
-  doc.setFontSize(8);
+  doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
-  doc.text(data.studentName.toUpperCase(), detailsX, detailsY);
+  doc.text(data.studentName, cardWidth / 2, 42, { align: "center" });
   
-  detailsY += 5;
+  // Class/Section
   doc.setFontSize(6);
   doc.setFont("helvetica", "normal");
+  doc.setTextColor(...primaryColor);
+  const classText = `Class ${data.className}${data.section ? ` - ${data.section}` : ""}`;
+  doc.text(classText, cardWidth / 2, 46, { align: "center" });
+
+  // Details - left side
+  const leftDetailsX = 5;
+  let leftY = 22;
   
-  const details = [
-    { label: "ID:", value: data.studentId },
-    { label: "Father:", value: data.fatherName },
-    { label: "Class:", value: `${data.className}${data.section ? ` - ${data.section}` : ""}` },
+  doc.setTextColor(...darkColor);
+  doc.setFontSize(5.5);
+  
+  const leftDetails = [
+    { label: "ID", value: data.studentId },
+    { label: "DOB", value: data.dateOfBirth || "N/A" },
+    { label: "Phone", value: data.phone || "N/A" },
   ];
-
-  if (data.bloodGroup) {
-    details.push({ label: "Blood:", value: data.bloodGroup });
-  }
-
-  details.forEach((detail) => {
+  
+  leftDetails.forEach((detail) => {
+    doc.setTextColor(...primaryColor);
     doc.setFont("helvetica", "bold");
-    doc.text(detail.label, detailsX, detailsY);
+    doc.text(detail.label, leftDetailsX, leftY);
+    doc.setTextColor(...darkColor);
     doc.setFont("helvetica", "normal");
-    doc.text(detail.value, detailsX + 12, detailsY);
-    detailsY += 4;
+    doc.text(`: ${detail.value}`, leftDetailsX + 8, leftY);
+    leftY += 4;
   });
 
-  // Barcode at bottom
-  const barcodeDataUrl = generateBarcodeImage(data.studentId);
-  doc.addImage(barcodeDataUrl, "PNG", cardWidth / 2 - 20, cardHeight - 14, 40, 12);
+  // QR Code - bottom left corner
+  if (qrCodeImg) {
+    doc.addImage(qrCodeImg, "PNG", 3, cardHeight - 16, 14, 14);
+  }
+
+  // Join/Expire dates - bottom center
+  doc.setFontSize(5);
+  doc.setTextColor(...accentColor);
+  doc.setFont("helvetica", "bold");
+  doc.text("Join", 22, cardHeight - 8);
+  doc.text("Expire", 22, cardHeight - 4);
+  
+  doc.setTextColor(...darkColor);
+  doc.setFont("helvetica", "normal");
+  doc.text(`: ${data.joinDate || "2024"}`, 30, cardHeight - 8);
+  doc.text(`: ${data.validUntil || "2026"}`, 30, cardHeight - 4);
+
+  // Bottom accent bar
+  doc.setFillColor(...goldColor);
+  doc.rect(0, cardHeight - 2, cardWidth, 2, "F");
 
   // ===== BACK SIDE =====
   doc.addPage([cardHeight, cardWidth], "landscape");
 
-  // Header
-  doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, cardWidth, 12, "F");
-  
-  doc.setFillColor(...goldColor);
-  doc.rect(0, 12, cardWidth, 1, "F");
+  // White background
+  doc.setFillColor(...whiteColor);
+  doc.rect(0, 0, cardWidth, cardHeight, "F");
 
+  // Top accent
+  doc.setFillColor(...primaryColor);
+  doc.rect(0, 0, cardWidth, 2, "F");
+
+  // Header with logo
   if (logoImg) {
-    doc.addImage(logoImg, "PNG", 3, 2, 8, 8);
+    doc.addImage(logoImg, "PNG", cardWidth / 2 - 5, 4, 10, 10);
   }
 
-  doc.setTextColor(...whiteColor);
+  doc.setTextColor(...primaryColor);
   doc.setFontSize(7);
   doc.setFont("helvetica", "bold");
-  doc.text(schoolName, cardWidth / 2 + 3, 6, { align: "center" });
+  doc.text(schoolName, cardWidth / 2, 17, { align: "center" });
+  
   doc.setFontSize(5);
   doc.setFont("helvetica", "normal");
-  doc.text(schoolAddress, cardWidth / 2 + 3, 10, { align: "center" });
+  doc.setTextColor(100, 100, 100);
+  doc.text(data.schoolAddress || "Madyan Swat, Pakistan", cardWidth / 2, 21, { align: "center" });
 
-  // Important instructions
-  let backY = 17;
+  // Divider line
+  doc.setDrawColor(...goldColor);
+  doc.setLineWidth(0.3);
+  doc.line(10, 24, cardWidth - 10, 24);
+
+  // Parent/Guardian info
+  let backY = 28;
   doc.setTextColor(...darkColor);
   doc.setFontSize(6);
   doc.setFont("helvetica", "bold");
-  doc.text("IMPORTANT INSTRUCTIONS:", 5, backY);
+  doc.text("Father/Guardian:", 5, backY);
+  doc.setFont("helvetica", "normal");
+  doc.text(data.fatherName, 30, backY);
   
   backY += 4;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(5);
+  if (data.bloodGroup) {
+    doc.setFont("helvetica", "bold");
+    doc.text("Blood Group:", 5, backY);
+    doc.setFont("helvetica", "normal");
+    doc.text(data.bloodGroup, 30, backY);
+    backY += 4;
+  }
   
-  const instructions = [
-    "1. This card must be carried at all times within school premises.",
-    "2. Loss of card should be reported immediately to the office.",
-    "3. This card is non-transferable.",
-    "4. Use barcode for attendance marking.",
-  ];
-  
-  instructions.forEach((instruction) => {
-    doc.text(instruction, 5, backY);
-    backY += 3.5;
-  });
-
-  // Contact info
-  backY += 2;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(5);
-  doc.text("In case of emergency, please contact:", 5, backY);
-  backY += 3;
-  doc.setFont("helvetica", "normal");
-  if (data.phone) {
-    doc.text(`Student Phone: ${data.phone}`, 5, backY);
-    backY += 3;
+  if (data.address) {
+    doc.setFont("helvetica", "bold");
+    doc.text("Address:", 5, backY);
+    doc.setFont("helvetica", "normal");
+    const addressLines = doc.splitTextToSize(data.address, 50);
+    doc.text(addressLines, 30, backY);
   }
 
-  // Valid until
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(6);
-  doc.setTextColor(...primaryColor);
-  const validText = `Valid Until: ${data.validUntil || "June 2026"}`;
-  doc.text(validText, cardWidth / 2, cardHeight - 8, { align: "center" });
-
-  // Footer
-  doc.setFillColor(...goldColor);
-  doc.rect(0, cardHeight - 4, cardWidth, 4, "F");
-  doc.setTextColor(...darkColor);
+  // Important note
+  doc.setFillColor(...lightGray);
+  doc.roundedRect(4, cardHeight - 16, cardWidth - 8, 10, 1, 1, "F");
+  
   doc.setFontSize(5);
-  doc.text("Scan barcode on front for attendance", cardWidth / 2, cardHeight - 1.5, { align: "center" });
+  doc.setTextColor(80, 80, 80);
+  doc.setFont("helvetica", "italic");
+  doc.text("This card must be carried at all times. Report loss immediately.", cardWidth / 2, cardHeight - 11, { align: "center" });
+  doc.text("Scan QR code for attendance marking.", cardWidth / 2, cardHeight - 7, { align: "center" });
+
+  // Bottom accent
+  doc.setFillColor(...goldColor);
+  doc.rect(0, cardHeight - 2, cardWidth, 2, "F");
 
   return doc;
 };
@@ -265,41 +294,39 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
     }
 
     const data = students[i];
+    const qrCodeImg = await generateQRCodeImage(data.studentId);
     const schoolName = data.schoolName || "The Suffah Public School & College";
-    const schoolAddress = data.schoolAddress || "Madyan Swat, Pakistan";
 
     // ===== FRONT SIDE =====
-    doc.setFillColor(...primaryColor);
-    doc.rect(0, 0, cardWidth, 18, "F");
-    
-    doc.setFillColor(...goldColor);
-    doc.rect(0, 18, cardWidth, 1.5, "F");
+    doc.setFillColor(...whiteColor);
+    doc.rect(0, 0, cardWidth, cardHeight, "F");
+
+    doc.setFillColor(...accentColor);
+    doc.rect(0, 0, cardWidth, 3, "F");
+    doc.ellipse(cardWidth - 5, -5, 12, 12, "F");
 
     if (logoImg) {
-      doc.addImage(logoImg, "PNG", 3, 2, 14, 14);
+      doc.addImage(logoImg, "PNG", 4, 5, 12, 12);
     }
-
-    doc.setTextColor(...whiteColor);
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.text(schoolName, cardWidth / 2 + 5, 7, { align: "center" });
     
-    doc.setFontSize(6);
+    doc.setTextColor(...primaryColor);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text(schoolName, 18, 10);
+    
+    doc.setFontSize(5);
     doc.setFont("helvetica", "normal");
-    doc.text(schoolAddress, cardWidth / 2 + 5, 11, { align: "center" });
-    
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.text("STUDENT IDENTITY CARD", cardWidth / 2 + 5, 15.5, { align: "center" });
+    doc.setTextColor(120, 120, 120);
+    doc.text("STUDENT IDENTITY CARD", 18, 14);
 
-    const photoX = 5;
-    const photoY = 22;
-    const photoWidth = 20;
-    const photoHeight = 25;
+    const photoX = cardWidth / 2 - 10;
+    const photoY = 18;
+    const photoSize = 20;
     
+    doc.setFillColor(...lightGray);
     doc.setDrawColor(...primaryColor);
-    doc.setLineWidth(0.5);
-    doc.rect(photoX, photoY, photoWidth, photoHeight);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(photoX, photoY, photoSize, photoSize, 2, 2, "FD");
     
     if (data.photoUrl) {
       try {
@@ -307,7 +334,7 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
         img.crossOrigin = "anonymous";
         await new Promise<void>((resolve, reject) => {
           img.onload = () => {
-            doc.addImage(img, "JPEG", photoX, photoY, photoWidth, photoHeight);
+            doc.addImage(img, "JPEG", photoX + 0.5, photoY + 0.5, photoSize - 1, photoSize - 1);
             resolve();
           };
           img.onerror = reject;
@@ -316,111 +343,128 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
       } catch (e) {
         doc.setFontSize(6);
         doc.setTextColor(...primaryColor);
-        doc.text("Photo", photoX + photoWidth / 2, photoY + photoHeight / 2, { align: "center" });
+        doc.text("Photo", photoX + photoSize / 2, photoY + photoSize / 2 + 2, { align: "center" });
       }
     } else {
       doc.setFontSize(6);
       doc.setTextColor(...primaryColor);
-      doc.text("Photo", photoX + photoWidth / 2, photoY + photoHeight / 2, { align: "center" });
+      doc.text("Photo", photoX + photoSize / 2, photoY + photoSize / 2 + 2, { align: "center" });
     }
 
-    const detailsX = 28;
-    let detailsY = 23;
-    
     doc.setTextColor(...darkColor);
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
-    doc.text(data.studentName.toUpperCase(), detailsX, detailsY);
+    doc.text(data.studentName, cardWidth / 2, 42, { align: "center" });
     
-    detailsY += 5;
     doc.setFontSize(6);
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(...primaryColor);
+    const classText = `Class ${data.className}${data.section ? ` - ${data.section}` : ""}`;
+    doc.text(classText, cardWidth / 2, 46, { align: "center" });
+
+    const leftDetailsX = 5;
+    let leftY = 22;
     
-    const details = [
-      { label: "ID:", value: data.studentId },
-      { label: "Father:", value: data.fatherName },
-      { label: "Class:", value: `${data.className}${data.section ? ` - ${data.section}` : ""}` },
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(5.5);
+    
+    const leftDetails = [
+      { label: "ID", value: data.studentId },
+      { label: "DOB", value: data.dateOfBirth || "N/A" },
+      { label: "Phone", value: data.phone || "N/A" },
     ];
-
-    if (data.bloodGroup) {
-      details.push({ label: "Blood:", value: data.bloodGroup });
-    }
-
-    details.forEach((detail) => {
+    
+    leftDetails.forEach((detail) => {
+      doc.setTextColor(...primaryColor);
       doc.setFont("helvetica", "bold");
-      doc.text(detail.label, detailsX, detailsY);
+      doc.text(detail.label, leftDetailsX, leftY);
+      doc.setTextColor(...darkColor);
       doc.setFont("helvetica", "normal");
-      doc.text(detail.value, detailsX + 12, detailsY);
-      detailsY += 4;
+      doc.text(`: ${detail.value}`, leftDetailsX + 8, leftY);
+      leftY += 4;
     });
 
-    const barcodeDataUrl = generateBarcodeImage(data.studentId);
-    doc.addImage(barcodeDataUrl, "PNG", cardWidth / 2 - 20, cardHeight - 14, 40, 12);
+    if (qrCodeImg) {
+      doc.addImage(qrCodeImg, "PNG", 3, cardHeight - 16, 14, 14);
+    }
+
+    doc.setFontSize(5);
+    doc.setTextColor(...accentColor);
+    doc.setFont("helvetica", "bold");
+    doc.text("Join", 22, cardHeight - 8);
+    doc.text("Expire", 22, cardHeight - 4);
+    
+    doc.setTextColor(...darkColor);
+    doc.setFont("helvetica", "normal");
+    doc.text(`: ${data.joinDate || "2024"}`, 30, cardHeight - 8);
+    doc.text(`: ${data.validUntil || "2026"}`, 30, cardHeight - 4);
+
+    doc.setFillColor(...goldColor);
+    doc.rect(0, cardHeight - 2, cardWidth, 2, "F");
 
     // ===== BACK SIDE =====
     doc.addPage([cardHeight, cardWidth], "landscape");
 
+    doc.setFillColor(...whiteColor);
+    doc.rect(0, 0, cardWidth, cardHeight, "F");
+
     doc.setFillColor(...primaryColor);
-    doc.rect(0, 0, cardWidth, 12, "F");
-    
-    doc.setFillColor(...goldColor);
-    doc.rect(0, 12, cardWidth, 1, "F");
+    doc.rect(0, 0, cardWidth, 2, "F");
 
     if (logoImg) {
-      doc.addImage(logoImg, "PNG", 3, 2, 8, 8);
+      doc.addImage(logoImg, "PNG", cardWidth / 2 - 5, 4, 10, 10);
     }
 
-    doc.setTextColor(...whiteColor);
+    doc.setTextColor(...primaryColor);
     doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
-    doc.text(schoolName, cardWidth / 2 + 3, 6, { align: "center" });
+    doc.text(schoolName, cardWidth / 2, 17, { align: "center" });
+    
     doc.setFontSize(5);
     doc.setFont("helvetica", "normal");
-    doc.text(schoolAddress, cardWidth / 2 + 3, 10, { align: "center" });
+    doc.setTextColor(100, 100, 100);
+    doc.text(data.schoolAddress || "Madyan Swat, Pakistan", cardWidth / 2, 21, { align: "center" });
 
-    let backY = 17;
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.3);
+    doc.line(10, 24, cardWidth - 10, 24);
+
+    let backY = 28;
     doc.setTextColor(...darkColor);
     doc.setFontSize(6);
     doc.setFont("helvetica", "bold");
-    doc.text("IMPORTANT INSTRUCTIONS:", 5, backY);
+    doc.text("Father/Guardian:", 5, backY);
+    doc.setFont("helvetica", "normal");
+    doc.text(data.fatherName, 30, backY);
     
     backY += 4;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(5);
+    if (data.bloodGroup) {
+      doc.setFont("helvetica", "bold");
+      doc.text("Blood Group:", 5, backY);
+      doc.setFont("helvetica", "normal");
+      doc.text(data.bloodGroup, 30, backY);
+      backY += 4;
+    }
     
-    const instructions = [
-      "1. This card must be carried at all times within school premises.",
-      "2. Loss of card should be reported immediately to the office.",
-      "3. This card is non-transferable.",
-      "4. Use barcode for attendance marking.",
-    ];
-    
-    instructions.forEach((instruction) => {
-      doc.text(instruction, 5, backY);
-      backY += 3.5;
-    });
-
-    backY += 2;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(5);
-    doc.text("In case of emergency, please contact:", 5, backY);
-    backY += 3;
-    doc.setFont("helvetica", "normal");
-    if (data.phone) {
-      doc.text(`Student Phone: ${data.phone}`, 5, backY);
+    if (data.address) {
+      doc.setFont("helvetica", "bold");
+      doc.text("Address:", 5, backY);
+      doc.setFont("helvetica", "normal");
+      const addressLines = doc.splitTextToSize(data.address, 50);
+      doc.text(addressLines, 30, backY);
     }
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6);
-    doc.setTextColor(...primaryColor);
-    const validText = `Valid Until: ${data.validUntil || "June 2026"}`;
-    doc.text(validText, cardWidth / 2, cardHeight - 8, { align: "center" });
+    doc.setFillColor(...lightGray);
+    doc.roundedRect(4, cardHeight - 16, cardWidth - 8, 10, 1, 1, "F");
+    
+    doc.setFontSize(5);
+    doc.setTextColor(80, 80, 80);
+    doc.setFont("helvetica", "italic");
+    doc.text("This card must be carried at all times. Report loss immediately.", cardWidth / 2, cardHeight - 11, { align: "center" });
+    doc.text("Scan QR code for attendance marking.", cardWidth / 2, cardHeight - 7, { align: "center" });
 
     doc.setFillColor(...goldColor);
-    doc.rect(0, cardHeight - 4, cardWidth, 4, "F");
-    doc.setTextColor(...darkColor);
-    doc.setFontSize(5);
-    doc.text("Scan barcode on front for attendance", cardWidth / 2, cardHeight - 1.5, { align: "center" });
+    doc.rect(0, cardHeight - 2, cardWidth, 2, "F");
   }
 
   return doc;

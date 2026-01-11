@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Save, Building, Calendar, Bell, Database, Loader2 } from "lucide-react";
+import { Save, Building, Calendar, Bell, Database, Loader2, Download, Upload, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { format } from "date-fns";
 
 interface SchoolInfo {
   name: string;
@@ -45,6 +46,10 @@ const SystemSettings = () => {
   const [savingSchool, setSavingSchool] = useState(false);
   const [savingAcademic, setSavingAcademic] = useState(false);
   const [savingNotification, setSavingNotification] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [lastBackupDate, setLastBackupDate] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo>({
     name: "The Suffah School",
@@ -200,17 +205,140 @@ const SystemSettings = () => {
     }
   };
 
-  const handleBackup = () => {
-    toast({
-      title: "Backup Started",
-      description: "Creating system backup...",
-    });
-    setTimeout(() => {
+  const handleBackup = async () => {
+    setBackingUp(true);
+    try {
+      // Fetch all relevant data for backup
+      const tables = [
+        'students', 'teachers', 'classes', 'subjects', 'departments',
+        'academic_years', 'fee_structures', 'system_settings', 'announcements'
+      ];
+      
+      const backupData: Record<string, unknown[]> = {
+        _meta: [{
+          backupDate: new Date().toISOString(),
+          version: '1.0',
+          tables: tables
+        }]
+      };
+
+      for (const table of tables) {
+        const { data, error } = await supabase.from(table as 'students').select('*');
+        if (error) {
+          console.warn(`Could not backup ${table}:`, error.message);
+          backupData[table] = [];
+        } else {
+          backupData[table] = data || [];
+        }
+      }
+
+      // Create and download the backup file
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `school-backup-${format(new Date(), 'yyyy-MM-dd-HHmmss')}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      // Update last backup date in settings
+      const backupDate = new Date().toISOString();
+      await saveSetting('last_backup', { date: backupDate });
+      setLastBackupDate(backupDate);
+
       toast({
         title: "Backup Complete",
-        description: "System backup created successfully",
+        description: "System backup has been downloaded successfully.",
       });
-    }, 2000);
+    } catch (error: unknown) {
+      console.error("Backup error:", error);
+      toast({
+        title: "Backup Failed",
+        description: "Could not create system backup. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
+  const handleRestoreClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleRestore = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setRestoring(true);
+    try {
+      const text = await file.text();
+      const backupData = JSON.parse(text);
+
+      // Validate backup file
+      if (!backupData._meta || !Array.isArray(backupData._meta)) {
+        throw new Error("Invalid backup file format");
+      }
+
+      const meta = backupData._meta[0];
+      const confirmRestore = window.confirm(
+        `This backup was created on ${format(new Date(meta.backupDate), 'PPpp')}.\n\n` +
+        `WARNING: Restoring will update existing records. This action cannot be undone.\n\n` +
+        `Do you want to continue?`
+      );
+
+      if (!confirmRestore) {
+        setRestoring(false);
+        return;
+      }
+
+      // Restore settings first (safe restore)
+      if (backupData.system_settings && Array.isArray(backupData.system_settings)) {
+        for (const setting of backupData.system_settings) {
+          await supabase
+            .from('system_settings')
+            .upsert(setting, { onConflict: 'setting_key' });
+        }
+      }
+
+      // Restore other tables
+      const restorableTables = ['academic_years', 'departments', 'subjects', 'fee_structures', 'announcements'] as const;
+      for (const table of restorableTables) {
+        if (backupData[table] && Array.isArray(backupData[table]) && backupData[table].length > 0) {
+          // Use upsert to avoid duplicates
+          const { error } = await supabase
+            .from(table)
+            .upsert(backupData[table] as never[], { onConflict: 'id' });
+          
+          if (error) {
+            console.warn(`Could not restore ${table}:`, error.message);
+          }
+        }
+      }
+
+      // Reload settings
+      await loadSettings();
+
+      toast({
+        title: "Restore Complete",
+        description: "System data has been restored from backup.",
+      });
+    } catch (error: unknown) {
+      console.error("Restore error:", error);
+      toast({
+        title: "Restore Failed",
+        description: error instanceof Error ? error.message : "Could not restore from backup file.",
+        variant: "destructive",
+      });
+    } finally {
+      setRestoring(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   if (loading) {
@@ -438,22 +566,47 @@ const SystemSettings = () => {
               <Database className="w-5 h-5 text-primary" />
               Backup & Restore
             </CardTitle>
-            <CardDescription>Manage system backups</CardDescription>
+            <CardDescription>Create backups or restore from previous backups</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Last backup: December 23, 2024 at 11:30 PM</p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={handleBackup}>
-                  Create Backup
-                </Button>
-                <Button variant="outline">
-                  Restore from Backup
-                </Button>
-              </div>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="w-4 h-4" />
+              <span>
+                Last backup: {lastBackupDate 
+                  ? format(new Date(lastBackupDate), 'PPpp') 
+                  : 'Never'}
+              </span>
             </div>
+            <Separator />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button 
+                onClick={handleBackup} 
+                disabled={backingUp}
+                className="gap-2"
+              >
+                {backingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {backingUp ? 'Creating Backup...' : 'Create Backup'}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleRestoreClick}
+                disabled={restoring}
+                className="gap-2"
+              >
+                {restoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {restoring ? 'Restoring...' : 'Restore from Backup'}
+              </Button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleRestore}
+                accept=".json"
+                className="hidden"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Backups include system settings, academic years, departments, subjects, fee structures, and announcements.
+            </p>
           </CardContent>
         </Card>
       </div>

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Html5Qrcode } from "html5-qrcode";
-import { Scan, Camera, CameraOff, UserCheck, UserX, Clock, AlertCircle, CheckCircle2, History } from "lucide-react";
+import { QrCode, Camera, CameraOff, UserCheck, Clock, AlertCircle, CheckCircle2, History } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -298,7 +298,7 @@ const AttendanceScanner = () => {
 
   if (loading) {
     return (
-      <AdminLayout title="Attendance Scanner" description="Scan student barcodes to mark attendance">
+      <AdminLayout title="Attendance Scanner" description="Scan student QR codes to mark attendance">
         <div className="flex justify-center py-12">
           <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
         </div>
@@ -307,7 +307,7 @@ const AttendanceScanner = () => {
   }
 
   return (
-    <AdminLayout title="Barcode Attendance Scanner" description="Scan student ID cards to mark attendance">
+    <AdminLayout title="QR Code Attendance Scanner" description="Scan student ID cards to mark attendance">
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Scanner Section */}
         <div className="space-y-6">
@@ -334,7 +334,7 @@ const AttendanceScanner = () => {
             <Card>
               <CardContent className="p-4 text-center">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-2">
-                  <Scan className="w-5 h-5 text-primary" />
+                  <QrCode className="w-5 h-5 text-primary" />
                 </div>
                 <p className="text-2xl font-bold">{todayStats.total}</p>
                 <p className="text-xs text-muted-foreground">Total Scanned</p>
@@ -346,11 +346,11 @@ const AttendanceScanner = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Scan className="w-5 h-5 text-primary" />
-                Barcode Scanner
+                <QrCode className="w-5 h-5 text-primary" />
+                QR Code Scanner
               </CardTitle>
               <CardDescription>
-                Point camera at student ID card barcode
+                Point camera at student ID card QR code
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -420,7 +420,7 @@ const AttendanceScanner = () => {
             <ScrollArea className="h-[500px]">
               {scanRecords.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
-                  <Scan className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <QrCode className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>No scans yet today</p>
                   <p className="text-sm">Start scanning to see records here</p>
                 </div>
@@ -457,5 +457,6 @@ const AttendanceScanner = () => {
     </AdminLayout>
   );
 };
+
 
 export default AttendanceScanner;
