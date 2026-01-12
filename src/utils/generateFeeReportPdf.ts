@@ -109,7 +109,7 @@ export const generateClassFeeReportPdf = async (data: ClassFeeReportData) => {
   doc.setTextColor(...darkColor);
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
-  doc.text("FEE COLLECTION REPORT", pageWidth / 2, 48, { align: "center" });
+  doc.text("ANNUAL FEE REPORT", pageWidth / 2, 48, { align: "center" });
   
   // Class and date info
   doc.setFontSize(11);
@@ -120,10 +120,10 @@ export const generateClassFeeReportPdf = async (data: ClassFeeReportData) => {
     doc.text(`Month: ${data.reportMonth}`, pageWidth / 2, 58, { align: "center" });
   }
   
-  // Summary statistics
-  const totalFees = data.students.reduce((sum, s) => sum + s.totalAmount, 0);
-  const totalPaid = data.students.reduce((sum, s) => sum + s.paidAmount, 0);
-  const totalBalance = data.students.reduce((sum, s) => sum + s.balance, 0);
+  // Calculate class totals
+  const classTotalFees = data.students.reduce((sum, s) => sum + s.totalAmount, 0);
+  const classTotalPaid = data.students.reduce((sum, s) => sum + s.paidAmount, 0);
+  const classTotalBalance = data.students.reduce((sum, s) => sum + s.balance, 0);
   const paidCount = data.students.filter(s => s.status === "paid").length;
   const pendingCount = data.students.filter(s => s.status === "pending" || s.status === "partial").length;
   
@@ -135,9 +135,9 @@ export const generateClassFeeReportPdf = async (data: ClassFeeReportData) => {
   
   const stats = [
     { label: "Total Students", value: data.students.length.toString(), color: primaryColor },
-    { label: "Total Fees", value: `PKR ${totalFees.toLocaleString()}`, color: [100, 100, 100] as [number, number, number] },
-    { label: "Collected", value: `PKR ${totalPaid.toLocaleString()}`, color: [34, 197, 94] as [number, number, number] },
-    { label: "Pending", value: `PKR ${totalBalance.toLocaleString()}`, color: [239, 68, 68] as [number, number, number] },
+    { label: "Total Fees", value: `PKR ${classTotalFees.toLocaleString()}`, color: [100, 100, 100] as [number, number, number] },
+    { label: "Collected", value: `PKR ${classTotalPaid.toLocaleString()}`, color: [34, 197, 94] as [number, number, number] },
+    { label: "Balance", value: `PKR ${classTotalBalance.toLocaleString()}`, color: [239, 68, 68] as [number, number, number] },
     { label: "Paid/Pending", value: `${paidCount}/${pendingCount}`, color: goldColor },
   ];
   
@@ -156,48 +156,60 @@ export const generateClassFeeReportPdf = async (data: ClassFeeReportData) => {
     doc.text(stat.value, x + boxWidth / 2, statsY + 15, { align: "center" });
   });
   
-  // Student fees table
+  // Student fees table with 3 main columns: Total Fee, Paid, Balance
   autoTable(doc, {
     startY: statsY + 28,
-    head: [["#", "Roll No", "Student Name", "Fee Type", "Total Amount", "Paid", "Balance", "Due Date", "Status"]],
+    head: [["#", "Roll No", "Student Name", "Total Fee (Yearly)", "Paid", "Balance", "Status"]],
     body: data.students.map((student, index) => [
       (index + 1).toString(),
       student.rollNo,
       student.studentName,
-      student.feeType.charAt(0).toUpperCase() + student.feeType.slice(1),
       `PKR ${student.totalAmount.toLocaleString()}`,
       `PKR ${student.paidAmount.toLocaleString()}`,
       `PKR ${student.balance.toLocaleString()}`,
-      student.dueDate,
       student.status.toUpperCase(),
     ]),
+    foot: [[
+      "",
+      "",
+      "CLASS TOTAL",
+      `PKR ${classTotalFees.toLocaleString()}`,
+      `PKR ${classTotalPaid.toLocaleString()}`,
+      `PKR ${classTotalBalance.toLocaleString()}`,
+      "",
+    ]],
     headStyles: {
       fillColor: primaryColor,
       textColor: [255, 255, 255],
       fontStyle: "bold",
-      fontSize: 9,
+      fontSize: 10,
     },
     bodyStyles: {
-      fontSize: 8,
+      fontSize: 9,
       textColor: darkColor,
+    },
+    footStyles: {
+      fillColor: [240, 240, 245],
+      textColor: darkColor,
+      fontStyle: "bold",
+      fontSize: 10,
     },
     alternateRowStyles: {
       fillColor: [250, 250, 252],
     },
     columnStyles: {
-      0: { cellWidth: 10, halign: "center" },
-      1: { cellWidth: 25 },
-      2: { cellWidth: 50 },
-      3: { cellWidth: 30 },
-      4: { cellWidth: 35, halign: "right" },
-      5: { cellWidth: 30, halign: "right" },
-      6: { cellWidth: 30, halign: "right" },
-      7: { cellWidth: 25 },
-      8: { cellWidth: 25, halign: "center" },
+      0: { cellWidth: 12, halign: "center" },
+      1: { cellWidth: 35 },
+      2: { cellWidth: 70 },
+      3: { cellWidth: 45, halign: "right" },
+      4: { cellWidth: 40, halign: "right" },
+      5: { cellWidth: 40, halign: "right" },
+      6: { cellWidth: 30, halign: "center" },
     },
     margin: { left: 10, right: 10 },
     didParseCell: (data) => {
-      if (data.section === "body" && data.column.index === 8) {
+      // Style status column
+      if (data.section === "body" && data.column.index === 6) {
         const status = data.cell.raw?.toString().toLowerCase();
         if (status === "paid") {
           data.cell.styles.textColor = [34, 197, 94];
@@ -208,6 +220,29 @@ export const generateClassFeeReportPdf = async (data: ClassFeeReportData) => {
         } else if (status === "partial") {
           data.cell.styles.textColor = [234, 179, 8];
           data.cell.styles.fontStyle = "bold";
+        }
+      }
+      // Style paid column (green)
+      if (data.section === "body" && data.column.index === 4) {
+        data.cell.styles.textColor = [34, 140, 80];
+      }
+      // Style balance column (red if > 0)
+      if (data.section === "body" && data.column.index === 5) {
+        const balanceText = data.cell.raw?.toString() || "";
+        const balance = parseFloat(balanceText.replace(/[^0-9.-]/g, "")) || 0;
+        if (balance > 0) {
+          data.cell.styles.textColor = [220, 60, 60];
+        } else {
+          data.cell.styles.textColor = [34, 140, 80];
+        }
+      }
+      // Style footer row
+      if (data.section === "foot") {
+        if (data.column.index === 4) {
+          data.cell.styles.textColor = [34, 140, 80];
+        }
+        if (data.column.index === 5) {
+          data.cell.styles.textColor = [220, 60, 60];
         }
       }
     },
