@@ -65,6 +65,7 @@ const FeeManagement = () => {
   // Dialog states
   const [feeStructureDialog, setFeeStructureDialog] = useState(false);
   const [assignFeeDialog, setAssignFeeDialog] = useState(false);
+  const [bulkAssignDialog, setBulkAssignDialog] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [reportDialog, setReportDialog] = useState(false);
   const [selectedStudentFee, setSelectedStudentFee] = useState<StudentFee | null>(null);
@@ -75,6 +76,14 @@ const FeeManagement = () => {
     classId: "",
     studentId: ""
   });
+  
+  // Bulk assign form state
+  const [bulkAssignForm, setBulkAssignForm] = useState({
+    class_id: "",
+    fee_structure_id: "",
+    discount: "0"
+  });
+  const [bulkAssigning, setBulkAssigning] = useState(false);
   const [generatingReport, setGeneratingReport] = useState(false);
   
   // Form states
@@ -271,6 +280,71 @@ const FeeManagement = () => {
     fetchStudentFees();
   };
 
+  const handleBulkAssignFee = async () => {
+    if (!bulkAssignForm.class_id || !bulkAssignForm.fee_structure_id) {
+      toast.error("Please select class and fee type");
+      return;
+    }
+
+    setBulkAssigning(true);
+    const feeStructure = feeStructures.find(f => f.id === bulkAssignForm.fee_structure_id);
+    if (!feeStructure) {
+      setBulkAssigning(false);
+      return;
+    }
+
+    const classStudents = students.filter(s => s.class_id === bulkAssignForm.class_id);
+    if (classStudents.length === 0) {
+      toast.error("No students found in this class");
+      setBulkAssigning(false);
+      return;
+    }
+
+    const discount = parseFloat(bulkAssignForm.discount) || 0;
+    const finalAmount = feeStructure.amount - discount;
+
+    // Check for existing assignments to avoid duplicates
+    const existingAssignments = studentFees.filter(
+      sf => sf.fee_structure_id === bulkAssignForm.fee_structure_id &&
+        classStudents.some(cs => cs.id === sf.student_id)
+    );
+    
+    const studentsToAssign = classStudents.filter(
+      s => !existingAssignments.some(ea => ea.student_id === s.id)
+    );
+
+    if (studentsToAssign.length === 0) {
+      toast.info("Fee already assigned to all students in this class");
+      setBulkAssigning(false);
+      return;
+    }
+
+    const newAssignments = studentsToAssign.map(student => ({
+      student_id: student.id,
+      fee_structure_id: bulkAssignForm.fee_structure_id,
+      amount: feeStructure.amount,
+      discount: discount,
+      final_amount: finalAmount,
+      due_date: feeStructure.due_date || new Date().toISOString().split('T')[0],
+      status: "pending"
+    }));
+
+    const { error } = await supabase.from("student_fees").insert(newAssignments);
+
+    if (error) {
+      console.error("Bulk assign error:", error);
+      toast.error("Failed to assign fees to some students");
+      setBulkAssigning(false);
+      return;
+    }
+
+    toast.success(`Fee assigned to ${studentsToAssign.length} students`);
+    setBulkAssignDialog(false);
+    setBulkAssignForm({ class_id: "", fee_structure_id: "", discount: "0" });
+    setBulkAssigning(false);
+    fetchStudentFees();
+  };
+
   const handleRecordPayment = async () => {
     if (!selectedStudentFee || !paymentForm.amount) {
       toast.error("Please enter payment amount");
@@ -363,33 +437,48 @@ const FeeManagement = () => {
       if (reportForm.reportType === "class") {
         if (!reportForm.classId) {
           toast.error("Please select a class");
+          setGeneratingReport(false);
           return;
         }
         
         const selectedClass = classes.find(c => c.id === reportForm.classId);
         const classStudents = students.filter(s => s.class_id === reportForm.classId);
         
-        // Get fees for students in this class
+        // Get ALL fees for students in this class (for yearly total)
         const classStudentFees = studentFees.filter(sf => 
           classStudents.some(cs => cs.id === sf.student_id)
         );
         
-        const studentRecords = classStudentFees.map(sf => {
-          const student = students.find(s => s.id === sf.student_id);
-          const profile = profiles.find(p => p.user_id === student?.user_id);
-          const paidAmount = calculatePaidAmount(sf.id);
+        // Group fees by student to calculate yearly totals
+        const studentFeeMap = new Map<string, { 
+          student: typeof classStudents[0], 
+          profile: typeof profiles[0] | undefined,
+          fees: typeof classStudentFees 
+        }>();
+        
+        classStudents.forEach(student => {
+          const profile = profiles.find(p => p.user_id === student.user_id);
+          const fees = classStudentFees.filter(sf => sf.student_id === student.id);
+          studentFeeMap.set(student.id, { student, profile, fees });
+        });
+        
+        const studentRecords = Array.from(studentFeeMap.values()).map(({ student, profile, fees }) => {
+          // Calculate yearly totals for this student
+          const totalYearlyFee = fees.reduce((sum, sf) => sum + sf.final_amount, 0);
+          const totalPaid = fees.reduce((sum, sf) => sum + calculatePaidAmount(sf.id), 0);
+          const totalBalance = totalYearlyFee - totalPaid;
           
           return {
-            studentId: sf.id,
-            studentName: profile?.full_name || sf.student?.profiles?.full_name || "Unknown",
-            rollNo: student?.student_id || "",
-            feeName: sf.fee_structure?.name || "Fee",
-            feeType: feeStructures.find(f => f.id === sf.fee_structure_id)?.fee_type || "tuition",
-            totalAmount: sf.final_amount,
-            paidAmount: paidAmount,
-            balance: sf.final_amount - paidAmount,
-            status: sf.status,
-            dueDate: new Date(sf.due_date).toLocaleDateString(),
+            studentId: student.id,
+            studentName: profile?.full_name || "Unknown",
+            rollNo: student.student_id || "",
+            feeName: "Yearly Total",
+            feeType: "all",
+            totalAmount: totalYearlyFee,
+            paidAmount: totalPaid,
+            balance: totalBalance,
+            status: totalBalance === 0 ? "paid" : totalBalance < totalYearlyFee ? "partial" : "pending",
+            dueDate: "-",
           };
         });
         
@@ -763,6 +852,76 @@ const FeeManagement = () => {
                     />
                   </div>
                   <Button onClick={handleAssignFee} className="w-full">Assign Fee</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Dialog open={bulkAssignDialog} onOpenChange={setBulkAssignDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="default">
+                  <Users className="h-4 w-4 mr-2" />
+                  Bulk Assign to Class
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Assign Fee to All Students in Class</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Select Class *</Label>
+                    <Select value={bulkAssignForm.class_id} onValueChange={(v) => setBulkAssignForm({ ...bulkAssignForm, class_id: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select class" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {classes.map((cls) => (
+                          <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {bulkAssignForm.class_id && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {students.filter(s => s.class_id === bulkAssignForm.class_id).length} students in this class
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Fee Type *</Label>
+                    <Select value={bulkAssignForm.fee_structure_id} onValueChange={(v) => setBulkAssignForm({ ...bulkAssignForm, fee_structure_id: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select fee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {feeStructures.map((fee) => (
+                          <SelectItem key={fee.id} value={fee.id}>
+                            {fee.name} - PKR {fee.amount.toLocaleString()}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Discount per Student (optional)</Label>
+                    <Input 
+                      type="number"
+                      value={bulkAssignForm.discount} 
+                      onChange={(e) => setBulkAssignForm({ ...bulkAssignForm, discount: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                  <Button onClick={handleBulkAssignFee} className="w-full" disabled={bulkAssigning}>
+                    {bulkAssigning ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Assigning...
+                      </>
+                    ) : (
+                      <>
+                        <Users className="h-4 w-4 mr-2" />
+                        Assign Fee to All Students
+                      </>
+                    )}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
