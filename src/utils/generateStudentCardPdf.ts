@@ -1,14 +1,13 @@
 import jsPDF from "jspdf";
 import QRCode from "qrcode";
 
-// Modern color palette - matching the reference design
+// Modern color palette
 const primaryBlue: [number, number, number] = [26, 54, 93]; // Dark navy blue
-const accentBlue: [number, number, number] = [30, 100, 180]; // Royal Blue
-const goldColor: [number, number, number] = [180, 145, 60];
+const accentBlue: [number, number, number] = [0, 120, 180]; // Teal blue
+const goldColor: [number, number, number] = [200, 160, 60];
 const darkColor: [number, number, number] = [40, 40, 40];
 const whiteColor: [number, number, number] = [255, 255, 255];
-const lightGray: [number, number, number] = [240, 240, 240];
-const waveBlue: [number, number, number] = [0, 120, 180]; // Teal blue for wave
+const lightBlue: [number, number, number] = [230, 245, 255];
 
 export interface StudentCardData {
   studentId: string;
@@ -60,40 +59,31 @@ const generateQRCodeImage = async (studentId: string): Promise<string> => {
   }
 };
 
-// Draw decorative wave at the bottom
-const drawWave = (doc: jsPDF, cardWidth: number, cardHeight: number, yStart: number) => {
-  // First wave (darker)
-  doc.setFillColor(...waveBlue);
-  doc.moveTo(0, yStart);
+// Draw smooth curved wave
+const drawCurvedWave = (doc: jsPDF, cardWidth: number, startY: number, endY: number) => {
+  // Draw multiple curved layers for wave effect
+  const colors: [number, number, number][] = [
+    [0, 90, 140],
+    [0, 110, 160],
+    [0, 130, 180],
+  ];
   
-  // Create wave path using curves
-  const waveHeight = 15;
-  const curveWidth = cardWidth / 3;
-  
-  // Draw wave using bezier approximation with triangles
-  for (let x = 0; x <= cardWidth; x += 0.5) {
-    const y = yStart + Math.sin((x / cardWidth) * Math.PI * 2) * 3 + waveHeight / 2;
-    if (x === 0) {
-      doc.moveTo(x, y);
+  colors.forEach((color, index) => {
+    doc.setFillColor(...color);
+    const yOffset = startY + (index * 3);
+    
+    // Create wave shape using bezier-like curves with small rectangles
+    for (let x = 0; x <= cardWidth; x += 0.3) {
+      const waveY = yOffset + Math.sin((x / cardWidth) * Math.PI * 1.5) * 4;
+      doc.rect(x, waveY, 0.4, endY - waveY, "F");
     }
-  }
-  
-  // Simplified wave - gradient effect with overlapping shapes
-  doc.setFillColor(0, 100, 160);
-  doc.triangle(0, cardHeight - 18, cardWidth / 2, cardHeight - 25, cardWidth, cardHeight - 15, "F");
-  
-  doc.setFillColor(0, 130, 180);
-  doc.triangle(0, cardHeight - 12, cardWidth / 2, cardHeight - 20, cardWidth, cardHeight - 10, "F");
-  
-  doc.setFillColor(0, 150, 200);
-  doc.triangle(0, cardHeight - 8, cardWidth, cardHeight - 8, cardWidth, cardHeight, "F");
-  doc.rect(0, cardHeight - 8, cardWidth, 8, "F");
+  });
 };
 
 export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsPDF> => {
-  // VERTICAL card size: 53.98mm x 85.6mm (standard ID card size - CR80 portrait)
-  const cardWidth = 53.98;
-  const cardHeight = 85.6;
+  // VERTICAL card: 54mm x 86mm (standard CR80 portrait)
+  const cardWidth = 54;
+  const cardHeight = 86;
   
   const doc = new jsPDF({
     orientation: "portrait",
@@ -107,56 +97,63 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
 
   // ===== FRONT SIDE =====
   
-  // Dark blue header section (top ~35%)
+  // White background
+  doc.setFillColor(...whiteColor);
+  doc.rect(0, 0, cardWidth, cardHeight, "F");
+  
+  // Dark blue header (curved bottom)
   doc.setFillColor(...primaryBlue);
-  doc.rect(0, 0, cardWidth, 32, "F");
+  doc.rect(0, 0, cardWidth, 28, "F");
   
-  // White main section
-  doc.setFillColor(...whiteColor);
-  doc.rect(0, 32, cardWidth, cardHeight - 32, "F");
+  // Curved bottom of header
+  doc.setFillColor(...primaryBlue);
+  for (let x = 0; x <= cardWidth; x += 0.2) {
+    const curveY = 28 + Math.sin((x / cardWidth) * Math.PI) * 4;
+    doc.rect(x, 28, 0.3, curveY - 28 + 0.5, "F");
+  }
 
-  // Logo in golden hexagon-like border (top center)
-  const logoSize = 14;
-  const logoX = cardWidth / 2 - logoSize / 2;
-  const logoY = 3;
+  // Logo circle with golden border
+  const logoRadius = 8;
+  const logoCenterX = cardWidth / 2;
+  const logoCenterY = 10;
   
-  // Golden border circle for logo
+  // Golden outer circle
   doc.setFillColor(...goldColor);
-  doc.circle(cardWidth / 2, logoY + logoSize / 2 + 1, logoSize / 2 + 2, "F");
+  doc.circle(logoCenterX, logoCenterY, logoRadius + 1.5, "F");
+  
+  // White inner circle
   doc.setFillColor(...whiteColor);
-  doc.circle(cardWidth / 2, logoY + logoSize / 2 + 1, logoSize / 2 + 0.5, "F");
+  doc.circle(logoCenterX, logoCenterY, logoRadius, "F");
   
   if (logoImg) {
-    doc.addImage(logoImg, "PNG", logoX + 0.5, logoY + 1.5, logoSize - 1, logoSize - 1);
+    const logoSize = logoRadius * 1.6;
+    doc.addImage(logoImg, "PNG", logoCenterX - logoSize/2, logoCenterY - logoSize/2, logoSize, logoSize);
   }
   
-  // School name
+  // School name in header
   doc.setTextColor(...whiteColor);
-  doc.setFontSize(6);
+  doc.setFontSize(5.5);
   doc.setFont("helvetica", "bold");
-  const schoolNameLines = doc.splitTextToSize(schoolName, cardWidth - 8);
-  doc.text(schoolNameLines, cardWidth / 2, 21, { align: "center" });
+  doc.text(schoolName, cardWidth / 2, 22, { align: "center" });
   
   // Subtitle
-  doc.setFontSize(4.5);
+  doc.setFontSize(4);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(200, 200, 200);
-  doc.text("STUDENT IDENTITY CARD", cardWidth / 2, 28, { align: "center" });
+  doc.setTextColor(180, 200, 220);
+  doc.text("STUDENT IDENTITY CARD", cardWidth / 2, 26, { align: "center" });
 
-  // Photo area with golden border
-  const photoSize = 22;
-  const photoX = cardWidth / 2 - photoSize / 2;
-  const photoY = 34;
+  // Photo area - circular with golden border
+  const photoRadius = 12;
+  const photoCenterX = cardWidth / 2;
+  const photoCenterY = 44;
   
-  // Golden border
+  // Golden border circle
   doc.setFillColor(...goldColor);
-  doc.roundedRect(photoX - 1.5, photoY - 1.5, photoSize + 3, photoSize + 3, 2, 2, "F");
-  doc.setFillColor(...whiteColor);
-  doc.roundedRect(photoX - 0.5, photoY - 0.5, photoSize + 1, photoSize + 1, 1.5, 1.5, "F");
+  doc.circle(photoCenterX, photoCenterY, photoRadius + 1.5, "F");
   
-  // Photo placeholder
-  doc.setFillColor(...lightGray);
-  doc.roundedRect(photoX, photoY, photoSize, photoSize, 1, 1, "F");
+  // White background circle
+  doc.setFillColor(...lightBlue);
+  doc.circle(photoCenterX, photoCenterY, photoRadius, "F");
   
   if (data.photoUrl) {
     try {
@@ -164,73 +161,69 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
       img.crossOrigin = "anonymous";
       await new Promise<void>((resolve, reject) => {
         img.onload = () => {
-          doc.addImage(img, "JPEG", photoX + 0.3, photoY + 0.3, photoSize - 0.6, photoSize - 0.6);
+          // Clip to circle by drawing image in circular area
+          const imgSize = photoRadius * 1.8;
+          doc.addImage(img, "JPEG", photoCenterX - imgSize/2, photoCenterY - imgSize/2, imgSize, imgSize);
           resolve();
         };
         img.onerror = reject;
         img.src = data.photoUrl!;
       });
     } catch (e) {
-      // Show placeholder icon
-      doc.setFillColor(200, 200, 200);
-      doc.circle(photoX + photoSize / 2, photoY + photoSize / 2 - 2, 4, "F");
-      doc.ellipse(photoX + photoSize / 2, photoY + photoSize - 2, 6, 4, "F");
+      // Default avatar
+      doc.setFillColor(180, 180, 180);
+      doc.circle(photoCenterX, photoCenterY - 2, 4, "F");
+      doc.ellipse(photoCenterX, photoCenterY + 5, 5, 3, "F");
     }
   } else {
-    // Default user icon
-    doc.setFillColor(180, 180, 180);
-    doc.circle(photoX + photoSize / 2, photoY + photoSize / 2 - 2, 4, "F");
-    doc.ellipse(photoX + photoSize / 2, photoY + photoSize - 2, 6, 4, "F");
+    doc.setFillColor(150, 150, 150);
+    doc.circle(photoCenterX, photoCenterY - 2, 4, "F");
+    doc.ellipse(photoCenterX, photoCenterY + 5, 5, 3, "F");
   }
 
-  // Student name - bold and prominent
+  // Student name
   doc.setTextColor(...primaryBlue);
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
-  doc.text(data.studentName.toUpperCase(), cardWidth / 2, 61, { align: "center" });
+  doc.text(data.studentName.toUpperCase(), cardWidth / 2, 60, { align: "center" });
   
-  // Class/Position
-  doc.setFontSize(5.5);
+  // Class
+  doc.setFontSize(5);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(100, 100, 100);
   const classText = `Class ${data.className}${data.section ? ` - ${data.section}` : ""}`;
-  doc.text(classText, cardWidth / 2, 65, { align: "center" });
+  doc.text(classText, cardWidth / 2, 64, { align: "center" });
 
-  // Details section with labels
-  let detailY = 70;
-  const labelX = 5;
-  const valueX = 20;
+  // Details section with dots separator
+  const detailStartY = 68;
+  doc.setFontSize(5);
   
-  doc.setFontSize(5.5);
+  const details = [
+    { label: "ID", value: data.studentId },
+    { label: "D.O.B", value: data.dateOfBirth || "N/A" },
+    { label: "Phone", value: data.phone || "N/A" },
+  ];
   
-  // ID
-  doc.setTextColor(...primaryBlue);
-  doc.setFont("helvetica", "bold");
-  doc.text("ID", labelX, detailY);
-  doc.setTextColor(...darkColor);
-  doc.setFont("helvetica", "normal");
-  doc.text(`: ${data.studentId}`, valueX, detailY);
-  
-  // D.O.B
-  detailY += 4;
-  doc.setTextColor(...primaryBlue);
-  doc.setFont("helvetica", "bold");
-  doc.text("D.O.B", labelX, detailY);
-  doc.setTextColor(...darkColor);
-  doc.setFont("helvetica", "normal");
-  doc.text(`: ${data.dateOfBirth || "N/A"}`, valueX, detailY);
-  
-  // Phone
-  detailY += 4;
-  doc.setTextColor(...primaryBlue);
-  doc.setFont("helvetica", "bold");
-  doc.text("Phone", labelX, detailY);
-  doc.setTextColor(...darkColor);
-  doc.setFont("helvetica", "normal");
-  doc.text(`: ${data.phone || "N/A"}`, valueX, detailY);
+  details.forEach((detail, index) => {
+    const y = detailStartY + (index * 4);
+    
+    // Label
+    doc.setTextColor(...primaryBlue);
+    doc.setFont("helvetica", "bold");
+    doc.text(detail.label, 6, y);
+    
+    // Dots
+    doc.setTextColor(150, 150, 150);
+    doc.text(":", 16, y);
+    
+    // Value
+    doc.setTextColor(...darkColor);
+    doc.setFont("helvetica", "normal");
+    doc.text(detail.value, 19, y);
+  });
 
-  // Decorative wave at bottom
-  drawWave(doc, cardWidth, cardHeight, cardHeight - 20);
+  // Bottom wave
+  drawCurvedWave(doc, cardWidth, cardHeight - 8, cardHeight);
 
   // ===== BACK SIDE =====
   doc.addPage([cardWidth, cardHeight], "portrait");
@@ -239,41 +232,44 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   doc.setFillColor(...whiteColor);
   doc.rect(0, 0, cardWidth, cardHeight, "F");
 
-  // Logo at top (smaller)
-  const backLogoSize = 10;
+  // Small logo at top with circle
+  const backLogoRadius = 5;
+  const backLogoCenterY = 7;
+  
+  doc.setFillColor(...goldColor);
+  doc.circle(cardWidth / 2, backLogoCenterY, backLogoRadius + 1, "F");
+  doc.setFillColor(...whiteColor);
+  doc.circle(cardWidth / 2, backLogoCenterY, backLogoRadius, "F");
+  
   if (logoImg) {
-    // Golden border
-    doc.setFillColor(...goldColor);
-    doc.circle(cardWidth / 2, 8, backLogoSize / 2 + 1.5, "F");
-    doc.setFillColor(...whiteColor);
-    doc.circle(cardWidth / 2, 8, backLogoSize / 2 + 0.3, "F");
-    doc.addImage(logoImg, "PNG", cardWidth / 2 - backLogoSize / 2 + 0.5, 3.5, backLogoSize - 1, backLogoSize - 1);
+    const logoSize = backLogoRadius * 1.6;
+    doc.addImage(logoImg, "PNG", cardWidth / 2 - logoSize/2, backLogoCenterY - logoSize/2, logoSize, logoSize);
   }
 
   // School name
   doc.setTextColor(...primaryBlue);
-  doc.setFontSize(6);
+  doc.setFontSize(5.5);
   doc.setFont("helvetica", "bold");
-  doc.text(schoolName, cardWidth / 2, 17, { align: "center" });
+  doc.text(schoolName, cardWidth / 2, 15, { align: "center" });
   
-  // Tagline/Address
+  // Address
   doc.setFontSize(4);
   doc.setFont("helvetica", "italic");
   doc.setTextColor(100, 100, 100);
-  doc.text(data.schoolAddress || "Madyan Swat, Pakistan", cardWidth / 2, 21, { align: "center" });
+  doc.text(data.schoolAddress || "Madyan Swat, Pakistan", cardWidth / 2, 19, { align: "center" });
 
-  // Divider
+  // Golden divider line
   doc.setDrawColor(...goldColor);
-  doc.setLineWidth(0.3);
-  doc.line(8, 24, cardWidth - 8, 24);
+  doc.setLineWidth(0.4);
+  doc.line(10, 22, cardWidth - 10, 22);
 
-  // Terms and conditions section
+  // Terms section
   doc.setTextColor(...primaryBlue);
   doc.setFontSize(5);
   doc.setFont("helvetica", "bold");
-  doc.text("Terms and Conditions", cardWidth / 2, 28, { align: "center" });
+  doc.text("Terms and Conditions", cardWidth / 2, 27, { align: "center" });
   
-  doc.setFontSize(4);
+  doc.setFontSize(3.5);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(80, 80, 80);
   
@@ -281,35 +277,49 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
     "Students are required to carry this card at all times.",
     "If the card is lost or damaged, a replacement",
     "fee will be charged according to regulations.",
-    "",
-    `Father/Guardian: ${data.fatherName}`,
-    `Blood Group: ${data.bloodGroup || "N/A"}`,
   ];
   
-  let termY = 33;
-  terms.forEach(term => {
-    doc.text(term, cardWidth / 2, termY, { align: "center" });
-    termY += 3.5;
+  terms.forEach((term, index) => {
+    doc.text(term, cardWidth / 2, 32 + (index * 3.5), { align: "center" });
   });
 
-  // QR Code section
+  // Parent info
+  doc.setFontSize(4);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...primaryBlue);
+  doc.text("Father/Guardian:", 6, 46);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...darkColor);
+  doc.text(data.fatherName, 6, 50);
+  
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...primaryBlue);
+  doc.text("Blood Group:", 6, 55);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...darkColor);
+  doc.text(data.bloodGroup || "N/A", 26, 55);
+
+  // QR Code in circle-like rounded container
   if (qrCodeImg) {
-    doc.addImage(qrCodeImg, "PNG", cardWidth / 2 - 10, 52, 20, 20);
-    doc.setFontSize(3.5);
-    doc.setTextColor(100, 100, 100);
-    doc.text("Scan for Attendance", cardWidth / 2, 74, { align: "center" });
+    const qrSize = 16;
+    const qrX = cardWidth / 2 - qrSize / 2;
+    const qrY = 59;
+    
+    // Light background for QR
+    doc.setFillColor(...lightBlue);
+    doc.roundedRect(qrX - 2, qrY - 2, qrSize + 4, qrSize + 4, 3, 3, "F");
+    
+    doc.addImage(qrCodeImg, "PNG", qrX, qrY, qrSize, qrSize);
   }
 
-  // Issue and Expire dates at bottom
-  const dateY = cardHeight - 10;
-  doc.setFontSize(4);
+  // Issue/Expire dates at bottom
+  doc.setFontSize(3.5);
   doc.setTextColor(80, 80, 80);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Issue date: ${data.joinDate || "01/01/25"}`, 8, dateY);
-  doc.text(`Expire date: ${data.validUntil || "12/12/26"}`, cardWidth - 8, dateY, { align: "right" });
+  doc.text(`Issue date: ${data.joinDate || "01/01/25"}`, 6, cardHeight - 10);
+  doc.text(`Expire date: ${data.validUntil || "12/12/26"}`, cardWidth - 6, cardHeight - 10, { align: "right" });
 
   // Bottom wave
-  drawWave(doc, cardWidth, cardHeight, cardHeight - 18);
+  drawCurvedWave(doc, cardWidth, cardHeight - 6, cardHeight);
 
   return doc;
 };
@@ -320,8 +330,8 @@ export const downloadStudentCard = async (data: StudentCardData) => {
 };
 
 export const generateBulkStudentCards = async (students: StudentCardData[]): Promise<jsPDF> => {
-  const cardWidth = 53.98;
-  const cardHeight = 85.6;
+  const cardWidth = 54;
+  const cardHeight = 86;
   
   const doc = new jsPDF({
     orientation: "portrait",
@@ -341,54 +351,48 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
     const schoolName = data.schoolName || "The Suffah Public School & College";
 
     // ===== FRONT SIDE =====
+    doc.setFillColor(...whiteColor);
+    doc.rect(0, 0, cardWidth, cardHeight, "F");
     
-    // Dark blue header section
+    // Header
     doc.setFillColor(...primaryBlue);
-    doc.rect(0, 0, cardWidth, 32, "F");
+    doc.rect(0, 0, cardWidth, 28, "F");
     
-    // White main section
-    doc.setFillColor(...whiteColor);
-    doc.rect(0, 32, cardWidth, cardHeight - 32, "F");
+    // Curved header bottom
+    for (let x = 0; x <= cardWidth; x += 0.2) {
+      const curveY = 28 + Math.sin((x / cardWidth) * Math.PI) * 4;
+      doc.rect(x, 28, 0.3, curveY - 28 + 0.5, "F");
+    }
 
-    // Logo
-    const logoSize = 14;
-    const logoX = cardWidth / 2 - logoSize / 2;
-    const logoY = 3;
-    
+    // Logo circle
+    const logoRadius = 8;
     doc.setFillColor(...goldColor);
-    doc.circle(cardWidth / 2, logoY + logoSize / 2 + 1, logoSize / 2 + 2, "F");
+    doc.circle(cardWidth / 2, 10, logoRadius + 1.5, "F");
     doc.setFillColor(...whiteColor);
-    doc.circle(cardWidth / 2, logoY + logoSize / 2 + 1, logoSize / 2 + 0.5, "F");
+    doc.circle(cardWidth / 2, 10, logoRadius, "F");
     
     if (logoImg) {
-      doc.addImage(logoImg, "PNG", logoX + 0.5, logoY + 1.5, logoSize - 1, logoSize - 1);
+      const logoSize = logoRadius * 1.6;
+      doc.addImage(logoImg, "PNG", cardWidth / 2 - logoSize/2, 10 - logoSize/2, logoSize, logoSize);
     }
     
     // School name
     doc.setTextColor(...whiteColor);
-    doc.setFontSize(6);
+    doc.setFontSize(5.5);
     doc.setFont("helvetica", "bold");
-    const schoolNameLines = doc.splitTextToSize(schoolName, cardWidth - 8);
-    doc.text(schoolNameLines, cardWidth / 2, 21, { align: "center" });
+    doc.text(schoolName, cardWidth / 2, 22, { align: "center" });
     
-    // Subtitle
-    doc.setFontSize(4.5);
+    doc.setFontSize(4);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(200, 200, 200);
-    doc.text("STUDENT IDENTITY CARD", cardWidth / 2, 28, { align: "center" });
+    doc.setTextColor(180, 200, 220);
+    doc.text("STUDENT IDENTITY CARD", cardWidth / 2, 26, { align: "center" });
 
-    // Photo
-    const photoSize = 22;
-    const photoX = cardWidth / 2 - photoSize / 2;
-    const photoY = 34;
-    
+    // Photo circle
+    const photoRadius = 12;
     doc.setFillColor(...goldColor);
-    doc.roundedRect(photoX - 1.5, photoY - 1.5, photoSize + 3, photoSize + 3, 2, 2, "F");
-    doc.setFillColor(...whiteColor);
-    doc.roundedRect(photoX - 0.5, photoY - 0.5, photoSize + 1, photoSize + 1, 1.5, 1.5, "F");
-    
-    doc.setFillColor(...lightGray);
-    doc.roundedRect(photoX, photoY, photoSize, photoSize, 1, 1, "F");
+    doc.circle(cardWidth / 2, 44, photoRadius + 1.5, "F");
+    doc.setFillColor(...lightBlue);
+    doc.circle(cardWidth / 2, 44, photoRadius, "F");
     
     if (data.photoUrl) {
       try {
@@ -396,68 +400,57 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
         img.crossOrigin = "anonymous";
         await new Promise<void>((resolve, reject) => {
           img.onload = () => {
-            doc.addImage(img, "JPEG", photoX + 0.3, photoY + 0.3, photoSize - 0.6, photoSize - 0.6);
+            const imgSize = photoRadius * 1.8;
+            doc.addImage(img, "JPEG", cardWidth / 2 - imgSize/2, 44 - imgSize/2, imgSize, imgSize);
             resolve();
           };
           img.onerror = reject;
           img.src = data.photoUrl!;
         });
       } catch (e) {
-        doc.setFillColor(180, 180, 180);
-        doc.circle(photoX + photoSize / 2, photoY + photoSize / 2 - 2, 4, "F");
-        doc.ellipse(photoX + photoSize / 2, photoY + photoSize - 2, 6, 4, "F");
+        doc.setFillColor(150, 150, 150);
+        doc.circle(cardWidth / 2, 42, 4, "F");
+        doc.ellipse(cardWidth / 2, 49, 5, 3, "F");
       }
     } else {
-      doc.setFillColor(180, 180, 180);
-      doc.circle(photoX + photoSize / 2, photoY + photoSize / 2 - 2, 4, "F");
-      doc.ellipse(photoX + photoSize / 2, photoY + photoSize - 2, 6, 4, "F");
+      doc.setFillColor(150, 150, 150);
+      doc.circle(cardWidth / 2, 42, 4, "F");
+      doc.ellipse(cardWidth / 2, 49, 5, 3, "F");
     }
 
-    // Student name
+    // Name
     doc.setTextColor(...primaryBlue);
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
-    doc.text(data.studentName.toUpperCase(), cardWidth / 2, 61, { align: "center" });
+    doc.text(data.studentName.toUpperCase(), cardWidth / 2, 60, { align: "center" });
     
-    // Class
-    doc.setFontSize(5.5);
+    doc.setFontSize(5);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(100, 100, 100);
     const classText = `Class ${data.className}${data.section ? ` - ${data.section}` : ""}`;
-    doc.text(classText, cardWidth / 2, 65, { align: "center" });
+    doc.text(classText, cardWidth / 2, 64, { align: "center" });
 
     // Details
-    let detailY = 70;
-    const labelX = 5;
-    const valueX = 20;
+    const details = [
+      { label: "ID", value: data.studentId },
+      { label: "D.O.B", value: data.dateOfBirth || "N/A" },
+      { label: "Phone", value: data.phone || "N/A" },
+    ];
     
-    doc.setFontSize(5.5);
-    
-    doc.setTextColor(...primaryBlue);
-    doc.setFont("helvetica", "bold");
-    doc.text("ID", labelX, detailY);
-    doc.setTextColor(...darkColor);
-    doc.setFont("helvetica", "normal");
-    doc.text(`: ${data.studentId}`, valueX, detailY);
-    
-    detailY += 4;
-    doc.setTextColor(...primaryBlue);
-    doc.setFont("helvetica", "bold");
-    doc.text("D.O.B", labelX, detailY);
-    doc.setTextColor(...darkColor);
-    doc.setFont("helvetica", "normal");
-    doc.text(`: ${data.dateOfBirth || "N/A"}`, valueX, detailY);
-    
-    detailY += 4;
-    doc.setTextColor(...primaryBlue);
-    doc.setFont("helvetica", "bold");
-    doc.text("Phone", labelX, detailY);
-    doc.setTextColor(...darkColor);
-    doc.setFont("helvetica", "normal");
-    doc.text(`: ${data.phone || "N/A"}`, valueX, detailY);
+    details.forEach((detail, index) => {
+      const y = 68 + (index * 4);
+      doc.setTextColor(...primaryBlue);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(5);
+      doc.text(detail.label, 6, y);
+      doc.setTextColor(150, 150, 150);
+      doc.text(":", 16, y);
+      doc.setTextColor(...darkColor);
+      doc.setFont("helvetica", "normal");
+      doc.text(detail.value, 19, y);
+    });
 
-    // Wave
-    drawWave(doc, cardWidth, cardHeight, cardHeight - 20);
+    drawCurvedWave(doc, cardWidth, cardHeight - 8, cardHeight);
 
     // ===== BACK SIDE =====
     doc.addPage([cardWidth, cardHeight], "portrait");
@@ -465,35 +458,36 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
     doc.setFillColor(...whiteColor);
     doc.rect(0, 0, cardWidth, cardHeight, "F");
 
-    const backLogoSize = 10;
+    // Back logo
+    doc.setFillColor(...goldColor);
+    doc.circle(cardWidth / 2, 7, 6, "F");
+    doc.setFillColor(...whiteColor);
+    doc.circle(cardWidth / 2, 7, 5, "F");
+    
     if (logoImg) {
-      doc.setFillColor(...goldColor);
-      doc.circle(cardWidth / 2, 8, backLogoSize / 2 + 1.5, "F");
-      doc.setFillColor(...whiteColor);
-      doc.circle(cardWidth / 2, 8, backLogoSize / 2 + 0.3, "F");
-      doc.addImage(logoImg, "PNG", cardWidth / 2 - backLogoSize / 2 + 0.5, 3.5, backLogoSize - 1, backLogoSize - 1);
+      doc.addImage(logoImg, "PNG", cardWidth / 2 - 4, 3, 8, 8);
     }
 
     doc.setTextColor(...primaryBlue);
-    doc.setFontSize(6);
+    doc.setFontSize(5.5);
     doc.setFont("helvetica", "bold");
-    doc.text(schoolName, cardWidth / 2, 17, { align: "center" });
+    doc.text(schoolName, cardWidth / 2, 15, { align: "center" });
     
     doc.setFontSize(4);
     doc.setFont("helvetica", "italic");
     doc.setTextColor(100, 100, 100);
-    doc.text(data.schoolAddress || "Madyan Swat, Pakistan", cardWidth / 2, 21, { align: "center" });
+    doc.text(data.schoolAddress || "Madyan Swat, Pakistan", cardWidth / 2, 19, { align: "center" });
 
     doc.setDrawColor(...goldColor);
-    doc.setLineWidth(0.3);
-    doc.line(8, 24, cardWidth - 8, 24);
+    doc.setLineWidth(0.4);
+    doc.line(10, 22, cardWidth - 10, 22);
 
     doc.setTextColor(...primaryBlue);
     doc.setFontSize(5);
     doc.setFont("helvetica", "bold");
-    doc.text("Terms and Conditions", cardWidth / 2, 28, { align: "center" });
+    doc.text("Terms and Conditions", cardWidth / 2, 27, { align: "center" });
     
-    doc.setFontSize(4);
+    doc.setFontSize(3.5);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(80, 80, 80);
     
@@ -501,32 +495,41 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
       "Students are required to carry this card at all times.",
       "If the card is lost or damaged, a replacement",
       "fee will be charged according to regulations.",
-      "",
-      `Father/Guardian: ${data.fatherName}`,
-      `Blood Group: ${data.bloodGroup || "N/A"}`,
     ];
     
-    let termY = 33;
-    terms.forEach(term => {
-      doc.text(term, cardWidth / 2, termY, { align: "center" });
-      termY += 3.5;
+    terms.forEach((term, index) => {
+      doc.text(term, cardWidth / 2, 32 + (index * 3.5), { align: "center" });
     });
 
+    doc.setFontSize(4);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...primaryBlue);
+    doc.text("Father/Guardian:", 6, 46);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...darkColor);
+    doc.text(data.fatherName, 6, 50);
+    
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...primaryBlue);
+    doc.text("Blood Group:", 6, 55);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...darkColor);
+    doc.text(data.bloodGroup || "N/A", 26, 55);
+
     if (qrCodeImg) {
-      doc.addImage(qrCodeImg, "PNG", cardWidth / 2 - 10, 52, 20, 20);
-      doc.setFontSize(3.5);
-      doc.setTextColor(100, 100, 100);
-      doc.text("Scan for Attendance", cardWidth / 2, 74, { align: "center" });
+      const qrSize = 16;
+      const qrX = cardWidth / 2 - qrSize / 2;
+      doc.setFillColor(...lightBlue);
+      doc.roundedRect(qrX - 2, 57, qrSize + 4, qrSize + 4, 3, 3, "F");
+      doc.addImage(qrCodeImg, "PNG", qrX, 59, qrSize, qrSize);
     }
 
-    const dateY = cardHeight - 10;
-    doc.setFontSize(4);
+    doc.setFontSize(3.5);
     doc.setTextColor(80, 80, 80);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Issue date: ${data.joinDate || "01/01/25"}`, 8, dateY);
-    doc.text(`Expire date: ${data.validUntil || "12/12/26"}`, cardWidth - 8, dateY, { align: "right" });
+    doc.text(`Issue date: ${data.joinDate || "01/01/25"}`, 6, cardHeight - 10);
+    doc.text(`Expire date: ${data.validUntil || "12/12/26"}`, cardWidth - 6, cardHeight - 10, { align: "right" });
 
-    drawWave(doc, cardWidth, cardHeight, cardHeight - 18);
+    drawCurvedWave(doc, cardWidth, cardHeight - 6, cardHeight);
   }
 
   return doc;
