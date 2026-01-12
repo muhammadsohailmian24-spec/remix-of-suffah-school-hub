@@ -9,10 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Mail } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Mail, CreditCard, Eye, MoreHorizontal } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { downloadTeacherCard, TeacherCardData, generateTeacherCardPdf } from "@/utils/generateTeacherCardPdf";
+import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
 interface Teacher {
   id: string;
@@ -54,6 +57,8 @@ const TeacherManagement = () => {
   const [newPassword, setNewPassword] = useState("");
   const [sendEmailNotification, setSendEmailNotification] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewTeacher, setPreviewTeacher] = useState<Teacher | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -321,6 +326,27 @@ const TeacherManagement = () => {
     }
   };
 
+  const getTeacherCardData = (teacher: Teacher): TeacherCardData => ({
+    employeeId: teacher.employee_id,
+    teacherName: teacher.profile?.full_name || "Unknown",
+    department: teacher.department?.name,
+    qualification: teacher.qualification || undefined,
+    specialization: teacher.specialization || undefined,
+    phone: teacher.profile?.phone || undefined,
+    email: teacher.profile?.email || undefined,
+    joiningDate: teacher.joining_date,
+  });
+
+  const handlePreviewTeacherCard = (teacher: Teacher) => {
+    setPreviewTeacher(teacher);
+    setIsPreviewOpen(true);
+  };
+
+  const handleDownloadTeacherCard = async (teacher: Teacher) => {
+    await downloadTeacherCard(getTeacherCardData(teacher));
+    toast({ title: "Downloaded", description: "Teacher ID card downloaded successfully" });
+  };
+
   const filteredTeachers = teachers.filter(t => {
     const matchesSearch = t.profile?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          t.employee_id.toLowerCase().includes(searchQuery.toLowerCase());
@@ -415,21 +441,50 @@ const TeacherManagement = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => openEditDialog(teacher)} title="Edit">
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={() => openResetPasswordDialog(teacher)} title="Reset Password">
-                          <KeyRound className="w-4 h-4 text-warning" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={() => handleToggleStatus(teacher)} title={teacher.status === "active" ? "Deactivate" : "Activate"}>
-                          {teacher.status === "active" ? 
-                            <UserX className="w-4 h-4 text-destructive" /> : 
-                            <UserCheck className="w-4 h-4 text-success" />
-                          }
-                        </Button>
-                        <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDelete(teacher.id)} title="Delete">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(teacher)}>
+                              <Pencil className="w-4 h-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePreviewTeacherCard(teacher)}>
+                              <Eye className="w-4 h-4 mr-2" />
+                              Preview ID Card
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownloadTeacherCard(teacher)}>
+                              <CreditCard className="w-4 h-4 mr-2" />
+                              Download ID Card
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => openResetPasswordDialog(teacher)}>
+                              <KeyRound className="w-4 h-4 mr-2 text-warning" />
+                              Reset Password
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleToggleStatus(teacher)}>
+                              {teacher.status === "active" ? (
+                                <>
+                                  <UserX className="w-4 h-4 mr-2 text-destructive" />
+                                  Deactivate
+                                </>
+                              ) : (
+                                <>
+                                  <UserCheck className="w-4 h-4 mr-2 text-success" />
+                                  Activate
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(teacher.id)}>
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -663,6 +718,17 @@ const TeacherManagement = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ID Card Preview Dialog */}
+      {previewTeacher && (
+        <DocumentPreviewDialog
+          open={isPreviewOpen}
+          onOpenChange={setIsPreviewOpen}
+          title={`Teacher ID Card - ${previewTeacher.profile?.full_name || "Unknown"}`}
+          generatePdf={() => generateTeacherCardPdf(getTeacherCardData(previewTeacher))}
+          filename={`TeacherCard-${previewTeacher.employee_id}.pdf`}
+        />
+      )}
     </AdminLayout>
   );
 };

@@ -16,8 +16,10 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { downloadAdmissionForm, AdmissionFormData } from "@/utils/generateAdmissionFormPdf";
-import { downloadStudentCard, StudentCardData } from "@/utils/generateStudentCardPdf";
+import { downloadAdmissionForm, AdmissionFormData, generateAdmissionFormPdf } from "@/utils/generateAdmissionFormPdf";
+import { downloadStudentCard, StudentCardData, generateStudentCardPdf } from "@/utils/generateStudentCardPdf";
+import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
+
 interface Student {
   id: string;
   student_id: string;
@@ -108,6 +110,11 @@ const StudentManagement = () => {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   
   const [lastStudentId, setLastStudentId] = useState<string | null>(null);
+  
+  // Preview states
+  const [previewStudent, setPreviewStudent] = useState<Student | null>(null);
+  const [previewType, setPreviewType] = useState<"card" | "admission" | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   useEffect(() => {
     checkAuthAndFetch();
@@ -355,9 +362,9 @@ const StudentManagement = () => {
     }
   };
 
-  const handleDownloadAdmissionForm = async (student: Student) => {
+  const getAdmissionData = (student: Student): AdmissionFormData => {
     const classInfo = student.class;
-    const admissionData: AdmissionFormData = {
+    return {
       studentName: student.profile?.full_name || "",
       studentId: student.student_id,
       dateOfBirth: student.profile?.date_of_birth || "",
@@ -375,13 +382,11 @@ const StudentManagement = () => {
       occupation: student.guardian_occupation || undefined,
       photoUrl: student.profile?.photo_url || undefined,
     };
-    await downloadAdmissionForm(admissionData);
-    toast({ title: "Downloaded", description: "Admission form downloaded successfully" });
   };
 
-  const handleDownloadStudentCard = async (student: Student) => {
+  const getStudentCardData = (student: Student): StudentCardData => {
     const classInfo = student.class;
-    const cardData: StudentCardData = {
+    return {
       studentId: student.student_id,
       studentName: student.profile?.full_name || "",
       fatherName: student.father_name || "",
@@ -390,9 +395,24 @@ const StudentManagement = () => {
       phone: student.profile?.phone || undefined,
       address: student.profile?.address || undefined,
       photoUrl: student.profile?.photo_url || undefined,
+      dateOfBirth: student.profile?.date_of_birth || undefined,
     };
-    await downloadStudentCard(cardData);
+  };
+
+  const handleDownloadAdmissionForm = async (student: Student) => {
+    await downloadAdmissionForm(getAdmissionData(student));
+    toast({ title: "Downloaded", description: "Admission form downloaded successfully" });
+  };
+
+  const handleDownloadStudentCard = async (student: Student) => {
+    await downloadStudentCard(getStudentCardData(student));
     toast({ title: "Downloaded", description: "Student ID card downloaded successfully" });
+  };
+
+  const handlePreviewDocument = (student: Student, type: "card" | "admission") => {
+    setPreviewStudent(student);
+    setPreviewType(type);
+    setIsPreviewOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1179,6 +1199,27 @@ const StudentManagement = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Document Preview Dialog */}
+      {previewStudent && previewType && (
+        <DocumentPreviewDialog
+          open={isPreviewOpen}
+          onOpenChange={setIsPreviewOpen}
+          title={previewType === "card" 
+            ? `Student ID Card - ${previewStudent.profile?.full_name || "Unknown"}`
+            : `Admission Form - ${previewStudent.profile?.full_name || "Unknown"}`
+          }
+          generatePdf={() => 
+            previewType === "card" 
+              ? generateStudentCardPdf(getStudentCardData(previewStudent))
+              : generateAdmissionFormPdf(getAdmissionData(previewStudent))
+          }
+          filename={previewType === "card" 
+            ? `StudentCard-${previewStudent.student_id}.pdf`
+            : `AdmissionForm-${previewStudent.student_id}.pdf`
+          }
+        />
+      )}
     </AdminLayout>
   );
 };
