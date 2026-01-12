@@ -11,11 +11,12 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Receipt, CreditCard, FileText, Loader2, Search, Download, Printer, Mail, Users, User } from "lucide-react";
+import { Plus, Receipt, CreditCard, FileText, Loader2, Search, Download, Printer, Mail, Users, User, Eye } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { downloadInvoice, printInvoice } from "@/utils/generateInvoicePdf";
-import { downloadReceipt, printReceipt } from "@/utils/generateReceiptPdf";
-import { downloadClassFeeReport, downloadIndividualFeeReport } from "@/utils/generateFeeReportPdf";
+import { downloadInvoice, printInvoice, generateInvoicePdf, InvoiceData } from "@/utils/generateInvoicePdf";
+import { downloadReceipt, printReceipt, generateReceiptPdf, ReceiptData } from "@/utils/generateReceiptPdf";
+import { downloadClassFeeReport, downloadIndividualFeeReport, generateClassFeeReportPdf, generateIndividualFeeReportPdf, ClassFeeReportData, IndividualFeeReportData } from "@/utils/generateFeeReportPdf";
+import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
 interface FeeStructure {
   id: string;
@@ -69,6 +70,14 @@ const FeeManagement = () => {
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [reportDialog, setReportDialog] = useState(false);
   const [selectedStudentFee, setSelectedStudentFee] = useState<StudentFee | null>(null);
+  
+  // Preview states
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewType, setPreviewType] = useState<"invoice" | "receipt" | "classReport" | "individualReport">("invoice");
+  const [previewInvoiceData, setPreviewInvoiceData] = useState<InvoiceData | null>(null);
+  const [previewReceiptData, setPreviewReceiptData] = useState<ReceiptData | null>(null);
+  const [previewClassReportData, setPreviewClassReportData] = useState<ClassFeeReportData | null>(null);
+  const [previewIndividualReportData, setPreviewIndividualReportData] = useState<IndividualFeeReportData | null>(null);
   
   // Report form state
   const [reportForm, setReportForm] = useState({
@@ -431,7 +440,72 @@ const FeeManagement = () => {
       .reduce((sum, p) => sum + p.amount, 0);
   };
 
-  const handleDownloadReport = async () => {
+  // Helper to create invoice data
+  const createInvoiceData = (sf: StudentFee): InvoiceData => {
+    const paid = calculatePaidAmount(sf.id);
+    const feePayments = payments
+      .filter(p => p.student_fee_id === sf.id)
+      .map(p => ({
+        date: new Date(p.payment_date).toLocaleDateString(),
+        amount: p.amount,
+        method: p.payment_method,
+        receiptNumber: p.receipt_number
+      }));
+    
+    return {
+      invoiceNumber: `INV-${sf.id.slice(0, 8).toUpperCase()}`,
+      invoiceDate: new Date(sf.created_at || Date.now()).toLocaleDateString(),
+      dueDate: new Date(sf.due_date).toLocaleDateString(),
+      studentName: sf.student?.profiles?.full_name || "Unknown",
+      studentId: sf.student?.student_id || "",
+      feeName: sf.fee_structure?.name || "Fee",
+      feeType: feeStructures.find(f => f.id === sf.fee_structure_id)?.fee_type || "tuition",
+      amount: sf.amount,
+      discount: sf.discount,
+      finalAmount: sf.final_amount,
+      paidAmount: paid,
+      status: sf.status,
+      payments: feePayments,
+    };
+  };
+
+  // Helper to create receipt data
+  const createReceiptData = (payment: Payment): ReceiptData => {
+    const sf = payment.studentFee || studentFees.find(s => s.id === payment.student_fee_id);
+    const previousPaid = payments
+      .filter(p => p.student_fee_id === payment.student_fee_id && new Date(p.payment_date) < new Date(payment.payment_date))
+      .reduce((sum, p) => sum + p.amount, 0);
+    
+    return {
+      receiptNumber: payment.receipt_number || `RCP-${payment.id.slice(0, 8).toUpperCase()}`,
+      paymentDate: new Date(payment.payment_date).toLocaleString(),
+      studentName: sf?.student?.profiles?.full_name || "Unknown",
+      studentId: sf?.student?.student_id || "",
+      feeName: sf?.fee_structure?.name || "Fee",
+      feeType: feeStructures.find(f => f.id === sf?.fee_structure_id)?.fee_type || "tuition",
+      paymentAmount: payment.amount,
+      paymentMethod: payment.payment_method,
+      transactionId: payment.transaction_id || undefined,
+      totalFeeAmount: sf?.final_amount || 0,
+      previouslyPaid: previousPaid,
+      balanceAfterPayment: Math.max(0, (sf?.final_amount || 0) - previousPaid - payment.amount),
+    };
+  };
+
+  // Preview handlers
+  const handlePreviewInvoice = (sf: StudentFee) => {
+    setPreviewInvoiceData(createInvoiceData(sf));
+    setPreviewType("invoice");
+    setPreviewOpen(true);
+  };
+
+  const handlePreviewReceipt = (payment: Payment) => {
+    setPreviewReceiptData(createReceiptData(payment));
+    setPreviewType("receipt");
+    setPreviewOpen(true);
+  };
+
+  const handlePreviewReport = async () => {
     setGeneratingReport(true);
     try {
       if (reportForm.reportType === "class") {
@@ -444,12 +518,10 @@ const FeeManagement = () => {
         const selectedClass = classes.find(c => c.id === reportForm.classId);
         const classStudents = students.filter(s => s.class_id === reportForm.classId);
         
-        // Get ALL fees for students in this class (for yearly total)
         const classStudentFees = studentFees.filter(sf => 
           classStudents.some(cs => cs.id === sf.student_id)
         );
         
-        // Group fees by student to calculate yearly totals
         const studentFeeMap = new Map<string, { 
           student: typeof classStudents[0], 
           profile: typeof profiles[0] | undefined,
@@ -463,7 +535,6 @@ const FeeManagement = () => {
         });
         
         const studentRecords = Array.from(studentFeeMap.values()).map(({ student, profile, fees }) => {
-          // Calculate yearly totals for this student
           const totalYearlyFee = fees.reduce((sum, sf) => sum + sf.final_amount, 0);
           const totalPaid = fees.reduce((sum, sf) => sum + calculatePaidAmount(sf.id), 0);
           const totalBalance = totalYearlyFee - totalPaid;
@@ -482,16 +553,20 @@ const FeeManagement = () => {
           };
         });
         
-        await downloadClassFeeReport({
+        const reportData: ClassFeeReportData = {
           className: selectedClass?.name || "Unknown Class",
           reportDate: new Date().toLocaleDateString(),
           students: studentRecords,
-        });
+        };
         
-        toast.success("Class fee report downloaded");
+        setPreviewClassReportData(reportData);
+        setPreviewType("classReport");
+        setPreviewOpen(true);
+        setReportDialog(false);
       } else {
         if (!reportForm.studentId) {
           toast.error("Please select a student");
+          setGeneratingReport(false);
           return;
         }
         
@@ -499,7 +574,6 @@ const FeeManagement = () => {
         const profile = profiles.find(p => p.user_id === student?.user_id);
         const studentClass = classes.find(c => c.id === student?.class_id);
         
-        // Get all fees for this student
         const studentFeeRecords = studentFees.filter(sf => sf.student_id === reportForm.studentId);
         
         const fees = studentFeeRecords.map(sf => {
@@ -517,7 +591,6 @@ const FeeManagement = () => {
           };
         });
         
-        // Get payments for this student
         const studentPayments = payments
           .filter(p => studentFeeRecords.some(sf => sf.id === p.student_fee_id))
           .map(p => {
@@ -531,7 +604,7 @@ const FeeManagement = () => {
             };
           });
         
-        await downloadIndividualFeeReport({
+        const reportData: IndividualFeeReportData = {
           studentName: profile?.full_name || "Unknown",
           studentId: student?.student_id || "",
           rollNo: student?.student_id || "",
@@ -541,12 +614,13 @@ const FeeManagement = () => {
           reportDate: new Date().toLocaleDateString(),
           fees: fees,
           payments: studentPayments,
-        });
+        };
         
-        toast.success("Individual fee report downloaded");
+        setPreviewIndividualReportData(reportData);
+        setPreviewType("individualReport");
+        setPreviewOpen(true);
+        setReportDialog(false);
       }
-      
-      setReportDialog(false);
     } catch (error) {
       console.error("Error generating report:", error);
       toast.error("Failed to generate report");
@@ -570,6 +644,46 @@ const FeeManagement = () => {
     collected: payments.reduce((sum, p) => sum + p.amount, 0),
     pending: studentFees.filter(sf => sf.status === "pending").length,
     overdue: studentFees.filter(sf => sf.status === "overdue" || (sf.status === "pending" && new Date(sf.due_date) < new Date())).length
+  };
+
+  // Get preview generator based on type
+  const getPreviewGenerator = () => {
+    switch (previewType) {
+      case "invoice":
+        return () => generateInvoicePdf(previewInvoiceData!);
+      case "receipt":
+        return () => generateReceiptPdf(previewReceiptData!);
+      case "classReport":
+        return () => generateClassFeeReportPdf(previewClassReportData!);
+      case "individualReport":
+        return () => generateIndividualFeeReportPdf(previewIndividualReportData!);
+    }
+  };
+
+  const getPreviewFilename = () => {
+    switch (previewType) {
+      case "invoice":
+        return `Invoice-${previewInvoiceData?.invoiceNumber}.pdf`;
+      case "receipt":
+        return `Receipt-${previewReceiptData?.receiptNumber}.pdf`;
+      case "classReport":
+        return `Fee-Report-${previewClassReportData?.className.replace(/\s+/g, "-")}.pdf`;
+      case "individualReport":
+        return `Fee-Report-${previewIndividualReportData?.studentName.replace(/\s+/g, "-")}.pdf`;
+    }
+  };
+
+  const getPreviewTitle = () => {
+    switch (previewType) {
+      case "invoice":
+        return "Invoice Preview";
+      case "receipt":
+        return "Receipt Preview";
+      case "classReport":
+        return "Class Fee Report Preview";
+      case "individualReport":
+        return "Student Fee Report Preview";
+    }
   };
 
   if (loading) {
@@ -632,12 +746,12 @@ const FeeManagement = () => {
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">
                   <FileText className="h-4 w-4 mr-2" />
-                  Download Report
+                  Generate Report
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Download Fee Report</DialogTitle>
+                  <DialogTitle>Generate Fee Report</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
@@ -707,7 +821,7 @@ const FeeManagement = () => {
                     </div>
                   )}
                   
-                  <Button onClick={handleDownloadReport} className="w-full" disabled={generatingReport}>
+                  <Button onClick={handlePreviewReport} className="w-full" disabled={generatingReport}>
                     {generatingReport ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -715,8 +829,8 @@ const FeeManagement = () => {
                       </>
                     ) : (
                       <>
-                        <Download className="h-4 w-4 mr-2" />
-                        Download Report
+                        <Eye className="h-4 w-4 mr-2" />
+                        Preview Report
                       </>
                     )}
                   </Button>
@@ -803,10 +917,72 @@ const FeeManagement = () => {
                 </div>
               </DialogContent>
             </Dialog>
+            <Dialog open={bulkAssignDialog} onOpenChange={setBulkAssignDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Users className="h-4 w-4 mr-2" />
+                  Bulk Assign
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Bulk Assign Fee to Class</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Select Class *</Label>
+                    <Select value={bulkAssignForm.class_id} onValueChange={(v) => setBulkAssignForm({ ...bulkAssignForm, class_id: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a class" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {classes.map((cls) => (
+                          <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Select Fee Type *</Label>
+                    <Select value={bulkAssignForm.fee_structure_id} onValueChange={(v) => setBulkAssignForm({ ...bulkAssignForm, fee_structure_id: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select fee type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {feeStructures.map((fee) => (
+                          <SelectItem key={fee.id} value={fee.id}>
+                            {fee.name} (PKR {fee.amount.toLocaleString()})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Discount (optional)</Label>
+                    <Input 
+                      type="number"
+                      value={bulkAssignForm.discount}
+                      onChange={(e) => setBulkAssignForm({ ...bulkAssignForm, discount: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                  <Button onClick={handleBulkAssignFee} className="w-full" disabled={bulkAssigning}>
+                    {bulkAssigning ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Assigning...
+                      </>
+                    ) : (
+                      "Assign to All Students"
+                    )}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
             <Dialog open={assignFeeDialog} onOpenChange={setAssignFeeDialog}>
               <DialogTrigger asChild>
                 <Button size="sm">
-                  <CreditCard className="h-4 w-4 mr-2" />
+                  <Plus className="h-4 w-4 mr-2" />
                   Assign Fee
                 </Button>
               </DialogTrigger>
@@ -822,9 +998,14 @@ const FeeManagement = () => {
                         <SelectValue placeholder="Select student" />
                       </SelectTrigger>
                       <SelectContent>
-                        {students.map((student) => (
-                          <SelectItem key={student.id} value={student.id}>{student.student_id}</SelectItem>
-                        ))}
+                        {students.map((student) => {
+                          const profile = profiles.find(p => p.user_id === student.user_id);
+                          return (
+                            <SelectItem key={student.id} value={student.id}>
+                              {profile?.full_name || student.student_id} ({student.student_id})
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -837,91 +1018,21 @@ const FeeManagement = () => {
                       <SelectContent>
                         {feeStructures.map((fee) => (
                           <SelectItem key={fee.id} value={fee.id}>
-                            {fee.name} - PKR {fee.amount.toLocaleString()}
+                            {fee.name} (PKR {fee.amount.toLocaleString()})
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label>Discount Amount</Label>
+                    <Label>Discount</Label>
                     <Input 
                       type="number"
-                      value={assignForm.discount} 
+                      value={assignForm.discount}
                       onChange={(e) => setAssignForm({ ...assignForm, discount: e.target.value })}
                     />
                   </div>
                   <Button onClick={handleAssignFee} className="w-full">Assign Fee</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-            <Dialog open={bulkAssignDialog} onOpenChange={setBulkAssignDialog}>
-              <DialogTrigger asChild>
-                <Button size="sm" variant="default">
-                  <Users className="h-4 w-4 mr-2" />
-                  Bulk Assign to Class
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Assign Fee to All Students in Class</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Select Class *</Label>
-                    <Select value={bulkAssignForm.class_id} onValueChange={(v) => setBulkAssignForm({ ...bulkAssignForm, class_id: v })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select class" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {classes.map((cls) => (
-                          <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {bulkAssignForm.class_id && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {students.filter(s => s.class_id === bulkAssignForm.class_id).length} students in this class
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <Label>Fee Type *</Label>
-                    <Select value={bulkAssignForm.fee_structure_id} onValueChange={(v) => setBulkAssignForm({ ...bulkAssignForm, fee_structure_id: v })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select fee" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {feeStructures.map((fee) => (
-                          <SelectItem key={fee.id} value={fee.id}>
-                            {fee.name} - PKR {fee.amount.toLocaleString()}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Discount per Student (optional)</Label>
-                    <Input 
-                      type="number"
-                      value={bulkAssignForm.discount} 
-                      onChange={(e) => setBulkAssignForm({ ...bulkAssignForm, discount: e.target.value })}
-                      placeholder="0"
-                    />
-                  </div>
-                  <Button onClick={handleBulkAssignFee} className="w-full" disabled={bulkAssigning}>
-                    {bulkAssigning ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Assigning...
-                      </>
-                    ) : (
-                      <>
-                        <Users className="h-4 w-4 mr-2" />
-                        Assign Fee to All Students
-                      </>
-                    )}
-                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -934,12 +1045,12 @@ const FeeManagement = () => {
               <div className="flex items-center justify-between">
                 <CardTitle>Student Fee Records</CardTitle>
                 <div className="relative w-64">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search students..." 
-                    className="pl-8"
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search students..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
                   />
                 </div>
               </div>
@@ -955,14 +1066,14 @@ const FeeManagement = () => {
                     <TableHead>Balance</TableHead>
                     <TableHead>Due Date</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredStudentFees.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center text-muted-foreground">
-                        No fee records found
+                        No student fees assigned yet
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -973,8 +1084,8 @@ const FeeManagement = () => {
                         <TableRow key={sf.id}>
                           <TableCell>
                             <div>
-                              <div className="font-medium">{sf.student?.profiles?.full_name}</div>
-                              <div className="text-sm text-muted-foreground">{sf.student?.student_id}</div>
+                              <p className="font-medium">{sf.student?.profiles?.full_name}</p>
+                              <p className="text-xs text-muted-foreground">{sf.student?.student_id}</p>
                             </div>
                           </TableCell>
                           <TableCell>{sf.fee_structure?.name}</TableCell>
@@ -986,7 +1097,7 @@ const FeeManagement = () => {
                           <TableCell>{new Date(sf.due_date).toLocaleDateString()}</TableCell>
                           <TableCell>{getStatusBadge(sf.status)}</TableCell>
                           <TableCell>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1 justify-end">
                               {sf.status !== "paid" && (
                                 <Button 
                                   variant="outline" 
@@ -1003,34 +1114,16 @@ const FeeManagement = () => {
                               <Button 
                                 variant="ghost" 
                                 size="sm"
+                                title="Preview Invoice"
+                                onClick={() => handlePreviewInvoice(sf)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
                                 title="Download Invoice"
-                                onClick={async () => {
-                                  const feePayments = payments
-                                    .filter(p => p.student_fee_id === sf.id)
-                                    .map(p => ({
-                                      date: new Date(p.payment_date).toLocaleDateString(),
-                                      amount: p.amount,
-                                      method: p.payment_method,
-                                      receiptNumber: p.receipt_number
-                                    }));
-                                  
-                                  await downloadInvoice({
-                                    invoiceNumber: `INV-${sf.id.slice(0, 8).toUpperCase()}`,
-                                    invoiceDate: new Date(sf.created_at || Date.now()).toLocaleDateString(),
-                                    dueDate: new Date(sf.due_date).toLocaleDateString(),
-                                    studentName: sf.student?.profiles?.full_name || "Unknown",
-                                    studentId: sf.student?.student_id || "",
-                                    feeName: sf.fee_structure?.name || "Fee",
-                                    feeType: feeStructures.find(f => f.id === sf.fee_structure_id)?.fee_type || "tuition",
-                                    amount: sf.amount,
-                                    discount: sf.discount,
-                                    finalAmount: sf.final_amount,
-                                    paidAmount: paid,
-                                    status: sf.status,
-                                    payments: feePayments,
-                                  });
-                                  toast.success("Invoice downloaded");
-                                }}
+                                onClick={() => downloadInvoice(createInvoiceData(sf))}
                               >
                                 <Download className="h-4 w-4" />
                               </Button>
@@ -1038,32 +1131,7 @@ const FeeManagement = () => {
                                 variant="ghost" 
                                 size="sm"
                                 title="Print Invoice"
-                                onClick={async () => {
-                                  const feePayments = payments
-                                    .filter(p => p.student_fee_id === sf.id)
-                                    .map(p => ({
-                                      date: new Date(p.payment_date).toLocaleDateString(),
-                                      amount: p.amount,
-                                      method: p.payment_method,
-                                      receiptNumber: p.receipt_number
-                                    }));
-                                  
-                                  await printInvoice({
-                                    invoiceNumber: `INV-${sf.id.slice(0, 8).toUpperCase()}`,
-                                    invoiceDate: new Date(sf.created_at || Date.now()).toLocaleDateString(),
-                                    dueDate: new Date(sf.due_date).toLocaleDateString(),
-                                    studentName: sf.student?.profiles?.full_name || "Unknown",
-                                    studentId: sf.student?.student_id || "",
-                                    feeName: sf.fee_structure?.name || "Fee",
-                                    feeType: feeStructures.find(f => f.id === sf.fee_structure_id)?.fee_type || "tuition",
-                                    amount: sf.amount,
-                                    discount: sf.discount,
-                                    finalAmount: sf.final_amount,
-                                    paidAmount: paid,
-                                    status: sf.status,
-                                    payments: feePayments,
-                                  });
-                                }}
+                                onClick={() => printInvoice(createInvoiceData(sf))}
                               >
                                 <Printer className="h-4 w-4" />
                               </Button>
@@ -1155,9 +1223,6 @@ const FeeManagement = () => {
                   ) : (
                     payments.map((payment) => {
                       const sf = payment.studentFee || studentFees.find(s => s.id === payment.student_fee_id);
-                      const previousPaid = payments
-                        .filter(p => p.student_fee_id === payment.student_fee_id && new Date(p.payment_date) < new Date(payment.payment_date))
-                        .reduce((sum, p) => sum + p.amount, 0);
                       
                       return (
                         <TableRow key={payment.id}>
@@ -1179,23 +1244,16 @@ const FeeManagement = () => {
                               <Button 
                                 size="sm" 
                                 variant="ghost"
+                                title="Preview Receipt"
+                                onClick={() => handlePreviewReceipt(payment)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="ghost"
                                 title="Download Receipt"
-                                onClick={async () => {
-                                  await downloadReceipt({
-                                    receiptNumber: payment.receipt_number || `RCP-${payment.id.slice(0, 8).toUpperCase()}`,
-                                    paymentDate: new Date(payment.payment_date).toLocaleString(),
-                                    studentName: sf?.student?.profiles?.full_name || "Unknown",
-                                    studentId: sf?.student?.student_id || "",
-                                    feeName: sf?.fee_structure?.name || "Fee",
-                                    feeType: feeStructures.find(f => f.id === sf?.fee_structure_id)?.fee_type || "tuition",
-                                    paymentAmount: payment.amount,
-                                    paymentMethod: payment.payment_method,
-                                    transactionId: payment.transaction_id || undefined,
-                                    totalFeeAmount: sf?.final_amount || 0,
-                                    previouslyPaid: previousPaid,
-                                    balanceAfterPayment: Math.max(0, (sf?.final_amount || 0) - previousPaid - payment.amount),
-                                  });
-                                }}
+                                onClick={() => downloadReceipt(createReceiptData(payment))}
                               >
                                 <Download className="h-4 w-4" />
                               </Button>
@@ -1203,22 +1261,7 @@ const FeeManagement = () => {
                                 size="sm" 
                                 variant="ghost"
                                 title="Print Receipt"
-                                onClick={async () => {
-                                  await printReceipt({
-                                    receiptNumber: payment.receipt_number || `RCP-${payment.id.slice(0, 8).toUpperCase()}`,
-                                    paymentDate: new Date(payment.payment_date).toLocaleString(),
-                                    studentName: sf?.student?.profiles?.full_name || "Unknown",
-                                    studentId: sf?.student?.student_id || "",
-                                    feeName: sf?.fee_structure?.name || "Fee",
-                                    feeType: feeStructures.find(f => f.id === sf?.fee_structure_id)?.fee_type || "tuition",
-                                    paymentAmount: payment.amount,
-                                    paymentMethod: payment.payment_method,
-                                    transactionId: payment.transaction_id || undefined,
-                                    totalFeeAmount: sf?.final_amount || 0,
-                                    previouslyPaid: previousPaid,
-                                    balanceAfterPayment: Math.max(0, (sf?.final_amount || 0) - previousPaid - payment.amount),
-                                  });
-                                }}
+                                onClick={() => printReceipt(createReceiptData(payment))}
                               >
                                 <Printer className="h-4 w-4" />
                               </Button>
@@ -1242,11 +1285,18 @@ const FeeManagement = () => {
             <DialogTitle>Record Payment</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="bg-muted p-3 rounded-lg">
+              <p className="font-medium">{selectedStudentFee?.student?.profiles?.full_name}</p>
+              <p className="text-sm text-muted-foreground">
+                {selectedStudentFee?.fee_structure?.name} - 
+                Balance: PKR {((selectedStudentFee?.final_amount || 0) - calculatePaidAmount(selectedStudentFee?.id || "")).toLocaleString()}
+              </p>
+            </div>
             <div>
               <Label>Amount *</Label>
               <Input 
                 type="number"
-                value={paymentForm.amount} 
+                value={paymentForm.amount}
                 onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
               />
             </div>
@@ -1259,7 +1309,7 @@ const FeeManagement = () => {
                 <SelectContent>
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
                   <SelectItem value="online">Online Payment</SelectItem>
                 </SelectContent>
               </Select>
@@ -1267,30 +1317,43 @@ const FeeManagement = () => {
             <div>
               <Label>Transaction ID (optional)</Label>
               <Input 
-                value={paymentForm.transaction_id} 
+                value={paymentForm.transaction_id}
                 onChange={(e) => setPaymentForm({ ...paymentForm, transaction_id: e.target.value })}
               />
             </div>
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <Label htmlFor="send-email-receipt" className="cursor-pointer">
-                  Send receipt via email
-                </Label>
-              </div>
+            <div>
+              <Label>Remarks (optional)</Label>
+              <Input 
+                value={paymentForm.remarks}
+                onChange={(e) => setPaymentForm({ ...paymentForm, remarks: e.target.value })}
+              />
+            </div>
+            <div className="flex items-center gap-2">
               <Switch 
-                id="send-email-receipt"
+                id="email-receipt"
                 checked={paymentForm.sendEmailReceipt}
                 onCheckedChange={(checked) => setPaymentForm({ ...paymentForm, sendEmailReceipt: checked })}
               />
+              <Label htmlFor="email-receipt" className="flex items-center gap-2 cursor-pointer">
+                <Mail className="h-4 w-4" />
+                Send receipt via email
+              </Label>
             </div>
-            <Button onClick={handleRecordPayment} className="w-full">
-              <Receipt className="h-4 w-4 mr-2" />
-              Record Payment
-            </Button>
+            <Button onClick={handleRecordPayment} className="w-full">Record Payment</Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Document Preview Dialog */}
+      {previewOpen && (
+        <DocumentPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          title={getPreviewTitle()}
+          generatePdf={getPreviewGenerator()}
+          filename={getPreviewFilename()}
+        />
+      )}
     </AdminLayout>
   );
 };

@@ -15,7 +15,7 @@ interface StudentFeeRecord {
   lastPaymentDate?: string;
 }
 
-interface ClassFeeReportData {
+export interface ClassFeeReportData {
   className: string;
   reportMonth?: string;
   reportDate: string;
@@ -25,7 +25,7 @@ interface ClassFeeReportData {
   schoolPhone?: string;
 }
 
-interface IndividualFeeReportData {
+export interface IndividualFeeReportData {
   studentName: string;
   studentId: string;
   rollNo: string;
@@ -73,7 +73,7 @@ const loadSchoolLogo = async (doc: jsPDF, x: number, y: number, width: number, h
   }
 };
 
-export const generateClassFeeReportPdf = async (data: ClassFeeReportData) => {
+export const generateClassFeeReportPdf = async (data: ClassFeeReportData): Promise<jsPDF> => {
   const doc = new jsPDF({ orientation: "landscape" });
   const pageWidth = doc.internal.pageSize.getWidth();
   
@@ -264,7 +264,7 @@ export const generateClassFeeReportPdf = async (data: ClassFeeReportData) => {
   return doc;
 };
 
-export const generateIndividualFeeReportPdf = async (data: IndividualFeeReportData) => {
+export const generateIndividualFeeReportPdf = async (data: IndividualFeeReportData): Promise<jsPDF> => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   
