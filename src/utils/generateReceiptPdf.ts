@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-interface ReceiptData {
+export interface ReceiptData {
   receiptNumber: string;
   paymentDate: string;
   studentName: string;
