@@ -6,13 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-  Bell, LogOut, BookOpen, FileText, Award, Calendar, TrendingUp, Download, ClipboardList
+  Bell, LogOut, BookOpen, FileText, Award, Calendar, TrendingUp, Download, ClipboardList, Eye
 } from "lucide-react";
 import PortalHeader from "@/components/PortalHeader";
 import PortalSidebarLink from "@/components/PortalSidebarLink";
 import { format, parseISO } from "date-fns";
-import { downloadMarksCertificate } from "@/utils/generateMarksCertificatePdf";
+import { generateMarksCertificatePdf, downloadMarksCertificate, MarksCertificateData } from "@/utils/generateMarksCertificatePdf";
 import { useToast } from "@/hooks/use-toast";
+import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
 interface Result {
   id: string;
@@ -43,6 +44,10 @@ const StudentResults = () => {
     photoUrl?: string;
     dateOfBirth?: string;
   } | null>(null);
+  
+  // Preview states
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<MarksCertificateData | null>(null);
 
   useEffect(() => {
     checkAuthAndFetch();

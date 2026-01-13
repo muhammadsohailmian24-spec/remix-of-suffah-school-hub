@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Bell, LogOut, BookOpen, FileText, Award, Calendar, Download, ClipboardList
+  Bell, LogOut, BookOpen, FileText, Award, Calendar, Download, ClipboardList, Eye
 } from "lucide-react";
 import PortalHeader from "@/components/PortalHeader";
 import PortalSidebarLink from "@/components/PortalSidebarLink";
 import { format, parseISO } from "date-fns";
-import { downloadRollNumberSlip } from "@/utils/generateRollNumberSlipPdf";
+import { generateRollNumberSlipPdf, downloadRollNumberSlip, RollNumberSlipData } from "@/utils/generateRollNumberSlipPdf";
 import { useToast } from "@/hooks/use-toast";
+import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
 interface Exam {
   id: string;
@@ -41,6 +42,10 @@ const StudentExams = () => {
   const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<string | null>(null);
+  
+  // Preview states
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<RollNumberSlipData | null>(null);
 
   useEffect(() => {
     checkAuthAndFetch();

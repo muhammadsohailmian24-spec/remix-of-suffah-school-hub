@@ -8,7 +8,7 @@ interface SubjectResult {
   grade?: string;
 }
 
-interface MarksCertificateData {
+export interface MarksCertificateData {
   studentName: string;
   fatherName?: string;
   studentId: string;

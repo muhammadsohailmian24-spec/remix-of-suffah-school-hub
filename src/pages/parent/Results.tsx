@@ -4,10 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Award, TrendingUp, BookOpen, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Award, TrendingUp, BookOpen, Download, Loader2, Eye } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { downloadMarksCertificate } from "@/utils/generateMarksCertificatePdf";
+import { generateMarksCertificatePdf, downloadMarksCertificate, MarksCertificateData } from "@/utils/generateMarksCertificatePdf";
 import { useToast } from "@/hooks/use-toast";
+import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
 interface Result {
   id: string;
@@ -36,6 +37,11 @@ const ParentResults = () => {
   const [studentData, setStudentData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [downloadingDmc, setDownloadingDmc] = useState(false);
+  
+  // Preview states
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<MarksCertificateData | null>(null);
+  const [previewExamType, setPreviewExamType] = useState("");
 
   useEffect(() => {
     if (studentId) {

@@ -10,23 +10,26 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Plus, Edit, Trash2, Download, FileText, FileUser, MoreHorizontal, ClipboardList } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Download, FileText, FileUser, MoreHorizontal, ClipboardList, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
-import { downloadAwardList } from "@/utils/generateAwardListPdf";
-import { downloadClassRollNumberSlips } from "@/utils/generateRollNumberSlipPdf";
+import { generateAwardListPdf, downloadAwardList, AwardListData } from "@/utils/generateAwardListPdf";
+import { generateClassRollNumberSlips, downloadClassRollNumberSlips, RollNumberSlipData } from "@/utils/generateRollNumberSlipPdf";
 import SingleRollNumberSlipDialog from "@/components/admin/SingleRollNumberSlipDialog";
+import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
 interface ExamActionsDropdownProps {
   exam: Exam;
   onEdit: () => void;
   onDelete: () => void;
+  onPreviewRollSlips: () => void;
   onDownloadRollSlips: () => void;
+  onPreviewAwardList: () => void;
   onDownloadAwardList: () => void;
   onEnterResults: () => void;
 }
 
-const ExamActionsDropdown = ({ exam, onEdit, onDelete, onDownloadRollSlips, onDownloadAwardList, onEnterResults }: ExamActionsDropdownProps) => {
+const ExamActionsDropdown = ({ exam, onEdit, onDelete, onPreviewRollSlips, onDownloadRollSlips, onPreviewAwardList, onDownloadAwardList, onEnterResults }: ExamActionsDropdownProps) => {
   const [singleSlipOpen, setSingleSlipOpen] = useState(false);
   
   return (
@@ -37,18 +40,27 @@ const ExamActionsDropdown = ({ exam, onEdit, onDelete, onDownloadRollSlips, onDo
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48 bg-popover">
+        <DropdownMenuContent align="end" className="w-52 bg-popover">
           <DropdownMenuItem onClick={() => setSingleSlipOpen(true)}>
             <FileUser className="mr-2 h-4 w-4" />
             Single Roll Slip
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={onPreviewRollSlips}>
+            <Eye className="mr-2 h-4 w-4" />
+            Preview All Roll Slips
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={onDownloadRollSlips}>
             <FileText className="mr-2 h-4 w-4" />
-            All Roll Slips
+            Download All Roll Slips
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onPreviewAwardList}>
+            <Eye className="mr-2 h-4 w-4" />
+            Preview Award List
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onDownloadAwardList}>
             <Download className="mr-2 h-4 w-4" />
-            Award List
+            Download Award List
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onEnterResults}>
@@ -109,6 +121,14 @@ const AdminExams = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
+  
+  // Preview states
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewType, setPreviewType] = useState<"awardList" | "rollSlips">("awardList");
+  const [previewAwardListData, setPreviewAwardListData] = useState<AwardListData | null>(null);
+  const [previewRollSlipsData, setPreviewRollSlipsData] = useState<RollNumberSlipData[] | null>(null);
+  const [previewFilename, setPreviewFilename] = useState("");
+  
   const [formData, setFormData] = useState({
     name: "",
     exam_type: "midterm",
@@ -438,6 +458,134 @@ const AdminExams = () => {
     toast({ title: "Downloaded", description: "Roll number slips PDF downloaded successfully" });
   };
 
+  // Preview handlers
+  const prepareAwardListData = async (exam: Exam): Promise<AwardListData | null> => {
+    const { data: studentsData, error: studentsError } = await supabase
+      .from("students")
+      .select("id, student_id, user_id, class_id, father_name")
+      .eq("class_id", exam.class_id)
+      .eq("status", "active")
+      .order("student_id");
+
+    if (studentsError || !studentsData || studentsData.length === 0) {
+      toast({ title: "Error", description: "Failed to fetch students or no students found", variant: "destructive" });
+      return null;
+    }
+
+    const userIds = studentsData.map(s => s.user_id);
+    const { data: profilesData } = await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds);
+    const profileMap = new Map(profilesData?.map(p => [p.user_id, p.full_name]) || []);
+
+    const { data: classData } = await supabase.from("classes").select("name, section").eq("id", exam.class_id).single();
+
+    const studentIds = studentsData.map(s => s.id);
+    const { data: resultsData } = await supabase.from("results").select("student_id, marks_obtained, created_at").eq("exam_id", exam.id).in("student_id", studentIds);
+    const resultsMap = new Map(resultsData?.map(r => [r.student_id, r.marks_obtained]) || []);
+
+    let resultUploadDate = "";
+    if (resultsData && resultsData.length > 0) {
+      const latestResult = resultsData.reduce((latest, current) => new Date(current.created_at || 0) > new Date(latest.created_at || 0) ? current : latest);
+      if (latestResult.created_at) resultUploadDate = format(parseISO(latestResult.created_at), "dd-MMM-yyyy");
+    }
+
+    let teacherName = "";
+    const { data: timetableData } = await supabase.from("timetable").select("teacher_id").eq("class_id", exam.class_id).eq("subject_id", exam.subject_id).limit(1).maybeSingle();
+    if (timetableData?.teacher_id) {
+      const { data: teacherData } = await supabase.from("teachers").select("user_id").eq("id", timetableData.teacher_id).single();
+      if (teacherData?.user_id) {
+        const { data: teacherProfile } = await supabase.from("profiles").select("full_name").eq("user_id", teacherData.user_id).single();
+        teacherName = teacherProfile?.full_name || "";
+      }
+    }
+
+    return {
+      session: `${new Date().getFullYear()}`,
+      date: resultUploadDate || format(parseISO(exam.exam_date), "dd-MMM-yyyy"),
+      className: classData?.name || exam.classes?.name || "",
+      section: classData?.section || "",
+      subject: exam.subjects?.name || "",
+      teacherName,
+      maxMarks: String(exam.max_marks || "100"),
+      students: studentsData.map((student, index) => ({
+        sr_no: index + 1,
+        student_id: student.student_id,
+        name: profileMap.get(student.user_id) || "",
+        father_name: student.father_name || "",
+        theory_marks: resultsMap.get(student.id) || "",
+        practical_marks: "",
+        total_marks: resultsMap.get(student.id) || "",
+      })),
+    };
+  };
+
+  const prepareRollSlipsData = async (exam: Exam): Promise<RollNumberSlipData[] | null> => {
+    const { data: studentsData, error: studentsError } = await supabase.from("students").select("id, student_id, user_id, class_id").eq("class_id", exam.class_id).eq("status", "active");
+    if (studentsError || !studentsData || studentsData.length === 0) {
+      toast({ title: "Error", description: "Failed to fetch students or no students found", variant: "destructive" });
+      return null;
+    }
+
+    const userIds = studentsData.map(s => s.user_id);
+    const { data: profilesData } = await supabase.from("profiles").select("user_id, full_name, photo_url").in("user_id", userIds);
+    const profileMap = new Map(profilesData?.map(p => [p.user_id, { name: p.full_name, photo: p.photo_url }]) || []);
+
+    const { data: classData } = await supabase.from("classes").select("name, section").eq("id", exam.class_id).single();
+
+    const studentIds = studentsData.map(s => s.id);
+    const { data: parentLinks } = await supabase.from("student_parents").select("student_id, parent_id").in("student_id", studentIds).eq("is_primary", true);
+    const fatherNameMap = new Map<string, string>();
+    if (parentLinks && parentLinks.length > 0) {
+      const parentIds = parentLinks.map(p => p.parent_id);
+      const { data: parents } = await supabase.from("parents").select("id, user_id").in("id", parentIds);
+      if (parents) {
+        const parentUserIds = parents.map(p => p.user_id);
+        const { data: parentProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", parentUserIds);
+        const parentProfileMap = new Map(parentProfiles?.map(p => [p.user_id, p.full_name]) || []);
+        const parentIdToName = new Map(parents.map(p => [p.id, parentProfileMap.get(p.user_id) || ""]));
+        parentLinks.forEach(link => fatherNameMap.set(link.student_id, parentIdToName.get(link.parent_id) || ""));
+      }
+    }
+
+    const { data: classExams } = await supabase.from("exams").select("*, subjects(name)").eq("class_id", exam.class_id).gte("exam_date", exam.exam_date).order("exam_date");
+    const subjects = classExams?.map(e => ({ name: e.subjects?.name || "", date: format(parseISO(e.exam_date), "dd-MMM-yyyy"), time: e.start_time ? `${e.start_time}${e.end_time ? ` - ${e.end_time}` : ""}` : undefined })) || [];
+
+    const sortedStudents = studentsData.map(student => ({ ...student, name: profileMap.get(student.user_id)?.name || "", photo: profileMap.get(student.user_id)?.photo || undefined })).sort((a, b) => a.name.localeCompare(b.name));
+
+    return sortedStudents.map((student, index) => ({
+      studentName: student.name,
+      studentId: student.student_id,
+      fatherName: fatherNameMap.get(student.id),
+      className: classData?.name || exam.classes?.name || "",
+      section: classData?.section,
+      rollNumber: String(index + 1),
+      examName: exam.name,
+      examDate: format(parseISO(exam.exam_date), "dd-MMM-yyyy"),
+      examTime: exam.start_time ? `${exam.start_time}${exam.end_time ? ` - ${exam.end_time}` : ""}` : undefined,
+      subjects,
+      photoUrl: student.photo,
+    }));
+  };
+
+  const handlePreviewAwardList = async (exam: Exam) => {
+    const data = await prepareAwardListData(exam);
+    if (data) {
+      setPreviewAwardListData(data);
+      setPreviewFilename(`Award-List-${exam.classes?.name}-${exam.subjects?.name}`);
+      setPreviewType("awardList");
+      setPreviewOpen(true);
+    }
+  };
+
+  const handlePreviewRollSlips = async (exam: Exam) => {
+    const data = await prepareRollSlipsData(exam);
+    if (data) {
+      setPreviewRollSlipsData(data);
+      setPreviewFilename(`RollNumberSlips-${exam.classes?.name}`);
+      setPreviewType("rollSlips");
+      setPreviewOpen(true);
+    }
+  };
+
   const getExamTypeBadge = (type: string) => {
     const variants: Record<string, "default" | "secondary" | "outline"> = {
       midterm: "default",
@@ -576,7 +724,9 @@ const AdminExams = () => {
                         exam={exam}
                         onEdit={() => openEditDialog(exam)}
                         onDelete={() => handleDelete(exam.id)}
+                        onPreviewRollSlips={() => handlePreviewRollSlips(exam)}
                         onDownloadRollSlips={() => handleDownloadRollNumberSlips(exam)}
+                        onPreviewAwardList={() => handlePreviewAwardList(exam)}
                         onDownloadAwardList={() => handleDownloadAwardList(exam)}
                         onEnterResults={() => navigate("/admin/results")}
                       />
@@ -595,6 +745,26 @@ const AdminExams = () => {
           </CardContent>
         </Card>
       </main>
+      
+      {/* Document Preview Dialog */}
+      {previewType === "awardList" && previewAwardListData && (
+        <DocumentPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          title="Award List Preview"
+          filename={`${previewFilename}.pdf`}
+          generatePdf={() => generateAwardListPdf(previewAwardListData)}
+        />
+      )}
+      {previewType === "rollSlips" && previewRollSlipsData && (
+        <DocumentPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          title="Roll Number Slips Preview"
+          filename={`${previewFilename}.pdf`}
+          generatePdf={() => generateClassRollNumberSlips(previewRollSlipsData)}
+        />
+      )}
     </div>
   );
 };

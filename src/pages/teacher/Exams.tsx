@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Edit, Trash2, ClipboardList, Download } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, ClipboardList, Download, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 import { Link } from "react-router-dom";
-import { downloadAwardList } from "@/utils/generateAwardListPdf";
+import { generateAwardListPdf, downloadAwardList, AwardListData } from "@/utils/generateAwardListPdf";
+import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
 interface Class {
   id: string;
@@ -50,6 +51,12 @@ const TeacherExams = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
+  
+  // Preview states
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<AwardListData | null>(null);
+  const [previewFilename, setPreviewFilename] = useState("");
+  
   const [formData, setFormData] = useState({
     name: "",
     exam_type: "quiz",

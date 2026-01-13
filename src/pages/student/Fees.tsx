@@ -7,11 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  LogOut, Receipt, Wallet, AlertCircle, CheckCircle2, Clock, Download 
+  LogOut, Receipt, Wallet, AlertCircle, CheckCircle2, Clock, Download, Eye 
 } from "lucide-react";
 import PortalHeader from "@/components/PortalHeader";
-import { downloadInvoice } from "@/utils/generateInvoicePdf";
+import { generateInvoicePdf, downloadInvoice, InvoiceData } from "@/utils/generateInvoicePdf";
 import { toast } from "sonner";
+import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
 interface StudentFee {
   id: string;
@@ -51,6 +52,10 @@ const StudentFees = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Preview states
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<InvoiceData | null>(null);
 
   useEffect(() => {
     checkAuthAndFetch();
@@ -193,17 +198,14 @@ const StudentFees = () => {
     overdue: fees.filter(f => f.status === "overdue").length,
   };
 
-  const handleDownloadInvoice = async (fee: StudentFee) => {
-    const feePayments = payments
-      .filter(p => p.student_fee_id === fee.id)
-      .map(p => ({
-        date: new Date(p.payment_date).toLocaleDateString(),
-        amount: p.amount,
-        method: p.payment_method,
-        receiptNumber: p.receipt_number,
-      }));
-
-    await downloadInvoice({
+  const createInvoiceData = (fee: StudentFee): InvoiceData => {
+    const feePayments = payments.filter(p => p.student_fee_id === fee.id).map(p => ({
+      date: new Date(p.payment_date).toLocaleDateString(),
+      amount: p.amount,
+      method: p.payment_method,
+      receiptNumber: p.receipt_number,
+    }));
+    return {
       invoiceNumber: `INV-${fee.id.slice(0, 8).toUpperCase()}`,
       invoiceDate: new Date(fee.created_at).toLocaleDateString(),
       dueDate: new Date(fee.due_date).toLocaleDateString(),
@@ -218,7 +220,16 @@ const StudentFees = () => {
       paidAmount: calculatePaidAmount(fee.id),
       status: fee.status,
       payments: feePayments,
-    });
+    };
+  };
+
+  const handlePreviewInvoice = (fee: StudentFee) => {
+    setPreviewData(createInvoiceData(fee));
+    setPreviewOpen(true);
+  };
+
+  const handleDownloadInvoice = async (fee: StudentFee) => {
+    await downloadInvoice(createInvoiceData(fee));
     toast.success("Invoice downloaded");
   };
 
@@ -373,13 +384,14 @@ const StudentFees = () => {
                             <TableCell>{new Date(fee.due_date).toLocaleDateString()}</TableCell>
                             <TableCell>{getStatusBadge(fee.status)}</TableCell>
                             <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDownloadInvoice(fee)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => handlePreviewInvoice(fee)}>
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleDownloadInvoice(fee)}>
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );

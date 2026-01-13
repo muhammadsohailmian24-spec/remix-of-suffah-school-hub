@@ -11,7 +11,7 @@ interface StudentInfo {
   total_marks?: number | string;
 }
 
-interface AwardListData {
+export interface AwardListData {
   session: string;
   date: string;
   className: string;

@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Receipt, Wallet, AlertCircle, CheckCircle2, Clock, Download } from "lucide-react";
-import { downloadInvoice } from "@/utils/generateInvoicePdf";
+import { ArrowLeft, Receipt, Wallet, AlertCircle, CheckCircle2, Clock, Download, Eye } from "lucide-react";
+import { generateInvoicePdf, downloadInvoice, InvoiceData } from "@/utils/generateInvoicePdf";
 import { toast } from "sonner";
+import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
 interface StudentFee {
   id: string;
@@ -48,6 +49,10 @@ const ParentFees = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Preview states
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<InvoiceData | null>(null);
 
   useEffect(() => {
     if (studentId) {
