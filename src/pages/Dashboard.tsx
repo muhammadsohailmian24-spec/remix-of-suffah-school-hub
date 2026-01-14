@@ -101,7 +101,19 @@ const Dashboard = () => {
       const role = roleData ? (roleData as any).role : "student";
       setUserRole(role);
       
-      // Fetch real data based on role
+      // Redirect admin directly to admin dashboard for full access
+      if (role === "admin") {
+        navigate("/admin/dashboard", { replace: true });
+        return;
+      }
+      
+      // Redirect teacher directly to teacher attendance (their main page)
+      if (role === "teacher") {
+        navigate("/teacher/attendance", { replace: true });
+        return;
+      }
+      
+      // Fetch real data based on role for students and parents
       await Promise.all([
         fetchStats(role, session.user.id),
         fetchAnnouncements(),

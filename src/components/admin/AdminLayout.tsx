@@ -12,7 +12,7 @@ import {
   LayoutDashboard, Users, School, BookOpen, 
   ClipboardList, Bell, LogOut, Settings, UserCheck, UserPlus,
   Shield, Megaphone, BarChart3, CreditCard, TrendingUp, Image, Clock, FileText,
-  Menu, X, ChevronLeft, AlertCircle, UserX, FileCheck
+  Menu, X, ChevronLeft, AlertCircle, UserX, FileCheck, CalendarCheck
 } from "lucide-react";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 
@@ -29,6 +29,7 @@ const sidebarItems = [
   { icon: UserPlus, label: "Parents", link: "/admin/parents" },
   { icon: School, label: "Classes", link: "/admin/classes" },
   { icon: BookOpen, label: "Subjects", link: "/admin/subjects" },
+  { icon: CalendarCheck, label: "Attendance", link: "/admin/attendance" },
   { icon: FileText, label: "Exams", link: "/admin/exams" },
   { icon: Clock, label: "Timetable", link: "/admin/timetable" },
   { icon: CreditCard, label: "Fee Management", link: "/admin/fees" },
