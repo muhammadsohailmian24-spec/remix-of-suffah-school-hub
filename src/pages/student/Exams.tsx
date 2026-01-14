@@ -123,47 +123,64 @@ const StudentExams = () => {
     }
   };
 
+  const prepareRollSlipData = async (exam: Exam): Promise<RollNumberSlipData> => {
+    if (!studentInfo) throw new Error("Student info not found");
+
+    // Get all exams with same name (multi-subject exam)
+    const { data: relatedExams } = await supabase
+      .from("exams")
+      .select(`
+        id,
+        name,
+        exam_date,
+        start_time,
+        end_time,
+        subjects (name)
+      `)
+      .eq("name", exam.name)
+      .eq("class_id", (await supabase.from("students").select("class_id").eq("id", studentInfo.id).single()).data?.class_id)
+      .order("exam_date", { ascending: true });
+
+    const subjects = (relatedExams || [exam]).map(e => ({
+      name: (e as any).subjects?.name || "Unknown",
+      date: format(parseISO(e.exam_date), "dd MMM yyyy"),
+      time: e.start_time && e.end_time ? `${e.start_time} - ${e.end_time}` : undefined,
+    }));
+
+    return {
+      studentName: studentInfo.name,
+      studentId: studentInfo.studentId,
+      className: studentInfo.className,
+      section: studentInfo.section,
+      rollNumber: studentInfo.studentId,
+      examName: exam.name,
+      examDate: format(parseISO(exam.exam_date), "dd MMM yyyy"),
+      examTime: exam.start_time && exam.end_time ? `${exam.start_time} - ${exam.end_time}` : undefined,
+      subjects: subjects,
+      photoUrl: studentInfo.photoUrl,
+      schoolName: "The Suffah Public School & College",
+      schoolAddress: "Saidu Sharif, Swat - Pakistan",
+    };
+  };
+
+  const handlePreviewRollSlip = async (exam: Exam) => {
+    try {
+      const data = await prepareRollSlipData(exam);
+      setPreviewData(data);
+      setPreviewOpen(true);
+    } catch (error) {
+      console.error("Error preparing preview:", error);
+      toast({ title: "Error", description: "Failed to prepare preview", variant: "destructive" });
+    }
+  };
+
   const handleDownloadRollSlip = async (exam: Exam) => {
     if (!studentInfo) return;
     setDownloading(exam.id);
 
     try {
-      // Get all exams with same name (multi-subject exam)
-      const { data: relatedExams } = await supabase
-        .from("exams")
-        .select(`
-          id,
-          name,
-          exam_date,
-          start_time,
-          end_time,
-          subjects (name)
-        `)
-        .eq("name", exam.name)
-        .eq("class_id", (await supabase.from("students").select("class_id").eq("id", studentInfo.id).single()).data?.class_id)
-        .order("exam_date", { ascending: true });
-
-      const subjects = (relatedExams || [exam]).map(e => ({
-        name: (e as any).subjects?.name || "Unknown",
-        date: format(parseISO(e.exam_date), "dd MMM yyyy"),
-        time: e.start_time && e.end_time ? `${e.start_time} - ${e.end_time}` : undefined,
-      }));
-
-      await downloadRollNumberSlip({
-        studentName: studentInfo.name,
-        studentId: studentInfo.studentId,
-        className: studentInfo.className,
-        section: studentInfo.section,
-        rollNumber: studentInfo.studentId,
-        examName: exam.name,
-        examDate: format(parseISO(exam.exam_date), "dd MMM yyyy"),
-        examTime: exam.start_time && exam.end_time ? `${exam.start_time} - ${exam.end_time}` : undefined,
-        subjects: subjects,
-        photoUrl: studentInfo.photoUrl,
-        schoolName: "The Suffah Public School & College",
-        schoolAddress: "Saidu Sharif, Swat - Pakistan",
-      });
-
+      const data = await prepareRollSlipData(exam);
+      await downloadRollNumberSlip(data);
       toast({ title: "Success", description: "Roll number slip downloaded" });
     } catch (error) {
       console.error("Error downloading roll slip:", error);
@@ -256,15 +273,25 @@ const StudentExams = () => {
                         Max Marks: {exam.max_marks || 100}
                       </div>
                     </div>
-                    <Button 
-                      className="w-full" 
-                      variant="outline"
-                      onClick={() => handleDownloadRollSlip(exam)}
-                      disabled={downloading === exam.id}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      {downloading === exam.id ? "Downloading..." : "Download Roll Number Slip"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        className="flex-1" 
+                        variant="outline"
+                        onClick={() => handlePreviewRollSlip(exam)}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Preview
+                      </Button>
+                      <Button 
+                        className="flex-1" 
+                        variant="default"
+                        onClick={() => handleDownloadRollSlip(exam)}
+                        disabled={downloading === exam.id}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        {downloading === exam.id ? "..." : "Download"}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -272,6 +299,17 @@ const StudentExams = () => {
           )}
         </main>
       </div>
+
+      {/* Document Preview Dialog */}
+      {previewData && (
+        <DocumentPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          title="Roll Number Slip Preview"
+          generatePdf={() => generateRollNumberSlipPdf(previewData)}
+          filename={`Roll-Slip-${studentInfo?.studentId || "student"}.pdf`}
+        />
+      )}
     </div>
   );
 };

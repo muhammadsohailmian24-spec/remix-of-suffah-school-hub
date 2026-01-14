@@ -195,7 +195,7 @@ const ParentFees = () => {
     overdue: fees.filter(f => f.status === "overdue").length,
   };
 
-  const handleDownloadInvoice = async (fee: StudentFee) => {
+  const createInvoiceData = (fee: StudentFee): InvoiceData => {
     const feePayments = payments
       .filter(p => p.student_fee_id === fee.id)
       .map(p => ({
@@ -205,7 +205,7 @@ const ParentFees = () => {
         receiptNumber: p.receipt_number,
       }));
 
-    await downloadInvoice({
+    return {
       invoiceNumber: `INV-${fee.id.slice(0, 8).toUpperCase()}`,
       invoiceDate: new Date(fee.created_at).toLocaleDateString(),
       dueDate: new Date(fee.due_date).toLocaleDateString(),
@@ -220,7 +220,18 @@ const ParentFees = () => {
       paidAmount: calculatePaidAmount(fee.id),
       status: fee.status,
       payments: feePayments,
-    });
+    };
+  };
+
+  const handlePreviewInvoice = (fee: StudentFee) => {
+    const data = createInvoiceData(fee);
+    setPreviewData(data);
+    setPreviewOpen(true);
+  };
+
+  const handleDownloadInvoice = async (fee: StudentFee) => {
+    const data = createInvoiceData(fee);
+    await downloadInvoice(data);
     toast.success("Invoice downloaded");
   };
 
@@ -380,13 +391,22 @@ const ParentFees = () => {
                             <TableCell>{new Date(fee.due_date).toLocaleDateString()}</TableCell>
                             <TableCell>{getStatusBadge(fee.status)}</TableCell>
                             <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDownloadInvoice(fee)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handlePreviewInvoice(fee)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDownloadInvoice(fee)}
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
@@ -444,6 +464,16 @@ const ParentFees = () => {
           </TabsContent>
         </Tabs>
       </main>
+      {/* Document Preview Dialog */}
+      {previewData && (
+        <DocumentPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          title="Invoice Preview"
+          generatePdf={() => generateInvoicePdf(previewData)}
+          filename={`Invoice-${previewData.invoiceNumber}.pdf`}
+        />
+      )}
     </div>
   );
 };

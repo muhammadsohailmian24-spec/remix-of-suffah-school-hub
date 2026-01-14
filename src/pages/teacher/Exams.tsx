@@ -241,7 +241,7 @@ const TeacherExams = () => {
     fetchTeacherAndData();
   };
 
-  const handleDownloadAwardList = async (exam: Exam) => {
+  const prepareAwardListData = async (exam: Exam): Promise<AwardListData> => {
     // Fetch students for this class with proper join
     const { data: studentsData, error: studentsError } = await supabase
       .from("students")
@@ -250,15 +250,8 @@ const TeacherExams = () => {
       .eq("status", "active")
       .order("student_id");
 
-    if (studentsError) {
-      console.error("Error fetching students:", studentsError);
-      toast({ title: "Error", description: "Failed to fetch students", variant: "destructive" });
-      return;
-    }
-
-    if (!studentsData || studentsData.length === 0) {
-      toast({ title: "No students", description: "No students found in this class", variant: "destructive" });
-      return;
+    if (studentsError || !studentsData || studentsData.length === 0) {
+      throw new Error("No students found in this class");
     }
 
     // Fetch profiles separately
@@ -324,7 +317,7 @@ const TeacherExams = () => {
 
     const currentYear = new Date().getFullYear();
 
-    await downloadAwardList({
+    return {
       session: `${currentYear}`,
       date: resultUploadDate || format(parseISO(exam.exam_date), "dd-MMM-yyyy"),
       className: classData?.name || exam.classes?.name || "",
@@ -333,9 +326,28 @@ const TeacherExams = () => {
       teacherName,
       maxMarks: String(exam.max_marks || "100"),
       students,
-    }, `Award-List-${exam.classes?.name}-${exam.subjects?.name}`);
+    };
+  };
 
-    toast({ title: "Downloaded", description: "Award list PDF downloaded successfully" });
+  const handlePreviewAwardList = async (exam: Exam) => {
+    try {
+      const data = await prepareAwardListData(exam);
+      setPreviewData(data);
+      setPreviewFilename(`Award-List-${exam.classes?.name}-${exam.subjects?.name}`);
+      setPreviewOpen(true);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to prepare preview", variant: "destructive" });
+    }
+  };
+
+  const handleDownloadAwardList = async (exam: Exam) => {
+    try {
+      const data = await prepareAwardListData(exam);
+      await downloadAwardList(data, `Award-List-${exam.classes?.name}-${exam.subjects?.name}`);
+      toast({ title: "Downloaded", description: "Award list PDF downloaded successfully" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to download", variant: "destructive" });
+    }
   };
 
   if (loading) {
@@ -461,6 +473,9 @@ const TeacherExams = () => {
                     <TableCell>{exam.max_marks}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => handlePreviewAwardList(exam)} title="Preview Award List">
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDownloadAwardList(exam)} title="Download Award List">
                           <Download className="h-4 w-4 text-primary" />
                         </Button>
@@ -491,6 +506,17 @@ const TeacherExams = () => {
           </CardContent>
         </Card>
       </main>
+
+      {/* Document Preview Dialog */}
+      {previewData && (
+        <DocumentPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          title="Award List Preview"
+          generatePdf={() => generateAwardListPdf(previewData)}
+          filename={`${previewFilename}.pdf`}
+        />
+      )}
     </div>
   );
 };

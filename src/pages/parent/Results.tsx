@@ -145,6 +145,40 @@ const ParentResults = () => {
     return acc;
   }, {} as Record<string, Result[]>);
 
+  const prepareDmcData = (examType: string): MarksCertificateData => {
+    const examResults = groupedResults[examType] || [];
+    const subjects = examResults.map(r => ({
+      name: r.exams?.subjects?.name || "Unknown",
+      maxMarks: r.exams?.max_marks || 100,
+      marksObtained: r.marks_obtained,
+      grade: r.grade || undefined,
+    }));
+
+    return {
+      studentName: studentName,
+      studentId: studentData?.student_id || "",
+      className: studentData?.class?.name || "",
+      section: studentData?.class?.section || undefined,
+      session: new Date().getFullYear().toString(),
+      dateOfBirth: studentData?.date_of_birth || undefined,
+      examName: examType,
+      subjects,
+      photoUrl: studentData?.photo_url || undefined,
+    };
+  };
+
+  const handlePreviewDmc = (examType: string) => {
+    const examResults = groupedResults[examType] || [];
+    if (examResults.length === 0) {
+      toast({ title: "No results", description: "No results found for this exam type", variant: "destructive" });
+      return;
+    }
+    const data = prepareDmcData(examType);
+    setPreviewData(data);
+    setPreviewExamType(examType);
+    setPreviewOpen(true);
+  };
+
   const handleDownloadDmc = async (examType: string) => {
     setDownloadingDmc(true);
     try {
@@ -154,25 +188,8 @@ const ParentResults = () => {
         return;
       }
 
-      const subjects = examResults.map(r => ({
-        name: r.exams?.subjects?.name || "Unknown",
-        maxMarks: r.exams?.max_marks || 100,
-        marksObtained: r.marks_obtained,
-        grade: r.grade || undefined,
-      }));
-
-      await downloadMarksCertificate({
-        studentName: studentName,
-        studentId: studentData?.student_id || "",
-        className: studentData?.class?.name || "",
-        section: studentData?.class?.section || undefined,
-        session: new Date().getFullYear().toString(),
-        dateOfBirth: studentData?.date_of_birth || undefined,
-        examName: examType,
-        subjects,
-        photoUrl: studentData?.photo_url || undefined,
-      });
-
+      const data = prepareDmcData(examType);
+      await downloadMarksCertificate(data);
       toast({ title: "Success", description: "DMC downloaded successfully" });
     } catch (error) {
       console.error("Error downloading DMC:", error);
@@ -266,19 +283,29 @@ const ParentResults = () => {
                     <Award className="h-5 w-5" />
                     {examType} Examinations
                   </CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDownloadDmc(examType)}
-                    disabled={downloadingDmc}
-                  >
-                    {downloadingDmc ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4 mr-2" />
-                    )}
-                    Download DMC
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePreviewDmc(examType)}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Preview
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownloadDmc(examType)}
+                      disabled={downloadingDmc}
+                    >
+                      {downloadingDmc ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4 mr-2" />
+                      )}
+                      Download DMC
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -325,6 +352,16 @@ const ParentResults = () => {
           </>
         )}
       </main>
+      {/* Document Preview Dialog */}
+      {previewData && (
+        <DocumentPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          title={`${previewExamType} DMC Preview`}
+          generatePdf={() => generateMarksCertificatePdf(previewData)}
+          filename={`DMC-${studentData?.student_id || "student"}-${previewExamType}.pdf`}
+        />
+      )}
     </div>
   );
 };

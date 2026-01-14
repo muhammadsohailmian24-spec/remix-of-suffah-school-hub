@@ -135,30 +135,42 @@ const StudentResults = () => {
     navigate("/"); 
   };
 
+  const prepareCertificateData = (): MarksCertificateData => {
+    const subjects = results.map(r => ({
+      name: r.exams?.subjects?.name || "Unknown",
+      maxMarks: r.exams?.max_marks || 100,
+      marksObtained: r.marks_obtained,
+      grade: r.grade || undefined,
+    }));
+
+    return {
+      studentName: studentInfo?.name || "",
+      studentId: studentInfo?.studentId || "",
+      rollNumber: studentInfo?.studentId || "",
+      className: studentInfo?.class || "",
+      session: new Date().getFullYear().toString(),
+      dateOfBirth: studentInfo?.dateOfBirth,
+      examName: results[0]?.exams?.name || "Annual Examination",
+      subjects,
+      photoUrl: studentInfo?.photoUrl,
+      schoolName: "THE SUFFAH PUBLIC SCHOOL & COLLEGE",
+      schoolAddress: "SAIDU SHARIF SWAT",
+    };
+  };
+
+  const handlePreviewCertificate = () => {
+    if (!studentInfo || results.length === 0) return;
+    const data = prepareCertificateData();
+    setPreviewData(data);
+    setPreviewOpen(true);
+  };
+
   const handleDownloadCertificate = async () => {
     if (!studentInfo || results.length === 0) return;
     setDownloading(true);
     try {
-      const subjects = results.map(r => ({
-        name: r.exams?.subjects?.name || "Unknown",
-        maxMarks: r.exams?.max_marks || 100,
-        marksObtained: r.marks_obtained,
-        grade: r.grade || undefined,
-      }));
-
-      await downloadMarksCertificate({
-        studentName: studentInfo.name,
-        studentId: studentInfo.studentId,
-        rollNumber: studentInfo.studentId,
-        className: studentInfo.class,
-        session: new Date().getFullYear().toString(),
-        dateOfBirth: studentInfo.dateOfBirth,
-        examName: results[0]?.exams?.name || "Annual Examination",
-        subjects,
-        photoUrl: studentInfo.photoUrl,
-        schoolName: "THE SUFFAH PUBLIC SCHOOL & COLLEGE",
-        schoolAddress: "SAIDU SHARIF SWAT",
-      });
+      const data = prepareCertificateData();
+      await downloadMarksCertificate(data);
       toast({ title: "Success", description: "Marks certificate downloaded" });
     } catch (error) {
       toast({ title: "Error", description: "Failed to download certificate", variant: "destructive" });
@@ -243,10 +255,16 @@ const StudentResults = () => {
               </p>
             </div>
             {results.length > 0 && (
-              <Button onClick={handleDownloadCertificate} disabled={downloading}>
-                <Download className="w-4 h-4 mr-2" />
-                {downloading ? "Downloading..." : "Download Marks Certificate"}
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handlePreviewCertificate}>
+                  <Eye className="w-4 h-4 mr-2" />
+                  Preview
+                </Button>
+                <Button onClick={handleDownloadCertificate} disabled={downloading}>
+                  <Download className="w-4 h-4 mr-2" />
+                  {downloading ? "Downloading..." : "Download DMC"}
+                </Button>
+              </div>
             )}
           </div>
 
@@ -347,6 +365,17 @@ const StudentResults = () => {
           </Card>
         </main>
       </div>
+
+      {/* Document Preview Dialog */}
+      {previewData && (
+        <DocumentPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          title="Marks Certificate Preview"
+          generatePdf={() => generateMarksCertificatePdf(previewData)}
+          filename={`DMC-${studentInfo?.studentId || "student"}.pdf`}
+        />
+      )}
     </div>
   );
 };
