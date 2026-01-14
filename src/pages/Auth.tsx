@@ -22,13 +22,25 @@ const Auth = () => {
   const [parentPassword, setParentPassword] = useState("");
 
   useEffect(() => {
+    // Check if user came from logout - don't auto-redirect in that case
+    const params = new URLSearchParams(window.location.search);
+    const fromLogout = params.get('logout') === 'true';
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Only redirect on explicit sign in event, not on existing session
       if (event === 'SIGNED_IN' && session) {
         navigate("/dashboard");
       }
     });
 
     const checkUser = async () => {
+      // Skip auto-redirect if coming from logout
+      if (fromLogout) {
+        // Clear the logout param from URL
+        window.history.replaceState({}, '', '/auth');
+        return;
+      }
+      
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         navigate("/dashboard");

@@ -95,8 +95,10 @@ const AdminLayout = ({ children, title, description }: AdminLayoutProps) => {
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
+    // Sign out with global scope to clear all sessions
+    await supabase.auth.signOut({ scope: 'global' });
+    // Navigate to staff login with logout flag to prevent auto-login
+    navigate("/staff-login?logout=true", { replace: true });
   };
 
   return (

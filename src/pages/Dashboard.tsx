@@ -289,20 +289,20 @@ const Dashboard = () => {
       setUser(null);
       setProfile(null);
       
-      // Sign out from Supabase
-      await supabase.auth.signOut({ scope: 'local' });
+      // Sign out from Supabase with global scope
+      await supabase.auth.signOut({ scope: 'global' });
       
       toast({
         title: "Signed out",
         description: "You have been signed out successfully.",
       });
       
-      // Navigate to auth page
-      navigate("/auth", { replace: true });
+      // Navigate to auth page with logout flag to prevent auto-login
+      navigate("/auth?logout=true", { replace: true });
     } catch (error) {
       console.error("Sign out error:", error);
       // Force navigate even on error
-      navigate("/auth", { replace: true });
+      navigate("/auth?logout=true", { replace: true });
     }
   };
 
