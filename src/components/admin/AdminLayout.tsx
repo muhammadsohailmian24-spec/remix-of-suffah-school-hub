@@ -14,6 +14,7 @@ import {
   Shield, Megaphone, BarChart3, CreditCard, TrendingUp, Image, Clock, FileText,
   Menu, X, ChevronLeft, AlertCircle, UserX, FileCheck
 } from "lucide-react";
+import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -55,6 +56,10 @@ const AdminLayout = ({ children, title, description }: AdminLayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationOpen, setNotificationOpen] = useState(false);
+
+  // Session timeout - only active if not using "remember me"
+  const isSessionOnly = !localStorage.getItem('rememberMe');
+  useSessionTimeout({ enabled: isSessionOnly });
 
   useEffect(() => {
     fetchNotifications();

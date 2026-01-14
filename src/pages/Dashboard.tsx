@@ -16,6 +16,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 
 interface Profile {
   id: string;
@@ -65,6 +66,10 @@ const Dashboard = () => {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
+
+  // Session timeout - only active if not using "remember me"
+  const isSessionOnly = !localStorage.getItem('rememberMe');
+  useSessionTimeout({ enabled: isSessionOnly && !loading });
 
   useEffect(() => {
     const getUser = async () => {

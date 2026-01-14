@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { GraduationCap, Lock, ArrowLeft, IdCard, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,10 +18,11 @@ const Auth = () => {
   // Student login
   const [studentId, setStudentId] = useState("");
   const [studentPassword, setStudentPassword] = useState("");
+  const [studentRememberMe, setStudentRememberMe] = useState(false);
   // Parent login
   const [parentCnic, setParentCnic] = useState("");
   const [parentPassword, setParentPassword] = useState("");
-
+  const [parentRememberMe, setParentRememberMe] = useState(false);
   useEffect(() => {
     // Check if user came from logout - don't auto-redirect in that case
     const params = new URLSearchParams(window.location.search);
@@ -58,6 +60,14 @@ const Auth = () => {
     try {
       const studentEmail = `${studentId.toLowerCase().trim()}@suffah.local`;
       
+      // Store remember me preference
+      if (studentRememberMe) {
+        localStorage.setItem('rememberMe', 'true');
+      } else {
+        localStorage.removeItem('rememberMe');
+        sessionStorage.setItem('sessionOnly', 'true');
+      }
+      
       const { error } = await supabase.auth.signInWithPassword({
         email: studentEmail,
         password: studentPassword,
@@ -88,6 +98,14 @@ const Auth = () => {
       // Clean CNIC (remove dashes) and convert to email format
       const cleanCnic = parentCnic.replace(/-/g, "").trim();
       const parentEmail = `${cleanCnic}@suffah.local`;
+      
+      // Store remember me preference
+      if (parentRememberMe) {
+        localStorage.setItem('rememberMe', 'true');
+      } else {
+        localStorage.removeItem('rememberMe');
+        sessionStorage.setItem('sessionOnly', 'true');
+      }
       
       const { error } = await supabase.auth.signInWithPassword({
         email: parentEmail,
@@ -209,6 +227,16 @@ const Auth = () => {
                         />
                       </div>
                     </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="student-remember" 
+                        checked={studentRememberMe}
+                        onCheckedChange={(checked) => setStudentRememberMe(checked === true)}
+                      />
+                      <Label htmlFor="student-remember" className="text-sm font-normal cursor-pointer">
+                        Remember me
+                      </Label>
+                    </div>
                     <Button type="submit" className="w-full hero-gradient text-primary-foreground" disabled={isLoading}>
                       {isLoading ? "Signing in..." : "Sign In as Student"}
                     </Button>
@@ -248,6 +276,16 @@ const Auth = () => {
                           required
                         />
                       </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="parent-remember" 
+                        checked={parentRememberMe}
+                        onCheckedChange={(checked) => setParentRememberMe(checked === true)}
+                      />
+                      <Label htmlFor="parent-remember" className="text-sm font-normal cursor-pointer">
+                        Remember me
+                      </Label>
                     </div>
                     <Button type="submit" className="w-full hero-gradient text-primary-foreground" disabled={isLoading}>
                       {isLoading ? "Signing in..." : "Sign In as Parent"}
