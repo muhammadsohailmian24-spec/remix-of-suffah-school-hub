@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Award, Search } from "lucide-react";
+import { Award, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 interface Exam {
   id: string;
@@ -382,8 +383,8 @@ const AdminResults = () => {
             </CardContent>
           </Card>
         )}
-      </main>
-    </div>
+      </AdminLayout>
+    </AdminLayout>
   );
 };
 

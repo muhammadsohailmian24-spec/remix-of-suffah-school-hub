@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Edit, Trash2, Clock } from "lucide-react";
+import { Plus, Edit, Trash2, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 interface TimetableEntry {
   id: string;
@@ -194,19 +195,16 @@ const AdminTimetable = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card border-b border-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Timetable Management</h1>
-              <p className="text-muted-foreground">Create and manage class schedules</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
+    <AdminLayout title="Timetable Management" description="Create and manage class schedules">
+      <div className="flex items-center justify-end gap-4 mb-6">
+        <Select value={selectedClass} onValueChange={setSelectedClass}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Select class" />
+          </SelectTrigger>
+          <SelectContent>
+            {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
             <Select value={selectedClass} onValueChange={setSelectedClass}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Select class" />
@@ -342,10 +340,9 @@ const AdminTimetable = () => {
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
+        </CardContent>
+      </Card>
+    </AdminLayout>
   );
 };
 

@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Users, GraduationCap, BookOpen, UserCheck, TrendingUp, Calendar } from "lucide-react";
+import { Users, GraduationCap, BookOpen, UserCheck, TrendingUp, Calendar } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 const AdminAnalytics = () => {
   const navigate = useNavigate();
@@ -88,28 +89,18 @@ const AdminAnalytics = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+      <AdminLayout title="Analytics Dashboard" description="Overview of school statistics">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card border-b border-border px-6 py-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Analytics Dashboard</h1>
-            <p className="text-muted-foreground">Overview of school statistics</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="p-6 space-y-6">
-        {/* Stats Grid */}
+    <AdminLayout title="Analytics Dashboard" description="Overview of school statistics">
+      {/* Stats Grid */}
+      <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Card>
             <CardContent className="pt-6">
@@ -291,13 +282,13 @@ const AdminAnalytics = () => {
                   stroke="hsl(var(--primary))"
                   strokeWidth={3}
                   dot={{ fill: "hsl(var(--primary))", strokeWidth: 2 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+      </div>
+    </AdminLayout>
   );
 };
 

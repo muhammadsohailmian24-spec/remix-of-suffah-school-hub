@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Plus, Edit, Trash2, Download, FileText, FileUser, MoreHorizontal, ClipboardList, Eye } from "lucide-react";
+import { Plus, Edit, Trash2, Download, FileText, FileUser, MoreHorizontal, ClipboardList, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { format, parseISO } from "date-fns";
 import { generateAwardListPdf, downloadAwardList, AwardListData } from "@/utils/generateAwardListPdf";
 import { generateClassRollNumberSlips, downloadClassRollNumberSlips, RollNumberSlipData } from "@/utils/generateRollNumberSlipPdf";
@@ -598,29 +599,21 @@ const AdminExams = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+      <AdminLayout title="Exam Management" description="Schedule and manage exams">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card border-b border-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Exam Management</h1>
-              <p className="text-muted-foreground">Schedule and manage exams</p>
-            </div>
-          </div>
-          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-2" />Add Exam</Button>
-            </DialogTrigger>
+    <AdminLayout title="Exam Management" description="Schedule and manage exams">
+      <div className="flex justify-end mb-6">
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogTrigger asChild>
+            <Button><Plus className="h-4 w-4 mr-2" />Add Exam</Button>
+          </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>{editingExam ? "Edit Exam" : "Create New Exam"}</DialogTitle>
@@ -690,61 +683,58 @@ const AdminExams = () => {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
-      </header>
+      </div>
 
-      <main className="p-6">
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Exam Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Marks</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Exam Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Class</TableHead>
+                <TableHead>Subject</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Time</TableHead>
+                <TableHead>Marks</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {exams.map(exam => (
+                <TableRow key={exam.id}>
+                  <TableCell className="font-medium">{exam.name}</TableCell>
+                  <TableCell>{getExamTypeBadge(exam.exam_type)}</TableCell>
+                  <TableCell>{exam.classes?.name}</TableCell>
+                  <TableCell>{exam.subjects?.name}</TableCell>
+                  <TableCell>{format(parseISO(exam.exam_date), "MMM d, yyyy")}</TableCell>
+                  <TableCell>{exam.start_time && exam.end_time ? `${exam.start_time} - ${exam.end_time}` : "-"}</TableCell>
+                  <TableCell>{exam.max_marks} (Pass: {exam.passing_marks})</TableCell>
+                  <TableCell className="text-right">
+                    <ExamActionsDropdown 
+                      exam={exam}
+                      onEdit={() => openEditDialog(exam)}
+                      onDelete={() => handleDelete(exam.id)}
+                      onPreviewRollSlips={() => handlePreviewRollSlips(exam)}
+                      onDownloadRollSlips={() => handleDownloadRollNumberSlips(exam)}
+                      onPreviewAwardList={() => handlePreviewAwardList(exam)}
+                      onDownloadAwardList={() => handleDownloadAwardList(exam)}
+                      onEnterResults={() => navigate("/admin/results")}
+                    />
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {exams.map(exam => (
-                  <TableRow key={exam.id}>
-                    <TableCell className="font-medium">{exam.name}</TableCell>
-                    <TableCell>{getExamTypeBadge(exam.exam_type)}</TableCell>
-                    <TableCell>{exam.classes?.name}</TableCell>
-                    <TableCell>{exam.subjects?.name}</TableCell>
-                    <TableCell>{format(parseISO(exam.exam_date), "MMM d, yyyy")}</TableCell>
-                    <TableCell>{exam.start_time && exam.end_time ? `${exam.start_time} - ${exam.end_time}` : "-"}</TableCell>
-                    <TableCell>{exam.max_marks} (Pass: {exam.passing_marks})</TableCell>
-                    <TableCell className="text-right">
-                      <ExamActionsDropdown 
-                        exam={exam}
-                        onEdit={() => openEditDialog(exam)}
-                        onDelete={() => handleDelete(exam.id)}
-                        onPreviewRollSlips={() => handlePreviewRollSlips(exam)}
-                        onDownloadRollSlips={() => handleDownloadRollNumberSlips(exam)}
-                        onPreviewAwardList={() => handlePreviewAwardList(exam)}
-                        onDownloadAwardList={() => handleDownloadAwardList(exam)}
-                        onEnterResults={() => navigate("/admin/results")}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {exams.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      No exams scheduled. Click "Add Exam" to create one.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </main>
+              ))}
+              {exams.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    No exams scheduled. Click "Add Exam" to create one.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
       
       {/* Document Preview Dialog */}
       {previewType === "awardList" && previewAwardListData && (
@@ -765,7 +755,7 @@ const AdminExams = () => {
           generatePdf={() => generateClassRollNumberSlips(previewRollSlipsData)}
         />
       )}
-    </div>
+    </AdminLayout>
   );
 };
 
