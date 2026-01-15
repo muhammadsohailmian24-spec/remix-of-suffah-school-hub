@@ -22,8 +22,8 @@ const PortalSidebarLink = ({ to, icon: Icon, label, isActive = false, isDashboar
         }`}
       >
         <img 
-          src="/images/school-logo.jpg" 
-          alt="Dashboard" 
+          src="/images/school-logo.png" 
+          alt="Dashboard"
           className="w-5 h-5 rounded-full object-cover"
         />
         <span>{label}</span>

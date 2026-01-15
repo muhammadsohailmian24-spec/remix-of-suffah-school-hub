@@ -13,8 +13,8 @@ const PortalHeader = ({ portalName, onSignOut }: PortalHeaderProps) => {
       <div className="container mx-auto px-6 py-4 flex items-center justify-between">
         <Link to="/dashboard" className="flex items-center gap-3">
           <img 
-            src="/images/school-logo.jpg" 
-            alt="The Suffah Public School & College" 
+            src="/images/school-logo.png" 
+            alt="The Suffah Public School & College"
             className="w-10 h-10 rounded-full object-cover shadow-md"
           />
           <div>
