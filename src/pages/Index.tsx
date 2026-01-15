@@ -1,9 +1,26 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Users, BookOpen, Award, ArrowRight, CheckCircle } from "lucide-react";
+import { GraduationCap, Users, BookOpen, Award, ArrowRight, CheckCircle, FileDown } from "lucide-react";
 import Gallery from "@/components/Gallery";
+import { downloadProjectFeaturesPdf } from "@/utils/generateProjectFeaturesPdf";
+import { useState } from "react";
+import { toast } from "sonner";
 
 const Index = () => {
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleDownloadFeatures = async () => {
+    setDownloadingPdf(true);
+    try {
+      await downloadProjectFeaturesPdf();
+      toast.success("Features PDF downloaded successfully!");
+    } catch (error) {
+      toast.error("Failed to generate PDF");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   const features = [
     { icon: Users, title: "Role-Based Access", desc: "Dedicated portals for admins, teachers, students & parents" },
     { icon: BookOpen, title: "Academic Management", desc: "Classes, subjects, assignments & study materials" },
@@ -25,8 +42,8 @@ const Index = () => {
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img 
-              src="/images/school-logo.jpg" 
-              alt="The Suffah Public School & College" 
+              src="/images/school-logo.png" 
+              alt="The Suffah Public School & College"
               className="w-12 h-12 rounded-full object-cover shadow-md"
             />
             <div>
@@ -120,9 +137,18 @@ const Index = () => {
         <div className="container mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">Everything You Need</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-muted-foreground max-w-2xl mx-auto mb-6">
               A complete school management solution designed for modern educational institutions
             </p>
+            <Button 
+              onClick={handleDownloadFeatures} 
+              disabled={downloadingPdf}
+              variant="outline" 
+              className="gap-2"
+            >
+              <FileDown className="w-4 h-4" />
+              {downloadingPdf ? "Generating PDF..." : "Download Features PDF"}
+            </Button>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -170,8 +196,8 @@ const Index = () => {
             <div className="relative">
               <div className="w-full h-80 rounded-2xl bg-primary-foreground/10 backdrop-blur flex items-center justify-center p-6">
                 <img 
-                  src="/images/school-logo.jpg" 
-                  alt="The Suffah Public School & College" 
+                  src="/images/school-logo.png" 
+                  alt="The Suffah Public School & College"
                   className="max-w-full max-h-full object-contain rounded-xl"
                 />
               </div>
@@ -186,8 +212,8 @@ const Index = () => {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <img 
-                src="/images/school-logo.jpg" 
-                alt="The Suffah Public School & College" 
+                src="/images/school-logo.png" 
+                alt="The Suffah Public School & College"
                 className="w-12 h-12 rounded-full object-cover"
               />
               <div>
