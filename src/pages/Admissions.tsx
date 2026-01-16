@@ -200,7 +200,7 @@ const Admissions = () => {
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-3">
               <img 
-                src="/images/school-logo.jpg" 
+                src="/images/school-logo.png" 
                 alt="The Suffah Public School & College" 
                 className="w-10 h-10 rounded-full object-cover shadow-md"
               />

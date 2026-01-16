@@ -142,7 +142,7 @@ const Auth = () => {
         
           <div className="space-y-6">
             <img 
-              src="/images/school-logo.jpg" 
+              src="/images/school-logo.png" 
               alt="The Suffah Public School & College" 
               className="w-20 h-20 rounded-full object-cover shadow-lg border-2 border-primary-foreground/20"
             />
@@ -165,7 +165,7 @@ const Auth = () => {
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <img 
-              src="/images/school-logo.jpg" 
+              src="/images/school-logo.png" 
               alt="The Suffah Public School & College" 
               className="w-10 h-10 rounded-full object-cover shadow-md"
             />
