@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import StaffLogin from "./pages/StaffLogin";
 import Dashboard from "./pages/Dashboard";
 import Admissions from "./pages/Admissions";
+import ProjectFeatures from "./pages/ProjectFeatures";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import StudentManagement from "./pages/admin/StudentManagement";
 import TeacherManagement from "./pages/admin/TeacherManagement";
@@ -68,6 +69,7 @@ const App = () => (
           <Route path="/staff-login" element={<StaffLogin />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admissions" element={<Admissions />} />
+          <Route path="/features" element={<ProjectFeatures />} />
           {/* Admin Routes */}
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/students" element={<StudentManagement />} />
