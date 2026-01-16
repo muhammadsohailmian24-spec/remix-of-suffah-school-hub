@@ -84,17 +84,25 @@ const StaffLogin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 hero-gradient p-12 flex-col justify-between">
-        <div>
+    <div className="min-h-screen flex relative overflow-hidden">
+      {/* Mobile/Tablet Background Design */}
+      <div className="lg:hidden absolute inset-0 hero-gradient">
+        <div className="absolute inset-0 pattern-dots opacity-10" />
+        <div className="absolute top-0 left-0 w-72 h-72 bg-secondary/20 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/2" />
+        <div className="absolute bottom-0 right-0 w-80 h-80 bg-primary-foreground/10 rounded-full blur-3xl translate-y-1/2 translate-x-1/2" />
+      </div>
+
+      {/* Left Panel - Branding (Desktop Only) */}
+      <div className="hidden lg:flex lg:w-1/2 hero-gradient p-12 flex-col justify-between relative">
+        <div className="absolute inset-0 pattern-dots opacity-10" />
+        <div className="relative z-10">
           <Link to="/" className="inline-flex items-center gap-2 text-primary-foreground/80 hover:text-primary-foreground transition-colors">
             <ArrowLeft className="w-4 h-4" />
             Back to Home
           </Link>
         </div>
         
-        <div className="space-y-6">
+        <div className="space-y-6 relative z-10">
           <img 
             src="/images/school-logo.png" 
             alt="The Suffah Public School & College" 
@@ -109,23 +117,30 @@ const StaffLogin = () => {
           </p>
         </div>
         
-        <p className="text-primary-foreground/60 text-sm">
+        <p className="text-primary-foreground/60 text-sm relative z-10">
           © {new Date().getFullYear()} The Suffah. Excellence in Education.
         </p>
       </div>
 
       {/* Right Panel - Sign In Form */}
-      <div className="flex-1 flex items-center justify-center p-6">
+      <div className="flex-1 flex items-center justify-center p-6 relative z-10">
         <div className="w-full max-w-md">
-          <div className="lg:hidden flex items-center gap-3 mb-8">
-            <img 
-              src="/images/school-logo.png" 
-              alt="The Suffah Public School & College" 
-              className="w-10 h-10 rounded-full object-cover shadow-md"
-            />
-            <div>
-              <h1 className="font-heading text-lg font-bold">The Suffah</h1>
-              <p className="text-xs text-muted-foreground">Staff Portal</p>
+          {/* Mobile Header with enhanced design */}
+          <div className="lg:hidden text-center mb-8">
+            <Link to="/" className="inline-flex items-center gap-2 text-primary-foreground/80 hover:text-primary-foreground transition-colors mb-6">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Home
+            </Link>
+            <div className="flex flex-col items-center gap-3">
+              <img 
+                src="/images/school-logo.png" 
+                alt="The Suffah Public School & College" 
+                className="w-16 h-16 rounded-full object-cover shadow-xl border-2 border-primary-foreground/30"
+              />
+              <div>
+                <h1 className="font-heading text-xl font-bold text-primary-foreground">The Suffah</h1>
+                <p className="text-sm text-primary-foreground/70">Staff Portal</p>
+              </div>
             </div>
           </div>
 
