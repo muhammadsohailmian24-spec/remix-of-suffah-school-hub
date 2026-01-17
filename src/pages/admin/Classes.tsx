@@ -8,9 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Pencil, Trash2, School } from "lucide-react";
+import { Search, Plus, School } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
+import ClassActionsDropdown from "@/components/admin/ClassActionsDropdown";
 
 interface ClassItem {
   id: string;
@@ -284,14 +285,11 @@ const AdminClasses = () => {
                     <TableCell>{cls.room_number || "-"}</TableCell>
                     <TableCell>{cls.capacity}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button size="icon" variant="ghost" onClick={() => openEditDialog(cls)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDelete(cls.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      <ClassActionsDropdown
+                        classItem={cls}
+                        onEdit={openEditDialog}
+                        onDelete={handleDelete}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
