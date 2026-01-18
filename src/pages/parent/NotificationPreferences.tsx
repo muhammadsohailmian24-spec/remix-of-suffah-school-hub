@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, ArrowLeft, Bell, Mail, MessageSquare, Loader2 } from "lucide-react";
+import { GraduationCap, ArrowLeft, Bell, Mail, MessageSquare, Smartphone, Loader2, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const NotificationPreferences = () => {
@@ -15,6 +15,8 @@ const NotificationPreferences = () => {
   const [saving, setSaving] = useState(false);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(false);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(true);
   const [phone, setPhone] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,12 +30,14 @@ const NotificationPreferences = () => {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("sms_notifications_enabled, phone")
+        .select("sms_notifications_enabled, whatsapp_notifications_enabled, push_notifications_enabled, phone")
         .eq("user_id", session.user.id)
         .maybeSingle();
 
       if (profile) {
         setSmsEnabled(profile.sms_notifications_enabled ?? false);
+        setWhatsappEnabled(profile.whatsapp_notifications_enabled ?? false);
+        setPushEnabled(profile.push_notifications_enabled ?? true);
         setPhone(profile.phone);
       }
       
@@ -54,7 +58,11 @@ const NotificationPreferences = () => {
 
     const { error } = await supabase
       .from("profiles")
-      .update({ sms_notifications_enabled: smsEnabled })
+      .update({ 
+        sms_notifications_enabled: smsEnabled,
+        whatsapp_notifications_enabled: whatsappEnabled,
+        push_notifications_enabled: pushEnabled,
+      })
       .eq("user_id", session.user.id);
 
     if (error) {
@@ -130,45 +138,94 @@ const NotificationPreferences = () => {
               Enable or disable different notification methods
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Email Notifications */}
+          <CardContent className="space-y-4">
+            {/* Push Notifications */}
             <div className="flex items-center justify-between p-4 rounded-lg bg-accent/50">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Mail className="w-5 h-5 text-primary" />
+                  <Bell className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <Label htmlFor="push-notifications" className="text-base font-medium">
+                    Push Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Instant alerts in your browser
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="push-notifications"
+                checked={pushEnabled}
+                onCheckedChange={setPushEnabled}
+              />
+            </div>
+
+            {/* Email Notifications */}
+            <div className="flex items-center justify-between p-4 rounded-lg bg-accent/50">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <Mail className="w-5 h-5 text-blue-500" />
                 </div>
                 <div>
                   <Label htmlFor="email-notifications" className="text-base font-medium">
                     Email Notifications
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Receive updates via email
+                    Receive updates via email (always enabled)
                   </p>
                 </div>
               </div>
               <Switch
                 id="email-notifications"
                 checked={emailEnabled}
-                onCheckedChange={setEmailEnabled}
+                disabled
+              />
+            </div>
+
+            {/* WhatsApp Notifications */}
+            <div className="flex items-center justify-between p-4 rounded-lg bg-accent/50">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <MessageCircle className="w-5 h-5 text-green-500" />
+                </div>
+                <div>
+                  <Label htmlFor="whatsapp-notifications" className="text-base font-medium">
+                    WhatsApp Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Get important updates on WhatsApp
+                  </p>
+                  {!phone && whatsappEnabled && (
+                    <p className="text-sm text-orange-500 mt-1">
+                      Please add a phone number to receive WhatsApp messages
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Switch
+                id="whatsapp-notifications"
+                checked={whatsappEnabled}
+                onCheckedChange={setWhatsappEnabled}
               />
             </div>
 
             {/* SMS Notifications */}
             <div className="flex items-center justify-between p-4 rounded-lg bg-accent/50">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <MessageSquare className="w-5 h-5 text-primary" />
+                <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <Smartphone className="w-5 h-5 text-purple-500" />
                 </div>
                 <div>
                   <Label htmlFor="sms-notifications" className="text-base font-medium">
                     SMS Notifications
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Receive updates via text message
+                    Text messages for urgent alerts
                   </p>
                   {!phone && smsEnabled && (
-                    <p className="text-sm text-warning mt-1">
-                      Please add a phone number to your profile to receive SMS
+                    <p className="text-sm text-orange-500 mt-1">
+                      Please add a phone number to receive SMS
                     </p>
                   )}
                 </div>
@@ -181,31 +238,31 @@ const NotificationPreferences = () => {
             </div>
 
             {/* Notification Types Info */}
-            <div className="pt-4 border-t border-border">
+            <div className="pt-4 border-t border-border mt-6">
               <h3 className="font-medium mb-3">You'll be notified about:</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                  New assignments posted for your children
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  Attendance alerts when your child is marked absent
                 </li>
                 <li className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                  Fee payment reminders and receipts
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
                   Exam results and grades published
                 </li>
                 <li className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                  Important announcements from teachers
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                  Attendance alerts and updates
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                  New assignments and announcements
                 </li>
               </ul>
             </div>
 
             <Button 
               onClick={handleSave} 
-              className="w-full"
+              className="w-full mt-4"
               disabled={saving}
             >
               {saving ? (

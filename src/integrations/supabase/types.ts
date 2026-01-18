@@ -634,9 +634,11 @@ export type Database = {
           id: string
           phone: string | null
           photo_url: string | null
+          push_notifications_enabled: boolean | null
           sms_notifications_enabled: boolean | null
           updated_at: string
           user_id: string
+          whatsapp_notifications_enabled: boolean | null
         }
         Insert: {
           address?: string | null
@@ -649,9 +651,11 @@ export type Database = {
           id?: string
           phone?: string | null
           photo_url?: string | null
+          push_notifications_enabled?: boolean | null
           sms_notifications_enabled?: boolean | null
           updated_at?: string
           user_id: string
+          whatsapp_notifications_enabled?: boolean | null
         }
         Update: {
           address?: string | null
@@ -664,7 +668,39 @@ export type Database = {
           id?: string
           phone?: string | null
           photo_url?: string | null
+          push_notifications_enabled?: boolean | null
           sms_notifications_enabled?: boolean | null
+          updated_at?: string
+          user_id?: string
+          whatsapp_notifications_enabled?: boolean | null
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
           updated_at?: string
           user_id?: string
         }

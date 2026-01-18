@@ -14,3 +14,12 @@ verify_jwt = false
 
 [functions.send-attendance-notification]
 verify_jwt = false
+
+[functions.send-class-notification]
+verify_jwt = false
+
+[functions.send-push-notification]
+verify_jwt = false
+
+[functions.send-result-notification]
+verify_jwt = false

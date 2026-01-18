@@ -10,9 +10,9 @@ const corsHeaders = {
 };
 
 // Twilio configuration
-const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
-const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-const twilioPhoneNumber = Deno.env.get("TWILIO_PHONE_NUMBER");
+const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
+const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
+const TWILIO_PHONE_NUMBER = Deno.env.get("TWILIO_PHONE_NUMBER");
 
 interface AbsentStudent {
   studentId: string;
@@ -26,25 +26,29 @@ interface AbsentStudent {
 }
 
 async function sendWhatsApp(to: string, message: string): Promise<boolean> {
-  if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber) {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
     console.log("Twilio not configured, skipping WhatsApp");
     return false;
   }
 
   try {
-    // Format phone number for WhatsApp
-    const formattedTo = to.startsWith("+") ? to : `+${to}`;
+    let formattedTo = to;
+    if (to.startsWith("03")) {
+      formattedTo = "+92" + to.substring(1);
+    } else if (!to.startsWith("+")) {
+      formattedTo = "+" + to;
+    }
     
     const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
+      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
       {
         method: "POST",
         headers: {
-          "Authorization": `Basic ${btoa(`${twilioAccountSid}:${twilioAuthToken}`)}`,
+          "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          From: `whatsapp:${twilioPhoneNumber}`,
+          From: `whatsapp:${TWILIO_PHONE_NUMBER}`,
           To: `whatsapp:${formattedTo}`,
           Body: message,
         }),
@@ -61,6 +65,50 @@ async function sendWhatsApp(to: string, message: string): Promise<boolean> {
     return true;
   } catch (error) {
     console.error("Error sending WhatsApp:", error);
+    return false;
+  }
+}
+
+async function sendSMS(to: string, message: string): Promise<boolean> {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
+    console.log("Twilio not configured, skipping SMS");
+    return false;
+  }
+
+  try {
+    let formattedTo = to;
+    if (to.startsWith("03")) {
+      formattedTo = "+92" + to.substring(1);
+    } else if (!to.startsWith("+")) {
+      formattedTo = "+" + to;
+    }
+    
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          From: TWILIO_PHONE_NUMBER,
+          To: formattedTo,
+          Body: message,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("Twilio SMS error:", error);
+      return false;
+    }
+
+    console.log(`SMS sent to ${formattedTo}`);
+    return true;
+  } catch (error) {
+    console.error("Error sending SMS:", error);
     return false;
   }
 }
@@ -137,7 +185,7 @@ serve(async (req) => {
     const parentUserIds = parents?.map(p => p.user_id) || [];
     const { data: parentProfiles } = await supabase
       .from("profiles")
-      .select("user_id, full_name, email, phone, sms_notifications_enabled")
+      .select("user_id, full_name, email, phone, sms_notifications_enabled, whatsapp_notifications_enabled")
       .in("user_id", parentUserIds);
 
     let emailsSent = 0;
@@ -171,11 +219,12 @@ serve(async (req) => {
           await resend.emails.send({
             from: "The Suffah Public School & College <onboarding@resend.dev>",
             to: [parentProfile.email],
-            subject: `Absence Notification - ${studentName}`,
+            subject: `🚨 Absence Notification - ${studentName}`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                  <h1 style="color: white; margin: 0; font-size: 24px;">The Suffah Public School & College</h1>
+                <div style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                  <h1 style="color: white; margin: 0; font-size: 24px;">🚨 Absence Alert</h1>
+                  <p style="color: rgba(255,255,255,0.9); margin-top: 8px;">The Suffah Public School & College</p>
                 </div>
                 <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
                   <p style="font-size: 16px;">Dear ${parentProfile.full_name},</p>
@@ -194,8 +243,8 @@ serve(async (req) => {
                   
                   <p style="font-size: 12px; color: #999; text-align: center;">
                     The Suffah Public School & College<br>
-                    Main Campus, Lahore<br>
-                    Phone: +92 42 1234 5678
+                    Madyan Swat, Pakistan<br>
+                    Phone: +92 000 000 0000
                   </p>
                 </div>
               </div>
@@ -208,12 +257,18 @@ serve(async (req) => {
         }
       }
 
-      // Send WhatsApp to parent
-      if (parentProfile?.phone && parentProfile?.sms_notifications_enabled) {
-        const whatsappMessage = `*The Suffah Public School & College*\n\nDear ${parentProfile.full_name},\n\nThis is to inform you that your child *${studentName}* (ID: ${student.student_id}) was marked *ABSENT* on ${formattedDate}.\n\nClass: ${className}\n\nIf this absence is due to a valid reason, please inform the school administration.\n\nRegards,\nSchool Administration`;
+      // Send WhatsApp to parent (preferred over SMS if enabled)
+      if (parentProfile?.phone && parentProfile?.whatsapp_notifications_enabled) {
+        const whatsappMessage = `*🚨 The Suffah Public School & College*\n\n*Absence Alert*\n\nDear ${parentProfile.full_name},\n\nYour child *${studentName}* (ID: ${student.student_id}) was marked *ABSENT* on ${formattedDate}.\n\n📚 *Class:* ${className}\n\nIf this absence is due to a valid reason, please inform the school administration.\n\n_Regards,\nSchool Administration_`;
 
         const sent = await sendWhatsApp(parentProfile.phone, whatsappMessage);
         if (sent) whatsappSent++;
+      } 
+      // Fallback to SMS if WhatsApp not enabled but SMS is enabled
+      else if (parentProfile?.phone && parentProfile?.sms_notifications_enabled) {
+        const smsMessage = `🚨 Absence Alert: ${studentName} (${student.student_id}) was absent on ${formattedDate}. Class: ${className}. Please contact school if needed. - The Suffah School`;
+        const sent = await sendSMS(parentProfile.phone, smsMessage);
+        if (sent) whatsappSent++; // Counting both as mobile notifications
       }
     }
 
