@@ -12,9 +12,10 @@ import {
   LayoutDashboard, Users, School, BookOpen, 
   ClipboardList, Bell, LogOut, Settings, UserCheck, UserPlus,
   Shield, Megaphone, BarChart3, CreditCard, TrendingUp, Image, Clock, FileText,
-  Menu, X, ChevronLeft, AlertCircle, UserX, FileCheck, CalendarCheck
+  Menu, X, ChevronLeft, AlertCircle, UserX, FileCheck, CalendarCheck, Calendar
 } from "lucide-react";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import SessionSelector from "./SessionSelector";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -37,6 +38,7 @@ const sidebarItems = [
   { icon: ClipboardList, label: "Admissions", link: "/admin/admissions" },
   { icon: Megaphone, label: "Announcements", link: "/admin/announcements" },
   { icon: Image, label: "Gallery", link: "/admin/gallery" },
+  { icon: Calendar, label: "Session Report", link: "/admin/session-report" },
   { icon: BarChart3, label: "Reports", link: "/admin/reports" },
   { icon: Shield, label: "Roles", link: "/admin/roles" },
   { icon: Settings, label: "Settings", link: "/admin/settings" },
@@ -141,7 +143,8 @@ const AdminLayout = ({ children, title, description }: AdminLayoutProps) => {
               </div>
             </Link>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <SessionSelector />
             <Popover open={notificationOpen} onOpenChange={setNotificationOpen}>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative nav-btn-hover">

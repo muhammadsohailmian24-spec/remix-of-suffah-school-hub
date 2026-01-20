@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { SessionProvider } from "@/contexts/SessionContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import StaffLogin from "./pages/StaffLogin";
@@ -30,6 +31,7 @@ import AttendanceOverview from "./pages/admin/AttendanceOverview";
 import AttendanceScanner from "./pages/admin/AttendanceScanner";
 import GalleryManagement from "./pages/admin/GalleryManagement";
 import AdminResults from "./pages/admin/Results";
+import SessionReport from "./pages/admin/SessionReport";
 import TeacherAttendance from "./pages/teacher/Attendance";
 import TeacherAssignments from "./pages/teacher/Assignments";
 import TeacherMaterials from "./pages/teacher/Materials";
@@ -60,67 +62,70 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/staff-login" element={<StaffLogin />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/admissions" element={<Admissions />} />
-          <Route path="/features" element={<ProjectFeatures />} />
-          {/* Admin Routes */}
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/students" element={<StudentManagement />} />
-          <Route path="/admin/teachers" element={<TeacherManagement />} />
-          <Route path="/admin/parents" element={<ParentManagement />} />
-          <Route path="/admin/classes" element={<AdminClasses />} />
-          <Route path="/admin/subjects" element={<AdminSubjects />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
-          <Route path="/admin/exams" element={<AdminExams />} />
-          <Route path="/admin/timetable" element={<AdminTimetable />} />
-          <Route path="/admin/departments" element={<AdminDepartments />} />
-          <Route path="/admin/admissions" element={<AdmissionManagement />} />
-          <Route path="/admin/announcements" element={<AnnouncementManagement />} />
-          <Route path="/admin/reports" element={<Reports />} />
-          <Route path="/admin/settings" element={<SystemSettings />} />
-          <Route path="/admin/roles" element={<RolesManagement />} />
-          <Route path="/admin/fees" element={<FeeManagement />} />
-          <Route path="/admin/fee-analytics" element={<FeeAnalytics />} />
-          <Route path="/admin/attendance" element={<AttendanceOverview />} />
-          <Route path="/admin/attendance/scanner" element={<AttendanceScanner />} />
-          <Route path="/admin/gallery" element={<GalleryManagement />} />
-          <Route path="/admin/results" element={<AdminResults />} />
-          {/* Teacher Routes */}
-          <Route path="/teacher/attendance" element={<TeacherAttendance />} />
-          <Route path="/teacher/assignments" element={<TeacherAssignments />} />
-          <Route path="/teacher/materials" element={<TeacherMaterials />} />
-          <Route path="/teacher/results" element={<TeacherResults />} />
-          <Route path="/teacher/exams" element={<TeacherExams />} />
-          <Route path="/teacher/timetable" element={<TeacherTimetable />} />
-          <Route path="/teacher/announcements" element={<TeacherAnnouncements />} />
-          {/* Student Routes */}
-          <Route path="/student/courses" element={<StudentCourses />} />
-          <Route path="/student/materials" element={<StudentMaterials />} />
-          <Route path="/student/assignments" element={<StudentAssignments />} />
-          <Route path="/student/exams" element={<StudentExams />} />
-          <Route path="/student/results" element={<StudentResults />} />
-          <Route path="/student/timetable" element={<StudentTimetable />} />
-          <Route path="/student/fees" element={<StudentFees />} />
-          <Route path="/student/attendance" element={<StudentAttendance />} />
-          <Route path="/student/settings" element={<StudentSettings />} />
-          {/* Parent Routes */}
-          <Route path="/parent/children" element={<ParentChildren />} />
-          <Route path="/parent/attendance/:studentId" element={<ParentAttendance />} />
-          <Route path="/parent/results/:studentId" element={<ParentResults />} />
-          <Route path="/parent/announcements" element={<ParentAnnouncements />} />
-          <Route path="/parent/notifications" element={<ParentNotificationPreferences />} />
-          <Route path="/parent/fees/:studentId" element={<ParentFees />} />
-          <Route path="/parent/settings" element={<ParentSettings />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <SessionProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/staff-login" element={<StaffLogin />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/admissions" element={<Admissions />} />
+            <Route path="/features" element={<ProjectFeatures />} />
+            {/* Admin Routes */}
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/students" element={<StudentManagement />} />
+            <Route path="/admin/teachers" element={<TeacherManagement />} />
+            <Route path="/admin/parents" element={<ParentManagement />} />
+            <Route path="/admin/classes" element={<AdminClasses />} />
+            <Route path="/admin/subjects" element={<AdminSubjects />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/exams" element={<AdminExams />} />
+            <Route path="/admin/timetable" element={<AdminTimetable />} />
+            <Route path="/admin/departments" element={<AdminDepartments />} />
+            <Route path="/admin/admissions" element={<AdmissionManagement />} />
+            <Route path="/admin/announcements" element={<AnnouncementManagement />} />
+            <Route path="/admin/reports" element={<Reports />} />
+            <Route path="/admin/settings" element={<SystemSettings />} />
+            <Route path="/admin/roles" element={<RolesManagement />} />
+            <Route path="/admin/fees" element={<FeeManagement />} />
+            <Route path="/admin/fee-analytics" element={<FeeAnalytics />} />
+            <Route path="/admin/attendance" element={<AttendanceOverview />} />
+            <Route path="/admin/attendance/scanner" element={<AttendanceScanner />} />
+            <Route path="/admin/gallery" element={<GalleryManagement />} />
+            <Route path="/admin/results" element={<AdminResults />} />
+            <Route path="/admin/session-report" element={<SessionReport />} />
+            {/* Teacher Routes */}
+            <Route path="/teacher/attendance" element={<TeacherAttendance />} />
+            <Route path="/teacher/assignments" element={<TeacherAssignments />} />
+            <Route path="/teacher/materials" element={<TeacherMaterials />} />
+            <Route path="/teacher/results" element={<TeacherResults />} />
+            <Route path="/teacher/exams" element={<TeacherExams />} />
+            <Route path="/teacher/timetable" element={<TeacherTimetable />} />
+            <Route path="/teacher/announcements" element={<TeacherAnnouncements />} />
+            {/* Student Routes */}
+            <Route path="/student/courses" element={<StudentCourses />} />
+            <Route path="/student/materials" element={<StudentMaterials />} />
+            <Route path="/student/assignments" element={<StudentAssignments />} />
+            <Route path="/student/exams" element={<StudentExams />} />
+            <Route path="/student/results" element={<StudentResults />} />
+            <Route path="/student/timetable" element={<StudentTimetable />} />
+            <Route path="/student/fees" element={<StudentFees />} />
+            <Route path="/student/attendance" element={<StudentAttendance />} />
+            <Route path="/student/settings" element={<StudentSettings />} />
+            {/* Parent Routes */}
+            <Route path="/parent/children" element={<ParentChildren />} />
+            <Route path="/parent/attendance/:studentId" element={<ParentAttendance />} />
+            <Route path="/parent/results/:studentId" element={<ParentResults />} />
+            <Route path="/parent/announcements" element={<ParentAnnouncements />} />
+            <Route path="/parent/notifications" element={<ParentNotificationPreferences />} />
+            <Route path="/parent/fees/:studentId" element={<ParentFees />} />
+            <Route path="/parent/settings" element={<ParentSettings />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </SessionProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
