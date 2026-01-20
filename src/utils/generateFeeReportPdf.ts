@@ -385,7 +385,7 @@ export const generateIndividualFeeReportPdf = async (data: IndividualFeeReportDa
     const x = 20 + (statBoxWidth + 5) * index;
     doc.setFillColor(245, 247, 250);
     doc.roundedRect(x, statsY, statBoxWidth, 20, 3, 3, "F");
-    doc.setDrawColor(...stat.color);
+    doc.setDrawColor(stat.color[0], stat.color[1], stat.color[2]);
     doc.setLineWidth(0.5);
     doc.roundedRect(x, statsY, statBoxWidth, 20, 3, 3, "S");
     
