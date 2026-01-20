@@ -1,11 +1,9 @@
 import jsPDF from "jspdf";
 import QRCode from "qrcode";
+import { primaryColor, goldColor, darkColor, grayColor } from "./pdfDesignUtils";
 
-// Green/Gold color scheme for teachers
-const primaryGreen: [number, number, number] = [20, 80, 50]; // Dark green
-const accentGreen: [number, number, number] = [34, 139, 34]; // Forest green
-const goldColor: [number, number, number] = [200, 160, 60];
-const darkColor: [number, number, number] = [40, 40, 40];
+// Teacher cards use green theme for distinction, with gold accents
+const teacherPrimary: [number, number, number] = [20, 100, 60]; // Dark green
 const whiteColor: [number, number, number] = [255, 255, 255];
 const lightGreen: [number, number, number] = [230, 245, 235];
 
@@ -46,7 +44,7 @@ const generateQRCodeImage = async (employeeId: string): Promise<string> => {
       width: 200,
       margin: 1,
       color: {
-        dark: "#145032",
+        dark: "#14643C",
         light: "#FFFFFF",
       },
       errorCorrectionLevel: "H",
@@ -61,9 +59,9 @@ const generateQRCodeImage = async (employeeId: string): Promise<string> => {
 // Draw curved wave with green theme
 const drawGreenWave = (doc: jsPDF, cardWidth: number, startY: number, endY: number) => {
   const colors: [number, number, number][] = [
-    [15, 60, 40],
-    [20, 80, 50],
-    [34, 110, 60],
+    [15, 80, 45],
+    [18, 90, 52],
+    [20, 100, 60],
   ];
   
   colors.forEach((color, index) => {
@@ -98,7 +96,7 @@ export const generateTeacherCardPdf = async (data: TeacherCardData): Promise<jsP
   doc.rect(0, 0, cardWidth, cardHeight, "F");
   
   // Dark green header
-  doc.setFillColor(...primaryGreen);
+  doc.setFillColor(...teacherPrimary);
   doc.rect(0, 0, cardWidth, 28, "F");
   
   // Curved bottom of header
@@ -131,7 +129,7 @@ export const generateTeacherCardPdf = async (data: TeacherCardData): Promise<jsP
   // Subtitle
   doc.setFontSize(4);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(200, 220, 200);
+  doc.setTextColor(200, 230, 210);
   doc.text("TEACHER IDENTITY CARD", cardWidth / 2, 26, { align: "center" });
 
   // Photo area - circular with golden border
@@ -169,15 +167,15 @@ export const generateTeacherCardPdf = async (data: TeacherCardData): Promise<jsP
   }
 
   // Teacher name
-  doc.setTextColor(...primaryGreen);
+  doc.setTextColor(...teacherPrimary);
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.text(data.teacherName.toUpperCase(), cardWidth / 2, 60, { align: "center" });
   
-  // Department/Designation
+  // Department
   doc.setFontSize(5);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(100, 100, 100);
+  doc.setTextColor(...grayColor);
   doc.text(data.department || "Teaching Staff", cardWidth / 2, 64, { align: "center" });
 
   // Details section
@@ -193,11 +191,11 @@ export const generateTeacherCardPdf = async (data: TeacherCardData): Promise<jsP
   details.forEach((detail, index) => {
     const y = detailStartY + (index * 4);
     
-    doc.setTextColor(...primaryGreen);
+    doc.setTextColor(...teacherPrimary);
     doc.setFont("helvetica", "bold");
     doc.text(detail.label, 6, y);
     
-    doc.setTextColor(150, 150, 150);
+    doc.setTextColor(...grayColor);
     doc.text(":", 15, y);
     
     doc.setTextColor(...darkColor);
@@ -230,7 +228,7 @@ export const generateTeacherCardPdf = async (data: TeacherCardData): Promise<jsP
   }
 
   // School name
-  doc.setTextColor(...primaryGreen);
+  doc.setTextColor(...teacherPrimary);
   doc.setFontSize(5.5);
   doc.setFont("helvetica", "bold");
   doc.text(schoolName, cardWidth / 2, 15, { align: "center" });
@@ -238,7 +236,7 @@ export const generateTeacherCardPdf = async (data: TeacherCardData): Promise<jsP
   // Address
   doc.setFontSize(4);
   doc.setFont("helvetica", "italic");
-  doc.setTextColor(100, 100, 100);
+  doc.setTextColor(...grayColor);
   doc.text(data.schoolAddress || "Madyan Swat, Pakistan", cardWidth / 2, 19, { align: "center" });
 
   // Golden divider
@@ -247,7 +245,7 @@ export const generateTeacherCardPdf = async (data: TeacherCardData): Promise<jsP
   doc.line(10, 22, cardWidth - 10, 22);
 
   // Terms section
-  doc.setTextColor(...primaryGreen);
+  doc.setTextColor(...teacherPrimary);
   doc.setFontSize(5);
   doc.setFont("helvetica", "bold");
   doc.text("Terms and Conditions", cardWidth / 2, 27, { align: "center" });
@@ -269,14 +267,14 @@ export const generateTeacherCardPdf = async (data: TeacherCardData): Promise<jsP
   // Additional info
   doc.setFontSize(4);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...primaryGreen);
+  doc.setTextColor(...teacherPrimary);
   doc.text("Specialization:", 6, 46);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...darkColor);
   doc.text(data.specialization || "N/A", 6, 50);
   
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...primaryGreen);
+  doc.setTextColor(...teacherPrimary);
   doc.text("Blood Group:", 6, 55);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...darkColor);
@@ -336,7 +334,7 @@ export const generateBulkTeacherCards = async (teachers: TeacherCardData[]): Pro
     doc.setFillColor(...whiteColor);
     doc.rect(0, 0, cardWidth, cardHeight, "F");
     
-    doc.setFillColor(...primaryGreen);
+    doc.setFillColor(...teacherPrimary);
     doc.rect(0, 0, cardWidth, 28, "F");
     
     for (let x = 0; x <= cardWidth; x += 0.2) {
@@ -362,7 +360,7 @@ export const generateBulkTeacherCards = async (teachers: TeacherCardData[]): Pro
     
     doc.setFontSize(4);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(200, 220, 200);
+    doc.setTextColor(200, 230, 210);
     doc.text("TEACHER IDENTITY CARD", cardWidth / 2, 26, { align: "center" });
 
     const photoRadius = 12;
@@ -395,14 +393,14 @@ export const generateBulkTeacherCards = async (teachers: TeacherCardData[]): Pro
       doc.ellipse(cardWidth / 2, 49, 5, 3, "F");
     }
 
-    doc.setTextColor(...primaryGreen);
+    doc.setTextColor(...teacherPrimary);
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
     doc.text(data.teacherName.toUpperCase(), cardWidth / 2, 60, { align: "center" });
     
     doc.setFontSize(5);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
+    doc.setTextColor(...grayColor);
     doc.text(data.department || "Teaching Staff", cardWidth / 2, 64, { align: "center" });
 
     const details = [
@@ -413,11 +411,11 @@ export const generateBulkTeacherCards = async (teachers: TeacherCardData[]): Pro
     
     details.forEach((detail, index) => {
       const y = 68 + (index * 4);
-      doc.setTextColor(...primaryGreen);
+      doc.setTextColor(...teacherPrimary);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(5);
       doc.text(detail.label, 6, y);
-      doc.setTextColor(150, 150, 150);
+      doc.setTextColor(...grayColor);
       doc.text(":", 15, y);
       doc.setTextColor(...darkColor);
       doc.setFont("helvetica", "normal");
@@ -441,21 +439,21 @@ export const generateBulkTeacherCards = async (teachers: TeacherCardData[]): Pro
       doc.addImage(logoImg, "PNG", cardWidth / 2 - 4, 3, 8, 8);
     }
 
-    doc.setTextColor(...primaryGreen);
+    doc.setTextColor(...teacherPrimary);
     doc.setFontSize(5.5);
     doc.setFont("helvetica", "bold");
     doc.text(schoolName, cardWidth / 2, 15, { align: "center" });
     
     doc.setFontSize(4);
     doc.setFont("helvetica", "italic");
-    doc.setTextColor(100, 100, 100);
+    doc.setTextColor(...grayColor);
     doc.text(data.schoolAddress || "Madyan Swat, Pakistan", cardWidth / 2, 19, { align: "center" });
 
     doc.setDrawColor(...goldColor);
     doc.setLineWidth(0.4);
     doc.line(10, 22, cardWidth - 10, 22);
 
-    doc.setTextColor(...primaryGreen);
+    doc.setTextColor(...teacherPrimary);
     doc.setFontSize(5);
     doc.setFont("helvetica", "bold");
     doc.text("Terms and Conditions", cardWidth / 2, 27, { align: "center" });
@@ -476,14 +474,14 @@ export const generateBulkTeacherCards = async (teachers: TeacherCardData[]): Pro
 
     doc.setFontSize(4);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(...primaryGreen);
+    doc.setTextColor(...teacherPrimary);
     doc.text("Specialization:", 6, 46);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...darkColor);
     doc.text(data.specialization || "N/A", 6, 50);
     
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(...primaryGreen);
+    doc.setTextColor(...teacherPrimary);
     doc.text("Blood Group:", 6, 55);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...darkColor);
@@ -508,8 +506,7 @@ export const generateBulkTeacherCards = async (teachers: TeacherCardData[]): Pro
   return doc;
 };
 
-export const downloadBulkTeacherCards = async (teachers: TeacherCardData[], department?: string) => {
+export const downloadBulkTeacherCards = async (teachers: TeacherCardData[]) => {
   const doc = await generateBulkTeacherCards(teachers);
-  const filename = department ? `TeacherCards-${department.replace(/\s+/g, "-")}` : "TeacherCards";
-  doc.save(`${filename}.pdf`);
+  doc.save(`TeacherCards-Bulk-${new Date().toISOString().split('T')[0]}.pdf`);
 };

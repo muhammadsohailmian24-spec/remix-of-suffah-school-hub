@@ -90,42 +90,32 @@ export const generateAwardListPdf = async (data: AwardListData): Promise<jsPDF> 
   doc.setTextColor(255, 255, 255);
   doc.text('Subject Wise Award-List', pageWidth / 2, startY, { align: 'center' });
 
-  // Info rows with styled layout
-  const row1Y = startY + 14;
+  // Info rows with styled layout - FIXED: using proper text rendering
+  const row1Y = startY + 16;
+  
+  // Row 1: Session, Date, Max Marks
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...darkColor);
   
-  // Session box
-  doc.setFillColor(245, 247, 250);
-  doc.roundedRect(margin, row1Y - 5, 55, 8, 2, 2, 'F');
+  // Session
   doc.text(`Session: ${data.session}`, margin + 3, row1Y);
   
-  // Date box
-  doc.roundedRect(margin + 60, row1Y - 5, 55, 8, 2, 2, 'F');
-  doc.text(`Date: ${data.date}`, margin + 63, row1Y);
+  // Date
+  doc.text(`Date: ${data.date}`, margin + 70, row1Y);
   
-  // Max Marks box
-  doc.roundedRect(pageWidth - margin - 55, row1Y - 5, 55, 8, 2, 2, 'F');
-  doc.text(`Max Marks: ${data.maxMarks}`, pageWidth - margin - 52, row1Y);
+  // Max Marks
+  doc.text(`Max Marks: ${data.maxMarks}`, pageWidth - margin - 3, row1Y, { align: 'right' });
 
   // Row 2: Class, Section
-  const row2Y = row1Y + 12;
-  doc.setFillColor(245, 247, 250);
-  doc.roundedRect(margin, row2Y - 5, 55, 8, 2, 2, 'F');
+  const row2Y = row1Y + 10;
   doc.text(`Class: ${data.className}`, margin + 3, row2Y);
-  
-  doc.roundedRect(margin + 60, row2Y - 5, 55, 8, 2, 2, 'F');
-  doc.text(`Section: ${data.section || 'N/A'}`, margin + 63, row2Y);
+  doc.text(`Section: ${data.section || 'N/A'}`, margin + 70, row2Y);
 
   // Row 3: Subject, Teacher Name
-  const row3Y = row2Y + 12;
-  doc.setFillColor(245, 247, 250);
-  doc.roundedRect(margin, row3Y - 5, 85, 8, 2, 2, 'F');
+  const row3Y = row2Y + 10;
   doc.text(`Subject: ${data.subject}`, margin + 3, row3Y);
-  
-  doc.roundedRect(margin + 90, row3Y - 5, 85, 8, 2, 2, 'F');
-  doc.text(`Teacher: ${data.teacherName || 'N/A'}`, margin + 93, row3Y);
+  doc.text(`Teacher: ${data.teacherName || 'N/A'}`, margin + 90, row3Y);
 
   // Separator line with gold accent
   doc.setDrawColor(...goldColor);
@@ -151,9 +141,9 @@ export const generateAwardListPdf = async (data: AwardListData): Promise<jsPDF> 
       { content: student.student_id, styles: { halign: 'center' } },
       { content: student.name, styles: { halign: 'left' } },
       { content: student.father_name, styles: { halign: 'left' } },
-      { content: student.theory_marks?.toString() || '', styles: { halign: 'center' } },
-      { content: student.practical_marks?.toString() || '', styles: { halign: 'center' } },
-      { content: student.total_marks?.toString() || '', styles: { halign: 'center' } },
+      { content: student.theory_marks?.toString() || '-', styles: { halign: 'center' } },
+      { content: student.practical_marks?.toString() || '-', styles: { halign: 'center' } },
+      { content: student.total_marks?.toString() || '-', styles: { halign: 'center' } },
     ]),
     margin: { left: margin, right: margin },
     styles: {

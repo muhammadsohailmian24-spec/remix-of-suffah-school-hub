@@ -1,11 +1,8 @@
 import jsPDF from "jspdf";
 import QRCode from "qrcode";
+import { primaryColor, goldColor, darkColor, grayColor } from "./pdfDesignUtils";
 
-// Modern color palette
-const primaryBlue: [number, number, number] = [26, 54, 93]; // Dark navy blue
-const accentBlue: [number, number, number] = [0, 120, 180]; // Teal blue
-const goldColor: [number, number, number] = [200, 160, 60];
-const darkColor: [number, number, number] = [40, 40, 40];
+// Card-specific colors using design system
 const whiteColor: [number, number, number] = [255, 255, 255];
 const lightBlue: [number, number, number] = [230, 245, 255];
 
@@ -47,7 +44,7 @@ const generateQRCodeImage = async (studentId: string): Promise<string> => {
       width: 200,
       margin: 1,
       color: {
-        dark: "#1A365D",
+        dark: "#1E64B4",
         light: "#FFFFFF",
       },
       errorCorrectionLevel: "H",
@@ -59,20 +56,18 @@ const generateQRCodeImage = async (studentId: string): Promise<string> => {
   }
 };
 
-// Draw smooth curved wave
+// Draw smooth curved wave using design system colors
 const drawCurvedWave = (doc: jsPDF, cardWidth: number, startY: number, endY: number) => {
-  // Draw multiple curved layers for wave effect
   const colors: [number, number, number][] = [
-    [0, 90, 140],
-    [0, 110, 160],
-    [0, 130, 180],
+    [20, 80, 150],
+    [25, 90, 165],
+    [30, 100, 180],
   ];
   
   colors.forEach((color, index) => {
     doc.setFillColor(...color);
     const yOffset = startY + (index * 3);
     
-    // Create wave shape using bezier-like curves with small rectangles
     for (let x = 0; x <= cardWidth; x += 0.3) {
       const waveY = yOffset + Math.sin((x / cardWidth) * Math.PI * 1.5) * 4;
       doc.rect(x, waveY, 0.4, endY - waveY, "F");
@@ -81,7 +76,6 @@ const drawCurvedWave = (doc: jsPDF, cardWidth: number, startY: number, endY: num
 };
 
 export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsPDF> => {
-  // VERTICAL card: 54mm x 86mm (standard CR80 portrait)
   const cardWidth = 54;
   const cardHeight = 86;
   
@@ -101,12 +95,12 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   doc.setFillColor(...whiteColor);
   doc.rect(0, 0, cardWidth, cardHeight, "F");
   
-  // Dark blue header (curved bottom)
-  doc.setFillColor(...primaryBlue);
+  // Royal blue header (curved bottom)
+  doc.setFillColor(...primaryColor);
   doc.rect(0, 0, cardWidth, 28, "F");
   
   // Curved bottom of header
-  doc.setFillColor(...primaryBlue);
+  doc.setFillColor(...primaryColor);
   for (let x = 0; x <= cardWidth; x += 0.2) {
     const curveY = 28 + Math.sin((x / cardWidth) * Math.PI) * 4;
     doc.rect(x, 28, 0.3, curveY - 28 + 0.5, "F");
@@ -117,11 +111,9 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   const logoCenterX = cardWidth / 2;
   const logoCenterY = 10;
   
-  // Golden outer circle
   doc.setFillColor(...goldColor);
   doc.circle(logoCenterX, logoCenterY, logoRadius + 1.5, "F");
   
-  // White inner circle
   doc.setFillColor(...whiteColor);
   doc.circle(logoCenterX, logoCenterY, logoRadius, "F");
   
@@ -147,11 +139,9 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   const photoCenterX = cardWidth / 2;
   const photoCenterY = 44;
   
-  // Golden border circle
   doc.setFillColor(...goldColor);
   doc.circle(photoCenterX, photoCenterY, photoRadius + 1.5, "F");
   
-  // White background circle
   doc.setFillColor(...lightBlue);
   doc.circle(photoCenterX, photoCenterY, photoRadius, "F");
   
@@ -161,7 +151,6 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
       img.crossOrigin = "anonymous";
       await new Promise<void>((resolve, reject) => {
         img.onload = () => {
-          // Clip to circle by drawing image in circular area
           const imgSize = photoRadius * 1.8;
           doc.addImage(img, "JPEG", photoCenterX - imgSize/2, photoCenterY - imgSize/2, imgSize, imgSize);
           resolve();
@@ -170,7 +159,6 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
         img.src = data.photoUrl!;
       });
     } catch (e) {
-      // Default avatar
       doc.setFillColor(180, 180, 180);
       doc.circle(photoCenterX, photoCenterY - 2, 4, "F");
       doc.ellipse(photoCenterX, photoCenterY + 5, 5, 3, "F");
@@ -182,7 +170,7 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   }
 
   // Student name
-  doc.setTextColor(...primaryBlue);
+  doc.setTextColor(...primaryColor);
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.text(data.studentName.toUpperCase(), cardWidth / 2, 60, { align: "center" });
@@ -190,11 +178,11 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   // Class
   doc.setFontSize(5);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(100, 100, 100);
+  doc.setTextColor(...grayColor);
   const classText = `Class ${data.className}${data.section ? ` - ${data.section}` : ""}`;
   doc.text(classText, cardWidth / 2, 64, { align: "center" });
 
-  // Details section with dots separator
+  // Details section
   const detailStartY = 68;
   doc.setFontSize(5);
   
@@ -207,16 +195,13 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   details.forEach((detail, index) => {
     const y = detailStartY + (index * 4);
     
-    // Label
-    doc.setTextColor(...primaryBlue);
+    doc.setTextColor(...primaryColor);
     doc.setFont("helvetica", "bold");
     doc.text(detail.label, 6, y);
     
-    // Dots
-    doc.setTextColor(150, 150, 150);
+    doc.setTextColor(...grayColor);
     doc.text(":", 16, y);
     
-    // Value
     doc.setTextColor(...darkColor);
     doc.setFont("helvetica", "normal");
     doc.text(detail.value, 19, y);
@@ -247,7 +232,7 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   }
 
   // School name
-  doc.setTextColor(...primaryBlue);
+  doc.setTextColor(...primaryColor);
   doc.setFontSize(5.5);
   doc.setFont("helvetica", "bold");
   doc.text(schoolName, cardWidth / 2, 15, { align: "center" });
@@ -255,7 +240,7 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   // Address
   doc.setFontSize(4);
   doc.setFont("helvetica", "italic");
-  doc.setTextColor(100, 100, 100);
+  doc.setTextColor(...grayColor);
   doc.text(data.schoolAddress || "Madyan Swat, Pakistan", cardWidth / 2, 19, { align: "center" });
 
   // Golden divider line
@@ -264,7 +249,7 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   doc.line(10, 22, cardWidth - 10, 22);
 
   // Terms section
-  doc.setTextColor(...primaryBlue);
+  doc.setTextColor(...primaryColor);
   doc.setFontSize(5);
   doc.setFont("helvetica", "bold");
   doc.text("Terms and Conditions", cardWidth / 2, 27, { align: "center" });
@@ -286,26 +271,25 @@ export const generateStudentCardPdf = async (data: StudentCardData): Promise<jsP
   // Parent info
   doc.setFontSize(4);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...primaryBlue);
+  doc.setTextColor(...primaryColor);
   doc.text("Father/Guardian:", 6, 46);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...darkColor);
   doc.text(data.fatherName, 6, 50);
   
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...primaryBlue);
+  doc.setTextColor(...primaryColor);
   doc.text("Blood Group:", 6, 55);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...darkColor);
   doc.text(data.bloodGroup || "N/A", 26, 55);
 
-  // QR Code in circle-like rounded container
+  // QR Code in rounded container
   if (qrCodeImg) {
     const qrSize = 16;
     const qrX = cardWidth / 2 - qrSize / 2;
     const qrY = 59;
     
-    // Light background for QR
     doc.setFillColor(...lightBlue);
     doc.roundedRect(qrX - 2, qrY - 2, qrSize + 4, qrSize + 4, 3, 3, "F");
     
@@ -354,17 +338,14 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
     doc.setFillColor(...whiteColor);
     doc.rect(0, 0, cardWidth, cardHeight, "F");
     
-    // Header
-    doc.setFillColor(...primaryBlue);
+    doc.setFillColor(...primaryColor);
     doc.rect(0, 0, cardWidth, 28, "F");
     
-    // Curved header bottom
     for (let x = 0; x <= cardWidth; x += 0.2) {
       const curveY = 28 + Math.sin((x / cardWidth) * Math.PI) * 4;
       doc.rect(x, 28, 0.3, curveY - 28 + 0.5, "F");
     }
 
-    // Logo circle
     const logoRadius = 8;
     doc.setFillColor(...goldColor);
     doc.circle(cardWidth / 2, 10, logoRadius + 1.5, "F");
@@ -376,7 +357,6 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
       doc.addImage(logoImg, "PNG", cardWidth / 2 - logoSize/2, 10 - logoSize/2, logoSize, logoSize);
     }
     
-    // School name
     doc.setTextColor(...whiteColor);
     doc.setFontSize(5.5);
     doc.setFont("helvetica", "bold");
@@ -387,7 +367,6 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
     doc.setTextColor(180, 200, 220);
     doc.text("STUDENT IDENTITY CARD", cardWidth / 2, 26, { align: "center" });
 
-    // Photo circle
     const photoRadius = 12;
     doc.setFillColor(...goldColor);
     doc.circle(cardWidth / 2, 44, photoRadius + 1.5, "F");
@@ -418,19 +397,17 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
       doc.ellipse(cardWidth / 2, 49, 5, 3, "F");
     }
 
-    // Name
-    doc.setTextColor(...primaryBlue);
+    doc.setTextColor(...primaryColor);
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
     doc.text(data.studentName.toUpperCase(), cardWidth / 2, 60, { align: "center" });
     
     doc.setFontSize(5);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
+    doc.setTextColor(...grayColor);
     const classText = `Class ${data.className}${data.section ? ` - ${data.section}` : ""}`;
     doc.text(classText, cardWidth / 2, 64, { align: "center" });
 
-    // Details
     const details = [
       { label: "ID", value: data.studentId },
       { label: "D.O.B", value: data.dateOfBirth || "N/A" },
@@ -439,11 +416,11 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
     
     details.forEach((detail, index) => {
       const y = 68 + (index * 4);
-      doc.setTextColor(...primaryBlue);
+      doc.setTextColor(...primaryColor);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(5);
       doc.text(detail.label, 6, y);
-      doc.setTextColor(150, 150, 150);
+      doc.setTextColor(...grayColor);
       doc.text(":", 16, y);
       doc.setTextColor(...darkColor);
       doc.setFont("helvetica", "normal");
@@ -458,7 +435,6 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
     doc.setFillColor(...whiteColor);
     doc.rect(0, 0, cardWidth, cardHeight, "F");
 
-    // Back logo
     doc.setFillColor(...goldColor);
     doc.circle(cardWidth / 2, 7, 6, "F");
     doc.setFillColor(...whiteColor);
@@ -468,21 +444,21 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
       doc.addImage(logoImg, "PNG", cardWidth / 2 - 4, 3, 8, 8);
     }
 
-    doc.setTextColor(...primaryBlue);
+    doc.setTextColor(...primaryColor);
     doc.setFontSize(5.5);
     doc.setFont("helvetica", "bold");
     doc.text(schoolName, cardWidth / 2, 15, { align: "center" });
     
     doc.setFontSize(4);
     doc.setFont("helvetica", "italic");
-    doc.setTextColor(100, 100, 100);
+    doc.setTextColor(...grayColor);
     doc.text(data.schoolAddress || "Madyan Swat, Pakistan", cardWidth / 2, 19, { align: "center" });
 
     doc.setDrawColor(...goldColor);
     doc.setLineWidth(0.4);
     doc.line(10, 22, cardWidth - 10, 22);
 
-    doc.setTextColor(...primaryBlue);
+    doc.setTextColor(...primaryColor);
     doc.setFontSize(5);
     doc.setFont("helvetica", "bold");
     doc.text("Terms and Conditions", cardWidth / 2, 27, { align: "center" });
@@ -503,14 +479,14 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
 
     doc.setFontSize(4);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(...primaryBlue);
+    doc.setTextColor(...primaryColor);
     doc.text("Father/Guardian:", 6, 46);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...darkColor);
     doc.text(data.fatherName, 6, 50);
     
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(...primaryBlue);
+    doc.setTextColor(...primaryColor);
     doc.text("Blood Group:", 6, 55);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...darkColor);
@@ -537,6 +513,8 @@ export const generateBulkStudentCards = async (students: StudentCardData[]): Pro
 
 export const downloadBulkStudentCards = async (students: StudentCardData[], className?: string) => {
   const doc = await generateBulkStudentCards(students);
-  const filename = className ? `StudentCards-${className.replace(/\s+/g, "-")}` : "StudentCards";
-  doc.save(`${filename}.pdf`);
+  const filename = className 
+    ? `StudentCards-${className.replace(/\s+/g, '-')}.pdf`
+    : `StudentCards-Bulk-${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(filename);
 };
