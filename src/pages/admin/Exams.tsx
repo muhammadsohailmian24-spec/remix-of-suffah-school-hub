@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
 import ExamWizard from "@/components/admin/ExamWizard";
 import ExamsList from "@/components/admin/ExamsList";
+import BulkExamDialog from "@/components/admin/BulkExamDialog";
 import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 import { format, parseISO } from "date-fns";
 import { generateAwardListPdf, downloadAwardList, AwardListData } from "@/utils/generateAwardListPdf";
@@ -73,6 +74,7 @@ const AdminExams = () => {
   
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   
   // Preview states
@@ -219,6 +221,62 @@ const AdminExams = () => {
     setSelectedSessionId(null);
     setSelectedExamType(null);
     setExams([]);
+  };
+
+  // Session creation handler
+  const handleCreateSession = async (sessionData: { name: string; start_date: string; end_date: string; is_current: boolean }): Promise<string | null> => {
+    const { data, error } = await supabase
+      .from("academic_years")
+      .insert({
+        name: sessionData.name,
+        start_date: sessionData.start_date,
+        end_date: sessionData.end_date,
+        is_current: sessionData.is_current,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to create session", variant: "destructive" });
+      return null;
+    }
+
+    toast({ title: "Success", description: "Academic session created successfully" });
+    
+    // Refresh academic years
+    const { data: yearsData } = await supabase
+      .from("academic_years")
+      .select("id, name, is_current")
+      .order("start_date", { ascending: false });
+    setAcademicYears(yearsData || []);
+
+    return data.id;
+  };
+
+  // Bulk exam creation handler
+  const handleBulkExamSubmit = async (bulkExams: { name: string; subject_id: string; exam_date: string; start_time: string; end_time: string; max_marks: string; passing_marks: string }[]) => {
+    const examsToInsert = bulkExams.map(exam => ({
+      name: exam.name,
+      exam_type: selectedExamType!,
+      exam_date: exam.exam_date,
+      max_marks: parseInt(exam.max_marks),
+      passing_marks: parseInt(exam.passing_marks),
+      start_time: exam.start_time || null,
+      end_time: exam.end_time || null,
+      class_id: selectedClassId!,
+      subject_id: exam.subject_id,
+      academic_year_id: selectedSessionId,
+    }));
+
+    const { error } = await supabase.from("exams").insert(examsToInsert);
+    
+    if (error) {
+      toast({ title: "Error", description: "Failed to create exams", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Success", description: `${bulkExams.length} exam(s) scheduled successfully` });
+    fetchFilteredExams();
   };
 
   // PDF Generation functions (same as before)
@@ -400,6 +458,7 @@ const AdminExams = () => {
           onSessionSelect={setSelectedSessionId}
           onExamTypeSelect={setSelectedExamType}
           onReset={handleReset}
+          onCreateSession={handleCreateSession}
         />
       ) : (
         <ExamsList
@@ -409,6 +468,7 @@ const AdminExams = () => {
           examType={selectedExamType}
           onBack={handleReset}
           onAddExam={handleAddExam}
+          onBulkAddExam={() => setBulkDialogOpen(true)}
           onEditExam={openEditDialog}
           onDeleteExam={handleDelete}
           onPreviewRollSlips={handlePreviewRollSlips}
@@ -467,6 +527,17 @@ const AdminExams = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Exam Dialog */}
+      <BulkExamDialog
+        open={bulkDialogOpen}
+        onOpenChange={setBulkDialogOpen}
+        subjects={subjects}
+        examType={selectedExamType || "midterm"}
+        className={selectedClassName}
+        sessionName={selectedSessionName}
+        onSubmit={handleBulkExamSubmit}
+      />
 
       {/* Document Preview Dialogs */}
       {previewType === "awardList" && previewAwardListData && (

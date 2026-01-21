@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Plus, Edit, Trash2, Download, FileText, FileUser, MoreHorizontal, ClipboardList, Eye, ArrowLeft } from "lucide-react";
+import { Plus, Edit, Trash2, Download, FileText, FileUser, MoreHorizontal, ClipboardList, Eye, ArrowLeft, Calendar } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import SingleRollNumberSlipDialog from "@/components/admin/SingleRollNumberSlipDialog";
 
@@ -31,6 +31,7 @@ interface ExamsListProps {
   examType: string;
   onBack: () => void;
   onAddExam: () => void;
+  onBulkAddExam: () => void;
   onEditExam: (exam: Exam) => void;
   onDeleteExam: (examId: string) => void;
   onPreviewRollSlips: (exam: Exam) => void;
@@ -54,6 +55,7 @@ const ExamsList = ({
   examType,
   onBack,
   onAddExam,
+  onBulkAddExam,
   onEditExam,
   onDeleteExam,
   onPreviewRollSlips,
@@ -99,10 +101,16 @@ const ExamsList = ({
             </p>
           </div>
         </div>
-        <Button onClick={onAddExam}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Exam
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onBulkAddExam}>
+            <Calendar className="h-4 w-4 mr-2" />
+            Bulk Schedule
+          </Button>
+          <Button onClick={onAddExam}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Exam
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
