@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import AdminLayout from "@/components/admin/AdminLayout";
 import AbsentStudentsList from "@/components/AbsentStudentsList";
 import StudentSearchDialog from "@/components/admin/StudentSearchDialog";
 import {
-  Users, GraduationCap, UserCheck, School, Clock, CheckCircle, 
-  XCircle, TrendingUp, Bell, Calendar, FileText, AlertTriangle, UserX, Search
+  Users, GraduationCap, UserCheck, Clock, CheckCircle, 
+  XCircle, TrendingUp, Bell, Calendar, FileText, AlertTriangle, 
+  UserX, Search, CreditCard, ClipboardList, Megaphone, 
+  BarChart3, ArrowRight, Wallet, Receipt, BookOpen, School
 } from "lucide-react";
 
 interface Stats {
@@ -22,6 +25,10 @@ interface Stats {
   todayPresent: number;
   todayAbsent: number;
   todayLate: number;
+  dueFees: number;
+  dueFeesCount: number;
+  activeExams: number;
+  monthExpenses: number;
 }
 
 interface Activity {
@@ -29,6 +36,7 @@ interface Activity {
   title: string;
   time: string;
   type: "success" | "warning" | "info" | "error";
+  link?: string;
 }
 
 const AdminDashboard = () => {
@@ -44,6 +52,10 @@ const AdminDashboard = () => {
     todayPresent: 0,
     todayAbsent: 0,
     todayLate: 0,
+    dueFees: 0,
+    dueFeesCount: 0,
+    activeExams: 0,
+    monthExpenses: 0,
   });
 
   useEffect(() => {
@@ -71,18 +83,37 @@ const AdminDashboard = () => {
 
   const fetchStats = async () => {
     const today = new Date().toISOString().split('T')[0];
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
 
     // Fetch all counts in parallel
-    const [studentsRes, teachersRes, parentsRes, classesRes, admissionsRes, attendanceRes] = await Promise.all([
-      supabase.from("students").select("id", { count: "exact", head: true }),
-      supabase.from("teachers").select("id", { count: "exact", head: true }),
+    const [
+      studentsRes, 
+      teachersRes, 
+      parentsRes, 
+      classesRes, 
+      admissionsRes, 
+      attendanceRes,
+      dueFeesRes,
+      activeExamsRes,
+      expensesRes
+    ] = await Promise.all([
+      supabase.from("students").select("id", { count: "exact", head: true }).eq("status", "active"),
+      supabase.from("teachers").select("id", { count: "exact", head: true }).eq("status", "active"),
       supabase.from("parents").select("id", { count: "exact", head: true }),
       supabase.from("classes").select("id", { count: "exact", head: true }),
       supabase.from("admissions").select("id", { count: "exact", head: true }).eq("status", "pending"),
       supabase.from("attendance").select("status").eq("date", today),
+      supabase.from("student_fees").select("final_amount, status").in("status", ["pending", "partial"]),
+      supabase.from("exams").select("id", { count: "exact", head: true }).gte("exam_date", today),
+      supabase.from("expenses").select("amount").gte("date", monthStart),
     ]);
 
     const attendanceData = attendanceRes.data || [];
+    const dueFeesData = dueFeesRes.data || [];
+    const expensesData = expensesRes.data || [];
+    
+    const totalDueFees = dueFeesData.reduce((sum, fee) => sum + Number(fee.final_amount || 0), 0);
+    const totalExpenses = expensesData.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
     
     setStats({
       totalStudents: studentsRes.count || 0,
@@ -93,16 +124,85 @@ const AdminDashboard = () => {
       todayPresent: attendanceData.filter(a => a.status === "present").length,
       todayAbsent: attendanceData.filter(a => a.status === "absent").length,
       todayLate: attendanceData.filter(a => a.status === "late").length,
+      dueFees: totalDueFees,
+      dueFeesCount: dueFeesData.length,
+      activeExams: activeExamsRes.count || 0,
+      monthExpenses: totalExpenses,
     });
   };
 
-  const statCards = [
-    { icon: GraduationCap, label: "Total Students", value: stats.totalStudents, color: "text-primary", bgColor: "bg-primary/10", trend: "+12 this month" },
-    { icon: UserCheck, label: "Total Teachers", value: stats.totalTeachers, color: "text-info", bgColor: "bg-info/10", trend: "Active faculty" },
-    { icon: Users, label: "Total Parents", value: stats.totalParents, color: "text-warning", bgColor: "bg-warning/10", trend: "Registered" },
-    { icon: School, label: "Total Classes", value: stats.totalClasses, color: "text-success", bgColor: "bg-success/10", trend: "All grades" },
-    { icon: Clock, label: "Pending Admissions", value: stats.pendingAdmissions, color: "text-destructive", bgColor: "bg-destructive/10", trend: "Needs review" },
-    { icon: CheckCircle, label: "Present Today", value: stats.todayPresent, color: "text-success", bgColor: "bg-success/10", trend: "Students" },
+  // Clickable stat cards configuration
+  const mainStatCards = [
+    { 
+      icon: GraduationCap, 
+      label: "Total Students", 
+      value: stats.totalStudents, 
+      color: "text-primary", 
+      bgColor: "bg-primary/10", 
+      link: "/admin/students",
+      description: "Active enrolled students"
+    },
+    { 
+      icon: CreditCard, 
+      label: "Due Fees", 
+      value: `PKR ${stats.dueFees.toLocaleString()}`, 
+      color: "text-destructive", 
+      bgColor: "bg-destructive/10", 
+      link: "/admin/fees?filter=pending",
+      description: `${stats.dueFeesCount} student(s) pending`
+    },
+    { 
+      icon: UserX, 
+      label: "Absent Today", 
+      value: stats.todayAbsent, 
+      color: "text-warning", 
+      bgColor: "bg-warning/10", 
+      link: "/admin/attendance",
+      description: "Students marked absent"
+    },
+    { 
+      icon: BookOpen, 
+      label: "Active Exams", 
+      value: stats.activeExams, 
+      color: "text-info", 
+      bgColor: "bg-info/10", 
+      link: "/admin/exams",
+      description: "Upcoming/ongoing exams"
+    },
+    { 
+      icon: FileText, 
+      label: "Pending Admissions", 
+      value: stats.pendingAdmissions, 
+      color: "text-secondary", 
+      bgColor: "bg-secondary/10", 
+      link: "/admin/admissions",
+      description: "Applications to review"
+    },
+    { 
+      icon: Wallet, 
+      label: "Month Expenses", 
+      value: `PKR ${stats.monthExpenses.toLocaleString()}`, 
+      color: "text-muted-foreground", 
+      bgColor: "bg-muted", 
+      link: "/admin/expenses",
+      description: "This month's spending"
+    },
+  ];
+
+  // Quick action buttons
+  const quickActions = [
+    { label: "Mark Attendance", link: "/admin/attendance", icon: ClipboardList, color: "bg-primary hover:bg-primary/90" },
+    { label: "Enter Marks", link: "/admin/results", icon: BarChart3, color: "bg-info hover:bg-info/90" },
+    { label: "Collect Fee", link: "/admin/fees", icon: Receipt, color: "bg-success hover:bg-success/90" },
+    { label: "Generate Reports", link: "/admin/reports", icon: FileText, color: "bg-secondary hover:bg-secondary/90" },
+  ];
+
+  // Secondary stats row
+  const secondaryStats = [
+    { icon: UserCheck, label: "Teachers", value: stats.totalTeachers, link: "/admin/teachers" },
+    { icon: Users, label: "Parents", value: stats.totalParents, link: "/admin/parents" },
+    { icon: School, label: "Classes", value: stats.totalClasses, link: "/admin/classes" },
+    { icon: CheckCircle, label: "Present Today", value: stats.todayPresent, link: "/admin/attendance" },
   ];
 
   // Generate real-time activities based on actual data
@@ -113,7 +213,8 @@ const AdminDashboard = () => {
       id: "pending", 
       title: `${stats.pendingAdmissions} pending admission application(s)`, 
       time: "Requires attention", 
-      type: "info" 
+      type: "info",
+      link: "/admin/admissions"
     });
   }
   
@@ -122,7 +223,8 @@ const AdminDashboard = () => {
       id: "present", 
       title: `${stats.todayPresent} students marked present today`, 
       time: "Today", 
-      type: "success" 
+      type: "success",
+      link: "/admin/attendance"
     });
   }
   
@@ -131,16 +233,18 @@ const AdminDashboard = () => {
       id: "absent", 
       title: `${stats.todayAbsent} students marked absent today`, 
       time: "Today", 
-      type: "error" 
+      type: "error",
+      link: "/admin/attendance"
     });
   }
-  
-  if (stats.todayLate > 0) {
+
+  if (stats.dueFeesCount > 0) {
     recentActivities.push({ 
-      id: "late", 
-      title: `${stats.todayLate} students marked late today`, 
-      time: "Today", 
-      type: "warning" 
+      id: "fees", 
+      title: `PKR ${stats.dueFees.toLocaleString()} fees pending collection`, 
+      time: "Action needed", 
+      type: "warning",
+      link: "/admin/fees"
     });
   }
   
@@ -153,48 +257,6 @@ const AdminDashboard = () => {
     });
   }
 
-  // Generate notifications based on actual data
-  const notifications = [];
-  
-  if (stats.pendingAdmissions > 0) {
-    notifications.push({ 
-      id: "admission", 
-      title: `${stats.pendingAdmissions} admission application(s) pending review`, 
-      priority: "high" 
-    });
-  }
-  
-  if (stats.todayAbsent > 0) {
-    notifications.push({ 
-      id: "absent-notify", 
-      title: `${stats.todayAbsent} students absent - parents may need notification`, 
-      priority: "high" 
-    });
-  }
-  
-  if (stats.totalClasses === 0) {
-    notifications.push({ 
-      id: "no-classes", 
-      title: "No classes configured yet", 
-      priority: "normal" 
-    });
-  }
-  
-  if (stats.totalTeachers === 0) {
-    notifications.push({ 
-      id: "no-teachers", 
-      title: "No teachers added yet", 
-      priority: "normal" 
-    });
-  }
-
-  const quickActions = [
-    { label: "Add Student", link: "/admin/students", icon: GraduationCap },
-    { label: "Add Teacher", link: "/admin/teachers", icon: UserCheck },
-    { label: "View Attendance", link: "/admin/attendance", icon: Calendar },
-    { label: "View Admissions", link: "/admin/admissions", icon: FileText },
-  ];
-
   if (loading) {
     return (
       <AdminLayout title="Dashboard" description="Loading...">
@@ -205,16 +267,17 @@ const AdminDashboard = () => {
     );
   }
 
-  const attendanceRate = (stats.todayPresent + stats.todayAbsent + stats.todayLate) > 0 
-    ? Math.round((stats.todayPresent / (stats.todayPresent + stats.todayAbsent + stats.todayLate)) * 100) 
+  const totalAttendance = stats.todayPresent + stats.todayAbsent + stats.todayLate;
+  const attendanceRate = totalAttendance > 0 
+    ? Math.round((stats.todayPresent / totalAttendance) * 100) 
     : 0;
 
   return (
-    <AdminLayout title="Admin Dashboard" description="Manage your school from here">
+    <AdminLayout title="Admin Dashboard" description="School Management Overview">
       {/* Search Bar */}
       <div className="mb-6">
         <div 
-          className="relative cursor-pointer"
+          className="relative cursor-pointer max-w-md"
           onClick={() => setSearchDialogOpen(true)}
         >
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -226,53 +289,90 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Student Search Dialog */}
       <StudentSearchDialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-        {statCards.map((stat, i) => (
-          <Card key={i} className="card-hover">
-            <CardContent className="p-4">
-              <div className={`w-10 h-10 rounded-lg ${stat.bgColor} flex items-center justify-center mb-3`}>
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
-              </div>
-              <div className="font-heading text-2xl font-bold">{stat.value}</div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
-              <div className={`text-xs mt-1 ${stat.color}`}>{stat.trend}</div>
-            </CardContent>
-          </Card>
+      {/* Main Stats Grid - Clickable Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+        {mainStatCards.map((stat, i) => (
+          <Link key={i} to={stat.link}>
+            <Card className="card-hover cursor-pointer h-full group">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`w-10 h-10 rounded-lg ${stat.bgColor} flex items-center justify-center transition-transform group-hover:scale-110`}>
+                    <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                <div className="font-heading text-2xl font-bold">{stat.value}</div>
+                <div className="text-sm font-medium text-foreground">{stat.label}</div>
+                <div className="text-xs text-muted-foreground mt-1">{stat.description}</div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      {/* Secondary Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {secondaryStats.map((stat, i) => (
+          <Link key={i} to={stat.link}>
+            <Card className="card-hover cursor-pointer">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center">
+                  <stat.icon className="w-6 h-6 text-accent-foreground" />
+                </div>
+                <div>
+                  <div className="font-heading text-xl font-bold">{stat.value}</div>
+                  <div className="text-sm text-muted-foreground">{stat.label}</div>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {quickActions.map((action, i) => (
-          <Button
-            key={i}
-            variant="outline"
-            className="h-auto py-4 flex flex-col items-center gap-2"
-            onClick={() => navigate(action.link)}
-          >
-            <action.icon className="w-6 h-6 text-primary" />
-            <span>{action.label}</span>
-          </Button>
-        ))}
-      </div>
+      <Card className="mb-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Quick Actions</CardTitle>
+          <CardDescription>Common tasks at your fingertips</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {quickActions.map((action, i) => (
+              <Button
+                key={i}
+                className={`h-auto py-4 flex flex-col items-center gap-2 text-white ${action.color}`}
+                onClick={() => navigate(action.link)}
+              >
+                <action.icon className="w-6 h-6" />
+                <span className="font-medium">{action.label}</span>
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Main Content Grid */}
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Today's Absent Students */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserX className="w-5 h-5 text-destructive" />
-              Today's Absent Students
-              {stats.todayAbsent > 0 && (
-                <Badge variant="destructive" className="ml-2">{stats.todayAbsent}</Badge>
-              )}
-            </CardTitle>
-            <CardDescription>Students marked absent today</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <UserX className="w-5 h-5 text-destructive" />
+                  Today's Absent Students
+                  {stats.todayAbsent > 0 && (
+                    <Badge variant="destructive" className="ml-2">{stats.todayAbsent}</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>Students marked absent today</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => navigate("/admin/attendance")}>
+                View All
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <AbsentStudentsList date={new Date()} showTitle={false} maxItems={5} />
@@ -299,28 +399,34 @@ const AdminDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Present</span>
-                <span className="font-semibold text-success">{stats.todayPresent}</span>
+              <div className="text-center mb-4">
+                <div className="text-4xl font-bold text-primary">{attendanceRate}%</div>
+                <div className="text-sm text-muted-foreground">Attendance Rate</div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Absent</span>
-                <span className="font-semibold text-destructive">{stats.todayAbsent}</span>
+              
+              <Progress value={attendanceRate} className="h-3" />
+              
+              <div className="grid grid-cols-3 gap-4 mt-4">
+                <div className="text-center p-3 rounded-lg bg-success/10">
+                  <div className="text-lg font-bold text-success">{stats.todayPresent}</div>
+                  <div className="text-xs text-muted-foreground">Present</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-destructive/10">
+                  <div className="text-lg font-bold text-destructive">{stats.todayAbsent}</div>
+                  <div className="text-xs text-muted-foreground">Absent</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-warning/10">
+                  <div className="text-lg font-bold text-warning">{stats.todayLate}</div>
+                  <div className="text-xs text-muted-foreground">Late</div>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Late</span>
-                <span className="font-semibold text-warning">{stats.todayLate}</span>
-              </div>
-              <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-success" style={{ width: `${attendanceRate}%` }} />
-              </div>
-              <p className="text-xs text-muted-foreground text-center">{attendanceRate}% attendance rate today</p>
+              
               <Button 
                 variant="outline" 
-                className="w-full"
+                className="w-full mt-4"
                 onClick={() => navigate("/admin/attendance")}
               >
-                View Full Attendance
+                Manage Attendance
               </Button>
             </div>
           </CardContent>
@@ -337,7 +443,11 @@ const AdminDashboard = () => {
           </CardHeader>
           <CardContent className="space-y-3">
             {recentActivities.map((activity) => (
-              <div key={activity.id} className="flex items-center gap-4 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors">
+              <div 
+                key={activity.id} 
+                className={`flex items-center gap-4 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors ${activity.link ? 'cursor-pointer' : ''}`}
+                onClick={() => activity.link && navigate(activity.link)}
+              >
                 <div className={`w-2 h-2 rounded-full shrink-0 ${
                   activity.type === "success" ? "bg-success" : 
                   activity.type === "warning" ? "bg-warning" : 
@@ -347,37 +457,14 @@ const AdminDashboard = () => {
                   <p className="text-sm font-medium truncate">{activity.title}</p>
                   <p className="text-xs text-muted-foreground">{activity.time}</p>
                 </div>
+                {activity.link && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
               </div>
             ))}
           </CardContent>
         </Card>
 
-        {/* Notifications Panel */}
+        {/* Pending Tasks & Notifications */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="w-5 h-5 text-primary" />
-              Notifications
-            </CardTitle>
-            <CardDescription>System alerts and reminders</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {notifications.map((notification) => (
-              <div key={notification.id} className="flex items-start gap-3 p-3 rounded-lg bg-accent/50">
-                <div className={`px-2 py-1 rounded text-xs font-medium shrink-0 ${
-                  notification.priority === "high" ? "bg-destructive/10 text-destructive" : 
-                  notification.priority === "low" ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
-                }`}>
-                  {notification.priority.toUpperCase()}
-                </div>
-                <p className="text-sm">{notification.title}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Pending Tasks */}
-        <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-warning" />
@@ -385,40 +472,61 @@ const AdminDashboard = () => {
             </CardTitle>
             <CardDescription>Items requiring attention</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-3">
-              {stats.pendingAdmissions > 0 && (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-warning/10 border border-warning/20">
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-warning" />
-                    <span className="text-sm font-medium">{stats.pendingAdmissions} pending admission applications</span>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => navigate("/admin/admissions")}>
-                    Review
-                  </Button>
-                </div>
-              )}
-              {stats.todayAbsent > 0 && (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                  <div className="flex items-center gap-3">
-                    <UserX className="w-5 h-5 text-destructive" />
-                    <span className="text-sm font-medium">{stats.todayAbsent} students absent today</span>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => navigate("/admin/attendance")}>
-                    Notify Parents
-                  </Button>
-                </div>
-              )}
-              <div className="flex items-center justify-between p-3 rounded-lg bg-info/10 border border-info/20">
+          <CardContent className="space-y-3">
+            {stats.pendingAdmissions > 0 && (
+              <div 
+                className="flex items-center justify-between p-3 rounded-lg bg-warning/10 border border-warning/20 cursor-pointer hover:bg-warning/20 transition-colors"
+                onClick={() => navigate("/admin/admissions")}
+              >
                 <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-info" />
-                  <span className="text-sm font-medium">Set up next academic year</span>
+                  <FileText className="w-5 h-5 text-warning" />
+                  <div>
+                    <p className="text-sm font-medium">{stats.pendingAdmissions} Admissions</p>
+                    <p className="text-xs text-muted-foreground">Pending review</p>
+                  </div>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => navigate("/admin/settings")}>
-                  Configure
-                </Button>
+                <ArrowRight className="w-4 h-4 text-muted-foreground" />
               </div>
-            </div>
+            )}
+            
+            {stats.dueFeesCount > 0 && (
+              <div 
+                className="flex items-center justify-between p-3 rounded-lg bg-destructive/10 border border-destructive/20 cursor-pointer hover:bg-destructive/20 transition-colors"
+                onClick={() => navigate("/admin/fees")}
+              >
+                <div className="flex items-center gap-3">
+                  <CreditCard className="w-5 h-5 text-destructive" />
+                  <div>
+                    <p className="text-sm font-medium">{stats.dueFeesCount} Fees Pending</p>
+                    <p className="text-xs text-muted-foreground">Collection needed</p>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              </div>
+            )}
+            
+            {stats.todayAbsent > 0 && (
+              <div 
+                className="flex items-center justify-between p-3 rounded-lg bg-info/10 border border-info/20 cursor-pointer hover:bg-info/20 transition-colors"
+                onClick={() => navigate("/admin/attendance")}
+              >
+                <div className="flex items-center gap-3">
+                  <Bell className="w-5 h-5 text-info" />
+                  <div>
+                    <p className="text-sm font-medium">Notify Parents</p>
+                    <p className="text-xs text-muted-foreground">{stats.todayAbsent} absent today</p>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              </div>
+            )}
+            
+            {stats.pendingAdmissions === 0 && stats.dueFeesCount === 0 && stats.todayAbsent === 0 && (
+              <div className="text-center py-6 text-muted-foreground">
+                <CheckCircle className="w-12 h-12 mx-auto mb-2 text-success" />
+                <p className="text-sm">All caught up! No pending tasks.</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

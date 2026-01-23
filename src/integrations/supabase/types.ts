@@ -219,6 +219,7 @@ export type Database = {
           created_at: string
           date: string
           id: string
+          mark_source: string | null
           marked_by: string | null
           remarks: string | null
           status: string
@@ -229,6 +230,7 @@ export type Database = {
           created_at?: string
           date: string
           id?: string
+          mark_source?: string | null
           marked_by?: string | null
           remarks?: string | null
           status: string
@@ -239,6 +241,7 @@ export type Database = {
           created_at?: string
           date?: string
           id?: string
+          mark_source?: string | null
           marked_by?: string | null
           remarks?: string | null
           status?: string
@@ -419,11 +422,127 @@ export type Database = {
           },
         ]
       }
+      expense_heads: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      expenses: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          date: string
+          description: string | null
+          expense_head_id: string
+          id: string
+          paid_to: string | null
+          receipt_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description?: string | null
+          expense_head_id: string
+          id?: string
+          paid_to?: string | null
+          receipt_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description?: string | null
+          expense_head_id?: string
+          id?: string
+          paid_to?: string | null
+          receipt_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_expense_head_id_fkey"
+            columns: ["expense_head_id"]
+            isOneToOne: false
+            referencedRelation: "expense_heads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      families: {
+        Row: {
+          billing_address: string | null
+          created_at: string
+          email: string | null
+          family_code: string
+          id: string
+          phone: string | null
+          primary_parent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          billing_address?: string | null
+          created_at?: string
+          email?: string | null
+          family_code: string
+          id?: string
+          phone?: string | null
+          primary_parent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          billing_address?: string | null
+          created_at?: string
+          email?: string | null
+          family_code?: string
+          id?: string
+          phone?: string | null
+          primary_parent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "families_primary_parent_id_fkey"
+            columns: ["primary_parent_id"]
+            isOneToOne: false
+            referencedRelation: "parents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fee_payments: {
         Row: {
           amount: number
           created_at: string
           id: string
+          is_offtime_receipt: boolean | null
           payment_date: string
           payment_method: string
           receipt_number: string | null
@@ -436,6 +555,7 @@ export type Database = {
           amount: number
           created_at?: string
           id?: string
+          is_offtime_receipt?: boolean | null
           payment_date?: string
           payment_method?: string
           receipt_number?: string | null
@@ -448,6 +568,7 @@ export type Database = {
           amount?: number
           created_at?: string
           id?: string
+          is_offtime_receipt?: boolean | null
           payment_date?: string
           payment_method?: string
           receipt_number?: string | null
@@ -526,6 +647,41 @@ export type Database = {
           },
         ]
       }
+      fingerprint_templates: {
+        Row: {
+          created_at: string
+          finger_index: number | null
+          id: string
+          student_id: string
+          template_data: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          finger_index?: number | null
+          id?: string
+          student_id: string
+          template_data: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          finger_index?: number | null
+          id?: string
+          student_id?: string
+          template_data?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fingerprint_templates_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gallery: {
         Row: {
           created_at: string
@@ -558,6 +714,56 @@ export type Database = {
           uploaded_by?: string | null
         }
         Relationships: []
+      }
+      grading_schemes: {
+        Row: {
+          academic_year_id: string | null
+          created_at: string
+          grade: string
+          grade_point: number | null
+          id: string
+          is_default: boolean | null
+          max_percentage: number
+          min_percentage: number
+          name: string
+          remarks: string | null
+          updated_at: string
+        }
+        Insert: {
+          academic_year_id?: string | null
+          created_at?: string
+          grade: string
+          grade_point?: number | null
+          id?: string
+          is_default?: boolean | null
+          max_percentage: number
+          min_percentage: number
+          name: string
+          remarks?: string | null
+          updated_at?: string
+        }
+        Update: {
+          academic_year_id?: string | null
+          created_at?: string
+          grade?: string
+          grade_point?: number | null
+          id?: string
+          is_default?: boolean | null
+          max_percentage?: number
+          min_percentage?: number
+          name?: string
+          remarks?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grading_schemes_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -714,6 +920,9 @@ export type Database = {
           id: string
           is_published: boolean | null
           marks_obtained: number
+          position_in_class: number | null
+          position_in_school: number | null
+          position_in_section: number | null
           remarks: string | null
           student_id: string
           updated_at: string
@@ -725,6 +934,9 @@ export type Database = {
           id?: string
           is_published?: boolean | null
           marks_obtained: number
+          position_in_class?: number | null
+          position_in_school?: number | null
+          position_in_section?: number | null
           remarks?: string | null
           student_id: string
           updated_at?: string
@@ -736,6 +948,9 @@ export type Database = {
           id?: string
           is_published?: boolean | null
           marks_obtained?: number
+          position_in_class?: number | null
+          position_in_school?: number | null
+          position_in_section?: number | null
           remarks?: string | null
           student_id?: string
           updated_at?: string
@@ -750,6 +965,101 @@ export type Database = {
           },
           {
             foreignKeyName: "results_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_leaving_certificates: {
+        Row: {
+          certificate_number: string
+          character_remarks: string | null
+          conduct: string | null
+          created_at: string
+          id: string
+          issue_date: string
+          issued_by: string | null
+          last_class_attended: string | null
+          last_exam_passed: string | null
+          leaving_date: string
+          reason: string
+          remarks: string | null
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          certificate_number: string
+          character_remarks?: string | null
+          conduct?: string | null
+          created_at?: string
+          id?: string
+          issue_date?: string
+          issued_by?: string | null
+          last_class_attended?: string | null
+          last_exam_passed?: string | null
+          leaving_date: string
+          reason: string
+          remarks?: string | null
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          certificate_number?: string
+          character_remarks?: string | null
+          conduct?: string | null
+          created_at?: string
+          id?: string
+          issue_date?: string
+          issued_by?: string | null
+          last_class_attended?: string | null
+          last_exam_passed?: string | null
+          leaving_date?: string
+          reason?: string
+          remarks?: string | null
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_leaving_certificates_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_families: {
+        Row: {
+          created_at: string
+          family_id: string
+          id: string
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          family_id: string
+          id?: string
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          family_id?: string
+          id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_families_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_families_student_id_fkey"
             columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "students"
@@ -862,6 +1172,7 @@ export type Database = {
           father_email: string | null
           father_name: string | null
           father_phone: string | null
+          gr_number: string | null
           guardian_occupation: string | null
           id: string
           mother_name: string | null
@@ -884,6 +1195,7 @@ export type Database = {
           father_email?: string | null
           father_name?: string | null
           father_phone?: string | null
+          gr_number?: string | null
           guardian_occupation?: string | null
           id?: string
           mother_name?: string | null
@@ -906,6 +1218,7 @@ export type Database = {
           father_email?: string | null
           father_name?: string | null
           father_phone?: string | null
+          gr_number?: string | null
           guardian_occupation?: string | null
           id?: string
           mother_name?: string | null
