@@ -61,15 +61,18 @@ serve(async (req) => {
       });
     }
 
-    const body: CreateUserRequest = await req.json();
-    const { email, password, fullName, phone, role, roleSpecificData } = body;
+  const body: CreateUserRequest = await req.json();
+  const { email, fullName, phone, role, roleSpecificData } = body;
+  
+  // Default password is 123456 for students and parents
+  const password = body.password || "123456";
 
-    if (!password || !fullName || !role) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+  if (!fullName || !role) {
+    return new Response(JSON.stringify({ error: "Missing required fields" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
     // For students, use student ID-based email format
     // For parents, use CNIC-based email format

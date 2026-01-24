@@ -215,43 +215,9 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
   doc.setFont("helvetica", "normal");
   doc.text(data.previousSchool || "-", leftMargin + 35, yPos);
 
-  yPos += 20;
+  yPos += 10;
 
-  // Login Credentials Section
-  doc.setFillColor(220, 235, 255);
-  doc.roundedRect(leftMargin, yPos, pageWidth - leftMargin * 2, 32, 3, 3, "F");
-  doc.setDrawColor(...primaryColor);
-  doc.setLineWidth(1.5);
-  doc.roundedRect(leftMargin, yPos, pageWidth - leftMargin * 2, 32, 3, 3, "S");
-  
-  // ID icon
-  doc.setFillColor(...primaryColor);
-  doc.circle(leftMargin + 12, yPos + 16, 8, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "bold");
-  doc.text("ID", leftMargin + 12, yPos + 18, { align: "center" });
-  
-  doc.setTextColor(...primaryColor);
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("STUDENT LOGIN CREDENTIALS", leftMargin + 25, yPos + 10);
-  
-  doc.setTextColor(...darkColor);
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.text("Student ID (Username):", leftMargin + 25, yPos + 20);
-  doc.setFont("helvetica", "normal");
-  doc.text(data.studentId, leftMargin + 75, yPos + 20);
-  
-  doc.setFont("helvetica", "bold");
-  doc.text("Password:", leftMargin + 25, yPos + 28);
-  doc.setFont("helvetica", "normal");
-  doc.text("(As provided during registration)", leftMargin + 52, yPos + 28);
-
-  yPos += 42;
-
-  // Documents Checklist with actual checkboxes
+  // Documents Checklist with actual checkboxes - Moved up before signatures
   doc.setFillColor(...lightGray);
   doc.roundedRect(leftMargin, yPos, pageWidth - leftMargin * 2, 10, 2, 2, "F");
   doc.setTextColor(...primaryColor);
@@ -295,8 +261,13 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
     doc.text(item.label, xPos + 6, yPosition);
   });
 
-  // Footer signatures - clean design without circles
-  const footerY = doc.internal.pageSize.getHeight() - 35;
+  // Calculate yPos after documents
+  const docRows = Math.ceil(documents.length / 2);
+  yPos += docRows * 8 + 10;
+
+  // Footer signatures - positioned with proper spacing
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const footerY = Math.min(yPos + 25, pageHeight - 45);
   
   doc.setLineWidth(0.5);
   doc.setDrawColor(...grayColor);
@@ -315,7 +286,7 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
     doc.text(sigLabels[i], x, footerY + 5);
   });
 
-  // Apply styled footer
+  // Apply styled footer with proper page number position
   drawStyledFooter(doc, 1, 1, data.schoolAddress || "Madyan Swat, Pakistan");
 
   return doc;
