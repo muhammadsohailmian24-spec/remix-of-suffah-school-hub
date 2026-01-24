@@ -267,10 +267,10 @@ const AdminClasses = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>School Section</Label>
-                  <Select value={formData.school_section_id} onValueChange={(v) => setFormData(p => ({ ...p, school_section_id: v }))}>
+                  <Select value={formData.school_section_id || "none"} onValueChange={(v) => setFormData(p => ({ ...p, school_section_id: v === "none" ? "" : v }))}>
                     <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {schoolSections.map((section) => (
                         <SelectItem key={section.id} value={section.id}>{section.name}</SelectItem>
                       ))}
