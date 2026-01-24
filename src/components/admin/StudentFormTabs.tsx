@@ -56,6 +56,7 @@ export interface StudentFormData {
   father_occupation: string;
   father_cnic: string;
   father_phone: string;
+  father_email: string;
   blood_group: string;
   health_notes: string;
   house_id: string;
@@ -427,10 +428,20 @@ const StudentFormTabs = ({
               />
             </div>
             <div className="space-y-2">
+              <Label>Father Email</Label>
+              <Input
+                type="email"
+                value={formData.father_email}
+                onChange={(e) => updateField("father_email", e.target.value)}
+                placeholder="father@email.com"
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Blood Group</Label>
-              <Select value={formData.blood_group} onValueChange={(v) => updateField("blood_group", v)}>
+              <Select value={formData.blood_group || "none"} onValueChange={(v) => updateField("blood_group", v === "none" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">N/A</SelectItem>
                   <SelectItem value="A+">A+</SelectItem>
                   <SelectItem value="A-">A-</SelectItem>
                   <SelectItem value="B+">B+</SelectItem>

@@ -247,7 +247,7 @@ const AdminClasses = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Section</Label>
+                  <Label>Class Section (A, B, C)</Label>
                   <Input
                     placeholder="e.g., A, B, C"
                     value={formData.section}
@@ -259,9 +259,15 @@ const AdminClasses = () => {
                   <Select value={formData.grade_level} onValueChange={(v) => setFormData(p => ({ ...p, grade_level: v }))}>
                     <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="-3">Playgroup</SelectItem>
+                      <SelectItem value="-2">Nursery</SelectItem>
+                      <SelectItem value="-1">KG</SelectItem>
                       {[...Array(12)].map((_, i) => (
                         <SelectItem key={i + 1} value={String(i + 1)}>Grade {i + 1}</SelectItem>
                       ))}
+                      <SelectItem value="13">DIT</SelectItem>
+                      <SelectItem value="14">CIT</SelectItem>
+                      <SelectItem value="15">Special Class</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -349,7 +355,7 @@ const AdminClasses = () => {
                     <TableCell className="font-medium">{cls.name}</TableCell>
                     <TableCell>{cls.section || "-"}</TableCell>
                     <TableCell>{cls.school_section_name || "-"}</TableCell>
-                    <TableCell>Grade {cls.grade_level}</TableCell>
+                    <TableCell>{cls.grade_level === -3 ? "Playgroup" : cls.grade_level === -2 ? "Nursery" : cls.grade_level === -1 ? "KG" : cls.grade_level === 13 ? "DIT" : cls.grade_level === 14 ? "CIT" : cls.grade_level === 15 ? "Special" : `Grade ${cls.grade_level}`}</TableCell>
                     <TableCell>{cls.room_number || "-"}</TableCell>
                     <TableCell>{cls.capacity}</TableCell>
                     <TableCell className="text-right">

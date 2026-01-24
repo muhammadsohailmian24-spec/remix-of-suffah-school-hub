@@ -20,6 +20,14 @@ export interface AdmissionFormData {
   photoUrl?: string;
   schoolName?: string;
   schoolAddress?: string;
+  // Document checkboxes
+  documents?: {
+    birthCertificate?: boolean;
+    leavingCertificate?: boolean;
+    fatherCnic?: boolean;
+    photos?: boolean;
+    medicalCertificate?: boolean;
+  };
 }
 
 export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
@@ -30,19 +38,13 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
   // Add watermark
   await addWatermark(doc);
 
-  // Header
+  // Header - clean design without decorative circles
   doc.setFillColor(...primaryColor);
   doc.rect(0, 0, pageWidth, 42, "F");
   
   // Gold accent stripe
   doc.setFillColor(...goldColor);
   doc.rect(0, 42, pageWidth, 3, "F");
-  
-  // Decorative circles in header
-  doc.setFillColor(255, 255, 255);
-  doc.circle(pageWidth - 20, 12, 25, 'F');
-  doc.circle(pageWidth - 45, -5, 18, 'F');
-  doc.circle(20, 35, 12, 'F');
 
   // Circular logo with gold ring
   if (logoImg) {
@@ -73,7 +75,7 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
   doc.setFont("helvetica", "bold");
   doc.text("ADMISSION FORM", pageWidth / 2 + 12, 35, { align: "center" });
 
-  // Photo box (right side) - circular design
+  // Photo box (right side - positioned to not overlap text)
   const photoX = pageWidth - 50;
   const photoY = 52;
   const photoWidth = 35;
@@ -114,9 +116,10 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
   const leftMargin = 15;
   let yPos = 52;
 
-  // Student Information Section
+  // Student Information Section - width reduced to not overlap with photo
+  const sectionWidth = pageWidth - leftMargin * 2 - 50;
   doc.setFillColor(...lightGray);
-  doc.roundedRect(leftMargin, yPos, pageWidth - leftMargin * 2 - 50, 10, 2, 2, "F");
+  doc.roundedRect(leftMargin, yPos, sectionWidth, 10, 2, 2, "F");
   doc.setTextColor(...primaryColor);
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
@@ -126,9 +129,14 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
   doc.setTextColor(...darkColor);
   doc.setFontSize(10);
 
+  // Format gender properly
+  const formattedGender = data.gender ? 
+    (data.gender.charAt(0).toUpperCase() + data.gender.slice(1).toLowerCase()) : 
+    "-";
+
   const studentInfo = [
     ["Student Name:", data.studentName, "Student ID:", data.studentId],
-    ["Date of Birth:", data.dateOfBirth, "Gender:", data.gender || "-"],
+    ["Date of Birth:", data.dateOfBirth, "Gender:", formattedGender],
     ["Phone:", data.phone || "-", "Admission Date:", data.admissionDate],
     ["Class:", data.className ? `${data.className}${data.section ? ` - ${data.section}` : ""}` : "Not Assigned", "", ""],
   ];
@@ -140,9 +148,9 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
     doc.text(row[1], leftMargin + 35, yPos);
     if (row[2]) {
       doc.setFont("helvetica", "bold");
-      doc.text(row[2], leftMargin + 90, yPos);
+      doc.text(row[2], leftMargin + 85, yPos);
       doc.setFont("helvetica", "normal");
-      doc.text(row[3], leftMargin + 125, yPos);
+      doc.text(row[3], leftMargin + 120, yPos);
     }
     yPos += 7;
   });
@@ -209,14 +217,14 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
 
   yPos += 20;
 
-  // Login Credentials Section with circular accent
+  // Login Credentials Section
   doc.setFillColor(220, 235, 255);
   doc.roundedRect(leftMargin, yPos, pageWidth - leftMargin * 2, 32, 3, 3, "F");
   doc.setDrawColor(...primaryColor);
   doc.setLineWidth(1.5);
   doc.roundedRect(leftMargin, yPos, pageWidth - leftMargin * 2, 32, 3, 3, "S");
   
-  // Circular icon
+  // ID icon
   doc.setFillColor(...primaryColor);
   doc.circle(leftMargin + 12, yPos + 16, 8, 'F');
   doc.setTextColor(255, 255, 255);
@@ -243,7 +251,7 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
 
   yPos += 42;
 
-  // Documents Checklist
+  // Documents Checklist with actual checkboxes
   doc.setFillColor(...lightGray);
   doc.roundedRect(leftMargin, yPos, pageWidth - leftMargin * 2, 10, 2, 2, "F");
   doc.setTextColor(...primaryColor);
@@ -256,37 +264,51 @@ export const generateAdmissionFormPdf = async (data: AdmissionFormData) => {
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
 
+  const docs = data.documents || {};
   const documents = [
-    "□ Birth Certificate (Original & Copy)",
-    "□ Previous School Leaving Certificate",
-    "□ Father's CNIC Copy",
-    "□ Passport Size Photos (4 copies)",
-    "□ Medical Certificate",
+    { label: "Birth Certificate (Original & Copy)", checked: docs.birthCertificate },
+    { label: "Previous School Leaving Certificate", checked: docs.leavingCertificate },
+    { label: "Father's CNIC Copy", checked: docs.fatherCnic },
+    { label: "Passport Size Photos (4 copies)", checked: docs.photos },
+    { label: "Medical Certificate", checked: docs.medicalCertificate },
   ];
 
   documents.forEach((item, index) => {
     const col = index % 2;
     const row = Math.floor(index / 2);
-    doc.text(item, leftMargin + col * 90, yPos + row * 6);
+    const xPos = leftMargin + col * 90;
+    const yPosition = yPos + row * 8;
+    
+    // Draw checkbox
+    doc.setDrawColor(...grayColor);
+    doc.setLineWidth(0.5);
+    doc.rect(xPos, yPosition - 3.5, 4, 4);
+    
+    // If checked, draw checkmark
+    if (item.checked) {
+      doc.setDrawColor(...primaryColor);
+      doc.setLineWidth(0.8);
+      doc.line(xPos + 0.8, yPosition - 1.5, xPos + 1.8, yPosition - 0.5);
+      doc.line(xPos + 1.8, yPosition - 0.5, xPos + 3.5, yPosition - 3);
+    }
+    
+    doc.text(item.label, xPos + 6, yPosition);
   });
 
-  // Footer signatures
+  // Footer signatures - clean design without circles
   const footerY = doc.internal.pageSize.getHeight() - 35;
   
   doc.setLineWidth(0.5);
   doc.setDrawColor(...grayColor);
   
-  // Three signature lines with circular markers
+  // Three signature lines
   const sigWidth = 50;
   const gap = (pageWidth - 2 * leftMargin - 3 * sigWidth) / 2;
   
-  // Signature line markers
   const sigPositions = [leftMargin, leftMargin + sigWidth + gap, leftMargin + 2 * sigWidth + 2 * gap];
   const sigLabels = ["Parent/Guardian Signature", "Admission Officer", "Principal"];
   
   sigPositions.forEach((x, i) => {
-    doc.setFillColor(...primaryColor);
-    doc.circle(x + sigWidth / 2, footerY - 5, 3, 'F');
     doc.line(x, footerY, x + sigWidth, footerY);
     doc.setFontSize(8);
     doc.setTextColor(...darkColor);
