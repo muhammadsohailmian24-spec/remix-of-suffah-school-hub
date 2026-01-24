@@ -77,7 +77,7 @@ const Certificates = () => {
   const fetchStudents = async () => {
     setLoading(true);
     
-    // First get students
+    // Fetch students with explicit FK hint to disambiguate from admission_class_id
     const { data: studentsData, error: studentsError } = await supabase
       .from("students")
       .select(`
@@ -85,8 +85,7 @@ const Certificates = () => {
         student_id,
         class_id,
         user_id,
-        father_name,
-        classes(name, section)
+        father_name
       `)
       .eq("class_id", selectedClass)
       .eq("status", "active")
@@ -97,6 +96,13 @@ const Certificates = () => {
       setLoading(false);
       return;
     }
+
+    // Fetch class info separately
+    const { data: classData } = await supabase
+      .from("classes")
+      .select("id, name, section")
+      .eq("id", selectedClass)
+      .single();
 
     // Then get profiles for those students
     const userIds = studentsData?.map(s => s.user_id) || [];
@@ -114,7 +120,8 @@ const Certificates = () => {
     // Merge the data
     const mergedStudents = studentsData.map(student => ({
       ...student,
-      profiles: profilesData?.find(p => p.user_id === student.user_id) || null
+      profiles: profilesData?.find(p => p.user_id === student.user_id) || null,
+      classes: classData || null
     })) as Student[];
 
     setStudents(mergedStudents);

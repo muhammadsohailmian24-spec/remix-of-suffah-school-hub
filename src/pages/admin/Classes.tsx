@@ -8,10 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, School } from "lucide-react";
+import { Search, Plus, School, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
 import ClassActionsDropdown from "@/components/admin/ClassActionsDropdown";
+import SchoolSectionsDialog from "@/components/admin/SchoolSectionsDialog";
 
 interface ClassItem {
   id: string;
@@ -20,15 +21,24 @@ interface ClassItem {
   grade_level: number;
   room_number: string | null;
   capacity: number;
+  school_section_id: string | null;
+  school_section_name?: string;
+}
+
+interface SchoolSection {
+  id: string;
+  name: string;
 }
 
 const AdminClasses = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [classes, setClasses] = useState<ClassItem[]>([]);
+  const [schoolSections, setSchoolSections] = useState<SchoolSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [sectionsDialogOpen, setSectionsDialogOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
   
   const [formData, setFormData] = useState({
@@ -37,6 +47,7 @@ const AdminClasses = () => {
     grade_level: "",
     room_number: "",
     capacity: "40",
+    school_section_id: "",
   });
 
   useEffect(() => {
@@ -63,16 +74,47 @@ const AdminClasses = () => {
     }
 
     fetchClasses();
+    fetchSchoolSections();
+  };
+
+  const fetchSchoolSections = async () => {
+    const { data } = await supabase
+      .from("school_sections")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name");
+    
+    if (data) setSchoolSections(data);
   };
 
   const fetchClasses = async () => {
     const { data, error } = await supabase
       .from("classes")
-      .select("*")
+      .select("id, name, section, grade_level, room_number, capacity, school_section_id")
       .order("grade_level", { ascending: true });
 
     if (!error && data) {
-      setClasses(data as ClassItem[]);
+      // Fetch school section names
+      const sectionIds = [...new Set(data.map(c => c.school_section_id).filter(Boolean))];
+      let sectionsMap: Record<string, string> = {};
+      
+      if (sectionIds.length > 0) {
+        const { data: sectionsData } = await supabase
+          .from("school_sections")
+          .select("id, name")
+          .in("id", sectionIds);
+        
+        if (sectionsData) {
+          sectionsMap = Object.fromEntries(sectionsData.map(s => [s.id, s.name]));
+        }
+      }
+      
+      const classesWithSections = data.map(c => ({
+        ...c,
+        school_section_name: c.school_section_id ? sectionsMap[c.school_section_id] : undefined
+      }));
+      
+      setClasses(classesWithSections as ClassItem[]);
     }
     setLoading(false);
   };
@@ -86,6 +128,7 @@ const AdminClasses = () => {
       grade_level: parseInt(formData.grade_level),
       room_number: formData.room_number || null,
       capacity: parseInt(formData.capacity),
+      school_section_id: formData.school_section_id || null,
     };
 
     if (editingClass) {
@@ -141,6 +184,7 @@ const AdminClasses = () => {
       grade_level: String(cls.grade_level),
       room_number: cls.room_number || "",
       capacity: String(cls.capacity),
+      school_section_id: cls.school_section_id || "",
     });
     setIsDialogOpen(true);
   };
@@ -152,6 +196,7 @@ const AdminClasses = () => {
       grade_level: "",
       room_number: "",
       capacity: "40",
+      school_section_id: "",
     });
   };
 
@@ -160,8 +205,17 @@ const AdminClasses = () => {
   );
 
   return (
+    <>
     <AdminLayout title="Classes" description="Manage school classes and sections">
-      <div className="flex justify-end mb-6">
+      <div className="flex justify-between gap-4 mb-6">
+        <Button 
+          variant="outline" 
+          onClick={() => setSectionsDialogOpen(true)}
+          className="gap-2"
+        >
+          <Building2 className="w-4 h-4" /> Manage School Sections
+        </Button>
+        
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) {
@@ -212,6 +266,18 @@ const AdminClasses = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>School Section</Label>
+                  <Select value={formData.school_section_id} onValueChange={(v) => setFormData(p => ({ ...p, school_section_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {schoolSections.map((section) => (
+                        <SelectItem key={section.id} value={section.id}>{section.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label>Room Number</Label>
                   <Input
                     placeholder="e.g., 101"
@@ -219,7 +285,7 @@ const AdminClasses = () => {
                     onChange={(e) => setFormData(p => ({ ...p, room_number: e.target.value }))}
                   />
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2">
                   <Label>Capacity</Label>
                   <Input
                     type="number"
@@ -270,6 +336,7 @@ const AdminClasses = () => {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Section</TableHead>
+                  <TableHead>School Section</TableHead>
                   <TableHead>Grade</TableHead>
                   <TableHead>Room</TableHead>
                   <TableHead>Capacity</TableHead>
@@ -281,6 +348,7 @@ const AdminClasses = () => {
                   <TableRow key={cls.id}>
                     <TableCell className="font-medium">{cls.name}</TableCell>
                     <TableCell>{cls.section || "-"}</TableCell>
+                    <TableCell>{cls.school_section_name || "-"}</TableCell>
                     <TableCell>Grade {cls.grade_level}</TableCell>
                     <TableCell>{cls.room_number || "-"}</TableCell>
                     <TableCell>{cls.capacity}</TableCell>
@@ -297,8 +365,15 @@ const AdminClasses = () => {
             </Table>
           )}
         </CardContent>
-      </Card>
-    </AdminLayout>
+        </Card>
+      </AdminLayout>
+
+      <SchoolSectionsDialog 
+        open={sectionsDialogOpen} 
+        onOpenChange={setSectionsDialogOpen}
+        onSectionsChange={fetchSchoolSections}
+      />
+    </>
   );
 };
 
