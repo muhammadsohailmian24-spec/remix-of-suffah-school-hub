@@ -63,7 +63,9 @@ const StaffLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
 
   useEffect(() => {
     // Simulate initial load
@@ -124,6 +126,49 @@ const StaffLogin = () => {
       toast({
         title: "Sign in failed",
         description: error.message || "Please check your credentials and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStaffSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: { full_name: fullName }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // Add admin role
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({ user_id: data.user.id, role: "admin" });
+
+        if (roleError) {
+          console.error("Role assignment error:", roleError);
+        }
+
+        toast({
+          title: "Account created!",
+          description: "You can now sign in with your credentials.",
+        });
+        setIsSignUp(false);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Sign up failed",
+        description: error.message || "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -451,7 +496,9 @@ const StaffLogin = () => {
                   transition={{ duration: 0.5, delay: 0.6 }}
                   className="flex items-center gap-2"
                 >
-                  <CardTitle className="font-heading text-2xl">Staff Login</CardTitle>
+                  <CardTitle className="font-heading text-2xl">
+                    {isSignUp ? "Create Admin Account" : "Staff Login"}
+                  </CardTitle>
                   <motion.div
                     animate={{ rotate: [0, 10, 0] }}
                     transition={{ duration: 2, repeat: Infinity }}
@@ -464,7 +511,11 @@ const StaffLogin = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.7 }}
                 >
-                  <CardDescription>Sign in with your staff email and password</CardDescription>
+                  <CardDescription>
+                    {isSignUp 
+                      ? "Create the first admin account for this system" 
+                      : "Sign in with your staff email and password"}
+                  </CardDescription>
                 </motion.div>
               </CardHeader>
               
@@ -473,9 +524,29 @@ const StaffLogin = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.8 }}
-                  onSubmit={handleStaffSignIn}
+                  onSubmit={isSignUp ? handleStaffSignUp : handleStaffSignIn}
                   className="space-y-4"
                 >
+                  {isSignUp && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.85, ease: easeOutExpo }}
+                      className="space-y-2"
+                    >
+                      <Label htmlFor="fullname">Full Name</Label>
+                      <Input
+                        id="fullname"
+                        type="text"
+                        placeholder="Your full name"
+                        className="transition-all duration-300 focus:shadow-lg focus:shadow-primary/20 focus:scale-[1.02]"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        required
+                      />
+                    </motion.div>
+                  )}
+                  
                   <motion.div 
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -524,25 +595,28 @@ const StaffLogin = () => {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
+                        minLength={6}
                       />
                     </div>
                   </motion.div>
                   
-                  <motion.div 
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 1.1, ease: easeOutExpo }}
-                    className="flex items-center space-x-2"
-                  >
-                    <Checkbox 
-                      id="staff-remember" 
-                      checked={rememberMe}
-                      onCheckedChange={(checked) => setRememberMe(checked === true)}
-                    />
-                    <Label htmlFor="staff-remember" className="text-sm font-normal cursor-pointer">
-                      Remember me
-                    </Label>
-                  </motion.div>
+                  {!isSignUp && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 1.1, ease: easeOutExpo }}
+                      className="flex items-center space-x-2"
+                    >
+                      <Checkbox 
+                        id="staff-remember" 
+                        checked={rememberMe}
+                        onCheckedChange={(checked) => setRememberMe(checked === true)}
+                      />
+                      <Label htmlFor="staff-remember" className="text-sm font-normal cursor-pointer">
+                        Remember me
+                      </Label>
+                    </motion.div>
+                  )}
                   
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -559,7 +633,9 @@ const StaffLogin = () => {
                         disabled={isLoading}
                       >
                         <span className="relative z-10">
-                          {isLoading ? "Signing in..." : "Sign In"}
+                          {isLoading 
+                            ? (isSignUp ? "Creating account..." : "Signing in...") 
+                            : (isSignUp ? "Create Admin Account" : "Sign In")}
                         </span>
                         <motion.div
                           className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
@@ -582,6 +658,13 @@ const StaffLogin = () => {
                   transition={{ delay: 1.4 }}
                   className="mt-6 pt-6 border-t text-center space-y-3"
                 >
+                  <button
+                    type="button"
+                    onClick={() => setIsSignUp(!isSignUp)}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    {isSignUp ? "Already have an account? Sign in" : "First time? Create admin account"}
+                  </button>
                   <p className="text-sm text-muted-foreground">
                     This login is for teachers and administrators only.
                   </p>
