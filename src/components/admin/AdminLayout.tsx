@@ -23,30 +23,14 @@ interface AdminLayoutProps {
   description?: string;
 }
 
-// Sidebar navigation items - Legacy VB6-style modules
+// Sidebar navigation items - Legacy VB6-style modules (simplified)
 const sidebarItems = [
-  // Core
   { icon: LayoutDashboard, label: "Dashboard", link: "/admin/dashboard" },
-  
-  // Student Management (Primary module)
   { icon: Users, label: "Students", link: "/admin/students" },
-  
-  // Class & Section (Simple reference data)
   { icon: School, label: "Classes", link: "/admin/classes" },
-  
-  // Fees Module (MOST IMPORTANT)
-  { icon: CreditCard, label: "Fees", link: "/admin/fees" },
-  
-  // Examination Module (Simple marks entry)
-  { icon: FileText, label: "Examinations", link: "/admin/exams" },
-  
-  // Certificates Module
-  { icon: ClipboardList, label: "Certificates", link: "/admin/certificates" },
-  
-  // Reports Module (Read-only, fee-based primary)
-  { icon: BarChart3, label: "Reports", link: "/admin/reports" },
-  
-  // Administrator Module
+  { icon: Calendar, label: "Sessions", link: "/admin/sessions" },
+  { icon: Image, label: "Gallery", link: "/admin/gallery" },
+  { icon: Clock, label: "Timetable", link: "/admin/timetable" },
   { icon: Shield, label: "Administrator", link: "/admin/settings" },
 ];
 

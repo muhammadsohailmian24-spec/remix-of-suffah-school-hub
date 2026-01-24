@@ -282,6 +282,7 @@ export type Database = {
           id: string
           name: string
           room_number: string | null
+          school_section_id: string | null
           section: string | null
           updated_at: string
         }
@@ -295,6 +296,7 @@ export type Database = {
           id?: string
           name: string
           room_number?: string | null
+          school_section_id?: string | null
           section?: string | null
           updated_at?: string
         }
@@ -308,6 +310,7 @@ export type Database = {
           id?: string
           name?: string
           room_number?: string | null
+          school_section_id?: string | null
           section?: string | null
           updated_at?: string
         }
@@ -324,6 +327,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classes_school_section_id_fkey"
+            columns: ["school_section_id"]
+            isOneToOne: false
+            referencedRelation: "school_sections"
             referencedColumns: ["id"]
           },
         ]
@@ -765,6 +775,33 @@ export type Database = {
           },
         ]
       }
+      houses: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -1031,6 +1068,33 @@ export type Database = {
           },
         ]
       }
+      school_sections: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       student_families: {
         Row: {
           created_at: string
@@ -1162,11 +1226,14 @@ export type Database = {
       }
       students: {
         Row: {
+          admission_class_id: string | null
           admission_date: string
           admission_number: string | null
           blood_group: string | null
           class_id: string | null
           created_at: string
+          created_by: string | null
+          domicile: string | null
           emergency_contact: string | null
           father_cnic: string | null
           father_email: string | null
@@ -1174,22 +1241,36 @@ export type Database = {
           father_phone: string | null
           gr_number: string | null
           guardian_occupation: string | null
+          health_notes: string | null
+          hostel_facility: boolean | null
+          house_id: string | null
           id: string
+          is_from_previous_school: boolean | null
           mother_name: string | null
           mother_phone: string | null
+          nationality: string | null
           previous_school: string | null
+          previous_school_admission_no: string | null
+          religion: string | null
+          roll_number: string | null
+          school_leaving_date: string | null
+          school_leaving_number: string | null
           school_section: string | null
           status: string | null
           student_id: string
+          transport_facility: boolean | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          admission_class_id?: string | null
           admission_date?: string
           admission_number?: string | null
           blood_group?: string | null
           class_id?: string | null
           created_at?: string
+          created_by?: string | null
+          domicile?: string | null
           emergency_contact?: string | null
           father_cnic?: string | null
           father_email?: string | null
@@ -1197,22 +1278,36 @@ export type Database = {
           father_phone?: string | null
           gr_number?: string | null
           guardian_occupation?: string | null
+          health_notes?: string | null
+          hostel_facility?: boolean | null
+          house_id?: string | null
           id?: string
+          is_from_previous_school?: boolean | null
           mother_name?: string | null
           mother_phone?: string | null
+          nationality?: string | null
           previous_school?: string | null
+          previous_school_admission_no?: string | null
+          religion?: string | null
+          roll_number?: string | null
+          school_leaving_date?: string | null
+          school_leaving_number?: string | null
           school_section?: string | null
           status?: string | null
           student_id: string
+          transport_facility?: boolean | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          admission_class_id?: string | null
           admission_date?: string
           admission_number?: string | null
           blood_group?: string | null
           class_id?: string | null
           created_at?: string
+          created_by?: string | null
+          domicile?: string | null
           emergency_contact?: string | null
           father_cnic?: string | null
           father_email?: string | null
@@ -1220,22 +1315,47 @@ export type Database = {
           father_phone?: string | null
           gr_number?: string | null
           guardian_occupation?: string | null
+          health_notes?: string | null
+          hostel_facility?: boolean | null
+          house_id?: string | null
           id?: string
+          is_from_previous_school?: boolean | null
           mother_name?: string | null
           mother_phone?: string | null
+          nationality?: string | null
           previous_school?: string | null
+          previous_school_admission_no?: string | null
+          religion?: string | null
+          roll_number?: string | null
+          school_leaving_date?: string | null
+          school_leaving_number?: string | null
           school_section?: string | null
           status?: string | null
           student_id?: string
+          transport_facility?: boolean | null
           updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
+            foreignKeyName: "students_admission_class_id_fkey"
+            columns: ["admission_class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "students_class_id_fkey"
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "students_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
             referencedColumns: ["id"]
           },
         ]

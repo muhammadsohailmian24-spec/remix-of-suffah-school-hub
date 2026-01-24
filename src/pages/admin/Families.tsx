@@ -114,15 +114,23 @@ const Families = () => {
   };
 
   const fetchStudents = async () => {
+    // Fetch students separately from classes to avoid FK ambiguity
     const { data, error } = await supabase
       .from("students")
-      .select("id, student_id, user_id, class_id, classes(name, section)")
+      .select("id, student_id, user_id, class_id")
       .eq("status", "active");
     
     if (error) {
       toast.error("Failed to load students");
       return;
     }
+
+    // Fetch all classes
+    const classIds = [...new Set((data || []).map(s => s.class_id).filter(Boolean))];
+    const { data: classesData } = await supabase
+      .from("classes")
+      .select("id, name, section")
+      .in("id", classIds);
 
     // Fetch profiles for students
     const studentsWithProfiles = await Promise.all((data || []).map(async (student) => {
@@ -132,10 +140,16 @@ const Families = () => {
         .eq("user_id", student.user_id)
         .single();
       
-      return { ...student, profiles: profile || { full_name: "Unknown" } };
+      const classInfo = classesData?.find(c => c.id === student.class_id);
+      
+      return { 
+        ...student, 
+        profiles: profile || { full_name: "Unknown" },
+        classes: classInfo ? { name: classInfo.name, section: classInfo.section || "" } : null
+      };
     }));
 
-    setStudents(studentsWithProfiles);
+    setStudents(studentsWithProfiles as Student[]);
   };
 
   const generateFamilyCode = () => {
