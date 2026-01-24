@@ -28,32 +28,15 @@ const sidebarItems = [
   // Core
   { icon: LayoutDashboard, label: "Dashboard", link: "/admin/dashboard" },
   
-  // People Management
-  { icon: Users, label: "Students", link: "/admin/students" },
-  { icon: UserCheck, label: "Teachers", link: "/admin/teachers" },
-  { icon: UserPlus, label: "Parents", link: "/admin/parents" },
-  
-  // Academic Setup
-  { icon: School, label: "Classes", link: "/admin/classes" },
-  { icon: BookOpen, label: "Subjects", link: "/admin/subjects" },
-  { icon: Clock, label: "Timetable", link: "/admin/timetable" },
-  
   // Daily Operations
+  { icon: Clock, label: "Timetable", link: "/admin/timetable" },
   { icon: CalendarCheck, label: "Attendance", link: "/admin/attendance" },
-  { icon: FileText, label: "Exams", link: "/admin/exams" },
-  { icon: BarChart3, label: "Results", link: "/admin/results" },
-  
-  // Financial
-  { icon: CreditCard, label: "Fee Management", link: "/admin/fees" },
-  { icon: TrendingUp, label: "Fee Analytics", link: "/admin/fee-analytics" },
   
   // Administrative
-  { icon: ClipboardList, label: "Admissions", link: "/admin/admissions" },
   { icon: Megaphone, label: "Announcements", link: "/admin/announcements" },
   { icon: Image, label: "Gallery", link: "/admin/gallery" },
   
   // Reports & Settings
-  { icon: Calendar, label: "Session Report", link: "/admin/session-report" },
   { icon: Shield, label: "Roles", link: "/admin/roles" },
   { icon: Settings, label: "Settings", link: "/admin/settings" },
 ];
