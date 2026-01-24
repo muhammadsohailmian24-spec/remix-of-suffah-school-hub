@@ -35,6 +35,7 @@ import SessionReport from "./pages/admin/SessionReport";
 import Expenses from "./pages/admin/Expenses";
 import Families from "./pages/admin/Families";
 import ReportsHub from "./pages/admin/ReportsHub";
+import Certificates from "./pages/admin/Certificates";
 import TeacherAttendance from "./pages/teacher/Attendance";
 import TeacherAssignments from "./pages/teacher/Assignments";
 import TeacherMaterials from "./pages/teacher/Materials";
@@ -102,6 +103,7 @@ const App = () => (
             <Route path="/admin/expenses" element={<Expenses />} />
             <Route path="/admin/families" element={<Families />} />
             <Route path="/admin/reports-hub" element={<ReportsHub />} />
+            <Route path="/admin/certificates" element={<Certificates />} />
             {/* Teacher Routes */}
             <Route path="/teacher/attendance" element={<TeacherAttendance />} />
             <Route path="/teacher/assignments" element={<TeacherAssignments />} />
