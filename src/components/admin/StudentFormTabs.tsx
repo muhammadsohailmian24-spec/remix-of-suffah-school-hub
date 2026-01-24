@@ -188,17 +188,7 @@ const StudentFormTabs = ({
                 )}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Password *</Label>
-              <Input
-                type="password"
-                value={formData.password}
-                onChange={(e) => updateField("password", e.target.value)}
-                placeholder="Min. 6 characters"
-                minLength={6}
-                required
-              />
-            </div>
+            {/* Password removed - default password 123456 is set automatically */}
             <div className="space-y-2 col-span-2">
               <Label>Student Name *</Label>
               <Input
@@ -428,16 +418,7 @@ const StudentFormTabs = ({
               />
             </div>
             <div className="space-y-2">
-              <Label>Father Email</Label>
-              <Input
-                type="email"
-                value={formData.father_email}
-                onChange={(e) => updateField("father_email", e.target.value)}
-                placeholder="father@email.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Blood Group</Label>
+              <Label>Student Blood Group</Label>
               <Select value={formData.blood_group || "none"} onValueChange={(v) => updateField("blood_group", v === "none" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
@@ -452,6 +433,15 @@ const StudentFormTabs = ({
                   <SelectItem value="O-">O-</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Father Email</Label>
+              <Input
+                type="email"
+                value={formData.father_email}
+                onChange={(e) => updateField("father_email", e.target.value)}
+                placeholder="father@email.com"
+              />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">

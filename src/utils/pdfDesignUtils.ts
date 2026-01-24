@@ -171,37 +171,24 @@ export const drawStyledFooter = (
   // Footer background line
   doc.setDrawColor(...grayColor);
   doc.setLineWidth(0.5);
-  doc.line(15, pageHeight - 22, pageWidth - 15, pageHeight - 22);
+  doc.line(15, pageHeight - 18, pageWidth - 15, pageHeight - 18);
   
-  // School address in footer
+  // School address in footer (left aligned)
   doc.setFontSize(8);
   doc.setTextColor(...grayColor);
-  doc.text(schoolAddress, 15, pageHeight - 16);
+  doc.text(schoolAddress, 15, pageHeight - 12);
   
-  // Circular page number badge
-  const badgeX = pageWidth / 2;
-  const badgeY = pageHeight - 14;
-  const badgeRadius = 8;
-  
-  doc.setFillColor(...primaryColor);
-  doc.circle(badgeX, badgeY, badgeRadius, 'F');
-  
-  // Gold ring around badge
-  doc.setDrawColor(...goldColor);
-  doc.setLineWidth(1);
-  doc.circle(badgeX, badgeY, badgeRadius + 1);
-  
-  // Page number text
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(8);
+  // Page number text (right side, simple text format)
+  doc.setTextColor(...primaryColor);
+  doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
-  doc.text(`${pageNumber}/${totalPages}`, badgeX, badgeY + 2.5, { align: "center" });
+  doc.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - 15, pageHeight - 12, { align: "right" });
   
-  // Generation date
+  // Generation date (centered at bottom)
   doc.setTextColor(...grayColor);
   doc.setFontSize(7);
   doc.setFont("helvetica", "normal");
-  doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth - 15, pageHeight - 16, { align: "right" });
+  doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 6, { align: "center" });
 };
 
 /**
