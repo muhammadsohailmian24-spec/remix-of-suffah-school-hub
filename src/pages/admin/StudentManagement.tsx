@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail, CreditCard } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { downloadAdmissionForm, AdmissionFormData, generateAdmissionFormPdf } from "@/utils/generateAdmissionFormPdf";
 import { downloadStudentCard, StudentCardData, generateStudentCardPdf } from "@/utils/generateStudentCardPdf";
 import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
+import StudentFormTabs, { StudentFormData } from "@/components/admin/StudentFormTabs";
 
 interface Student {
   id: string;
@@ -76,7 +76,6 @@ const StudentManagement = () => {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
   const [editPhotoPreview, setEditPhotoPreview] = useState<string | null>(null);
-  const addPhotoInputRef = useRef<HTMLInputElement>(null);
   const editPhotoInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -88,23 +87,40 @@ const StudentManagement = () => {
     status: "active",
   });
 
-  const [addFormData, setAddFormData] = useState({
-    full_name: "",
-    password: "",
-    phone: "",
+  const initialFormData: StudentFormData = {
     student_id: "",
-    class_id: "",
-    date_of_birth: "",
-    gender: "",
-    school_section: "Main",
+    full_name: "",
     father_name: "",
-    father_phone: "",
-    father_cnic: "",
-    father_email: "",
-    occupation: "",
     address: "",
+    date_of_birth: "",
+    admission_date: new Date().toISOString().split('T')[0],
+    admission_class_id: "",
+    current_session_id: "",
+    current_class_id: "",
+    school_section_id: "",
+    photo_url: null,
+    religion: "Islam",
+    nationality: "Pakistani",
+    gender: "",
+    father_occupation: "",
+    father_cnic: "",
+    father_phone: "",
+    blood_group: "",
+    health_notes: "",
+    house_id: "",
+    domicile: "",
+    hostel_facility: false,
+    transport_facility: false,
+    is_from_previous_school: false,
     previous_school: "",
-  });
+    previous_school_admission_no: "",
+    school_leaving_number: "",
+    school_leaving_date: "",
+    password: "",
+  };
+
+  const [addFormData, setAddFormData] = useState<StudentFormData>(initialFormData);
+  const [adminName, setAdminName] = useState("");
 
   const [lastCreatedStudent, setLastCreatedStudent] = useState<AdmissionFormData | null>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -135,8 +151,20 @@ const StudentManagement = () => {
       return; 
     }
 
-    await Promise.all([fetchStudents(), fetchClasses(), fetchLastStudentId()]);
+    await Promise.all([fetchStudents(), fetchClasses(), fetchLastStudentId(), fetchAdminName()]);
     setLoading(false);
+  };
+
+  const fetchAdminName = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (data?.full_name) setAdminName(data.full_name);
+    }
   };
 
   const fetchStudents = async () => {
@@ -231,11 +259,11 @@ const StudentManagement = () => {
         body: {
           password: addFormData.password,
           fullName: addFormData.full_name,
-          phone: addFormData.phone || undefined,
+          phone: addFormData.father_phone || undefined,
           role: "student",
           roleSpecificData: {
             student_id: addFormData.student_id || undefined,
-            class_id: addFormData.class_id && addFormData.class_id !== "none" ? addFormData.class_id : null,
+            class_id: addFormData.current_class_id && addFormData.current_class_id !== "none" ? addFormData.current_class_id : null,
           },
         },
       });
@@ -273,7 +301,7 @@ const StudentManagement = () => {
           .eq("user_id", studentUserId);
       }
 
-      // Update student record with parent info and previous_school (stored in students table, no parent account)
+      // Update student record with all new fields
       if (studentUserId) {
         const { data: studentRecord } = await supabase
           .from("students")
@@ -282,9 +310,22 @@ const StudentManagement = () => {
             father_name: addFormData.father_name || null,
             father_phone: addFormData.father_phone || null,
             father_cnic: addFormData.father_cnic || null,
-            father_email: addFormData.father_email || null,
-            guardian_occupation: addFormData.occupation || null,
-            school_section: addFormData.school_section || "Main",
+            guardian_occupation: addFormData.father_occupation || null,
+            school_section: addFormData.school_section_id || null,
+            religion: addFormData.religion || null,
+            nationality: addFormData.nationality || null,
+            blood_group: addFormData.blood_group || null,
+            health_notes: addFormData.health_notes || null,
+            house_id: addFormData.house_id && addFormData.house_id !== "none" ? addFormData.house_id : null,
+            domicile: addFormData.domicile || null,
+            hostel_facility: addFormData.hostel_facility,
+            transport_facility: addFormData.transport_facility,
+            admission_class_id: addFormData.admission_class_id && addFormData.admission_class_id !== "none" ? addFormData.admission_class_id : null,
+            is_from_previous_school: addFormData.is_from_previous_school,
+            previous_school_admission_no: addFormData.previous_school_admission_no || null,
+            school_leaving_number: addFormData.school_leaving_number || null,
+            school_leaving_date: addFormData.school_leaving_date || null,
+            admission_date: addFormData.admission_date || new Date().toISOString().split('T')[0],
           } as never)
           .eq("user_id", studentUserId)
           .select("id")
@@ -322,8 +363,8 @@ const StudentManagement = () => {
       // Get class info for admission form
       let className = "";
       let section = "";
-      if (addFormData.class_id && addFormData.class_id !== "none") {
-        const classInfo = classes.find(c => c.id === addFormData.class_id);
+      if (addFormData.current_class_id && addFormData.current_class_id !== "none") {
+        const classInfo = classes.find(c => c.id === addFormData.current_class_id);
         if (classInfo) {
           className = classInfo.name;
           section = classInfo.section || "";
@@ -335,17 +376,16 @@ const StudentManagement = () => {
         studentName: addFormData.full_name,
         studentId: finalStudentId,
         dateOfBirth: addFormData.date_of_birth,
-        phone: addFormData.phone,
+        phone: addFormData.father_phone,
         className,
         section,
-        admissionDate: new Date().toLocaleDateString(),
+        admissionDate: addFormData.admission_date || new Date().toLocaleDateString(),
         address: addFormData.address,
         previousSchool: addFormData.previous_school,
         fatherName: addFormData.father_name,
         fatherPhone: addFormData.father_phone,
         fatherCnic: addFormData.father_cnic,
-        fatherEmail: addFormData.father_email,
-        occupation: addFormData.occupation,
+        occupation: addFormData.father_occupation,
         photoUrl: photoUrl || undefined,
       };
 
@@ -519,23 +559,7 @@ const StudentManagement = () => {
   };
 
   const resetAddForm = () => {
-    setAddFormData({
-      full_name: "",
-      password: "",
-      phone: "",
-      student_id: "",
-      class_id: "",
-      date_of_birth: "",
-      gender: "",
-      school_section: "Main",
-      father_name: "",
-      father_phone: "",
-      father_cnic: "",
-      father_email: "",
-      occupation: "",
-      address: "",
-      previous_school: "",
-    });
+    setAddFormData(initialFormData);
     setPhotoFile(null);
     setPhotoPreview(null);
   };
@@ -757,238 +781,34 @@ const StudentManagement = () => {
         </CardContent>
       </Card>
 
-      {/* Add Student Dialog */}
+      {/* Add Student Dialog - Multi-Part Form */}
       <Dialog open={isAddDialogOpen} onOpenChange={(o) => { 
         setIsAddDialogOpen(o); 
         if (!o) resetAddForm(); 
       }}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Add New Student</DialogTitle>
             <DialogDescription>
-              Create a new student account. Students will login using their Student ID and password.
+              Fill in student information across all tabs. Students will login using their Student ID and password.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddStudent} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto pr-2">
-              {/* Student Photo */}
-              <div className="space-y-2 col-span-2">
-                <Label>Student Photo</Label>
-                <div className="flex items-center gap-4">
-                  {photoPreview ? (
-                    <div className="relative">
-                      <Avatar className="w-20 h-20">
-                        <AvatarImage src={photoPreview} />
-                        <AvatarFallback>Photo</AvatarFallback>
-                      </Avatar>
-                      <Button 
-                        type="button" 
-                        size="icon" 
-                        variant="destructive" 
-                        className="absolute -top-2 -right-2 w-6 h-6"
-                        onClick={() => clearPhoto(false)}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div 
-                      className="w-20 h-20 border-2 border-dashed border-muted-foreground/30 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
-                      onClick={() => addPhotoInputRef.current?.click()}
-                    >
-                      <Upload className="w-6 h-6 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground mt-1">Upload</span>
-                    </div>
-                  )}
-                  <input
-                    ref={addPhotoInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handlePhotoChange(e, false)}
-                  />
-                  <p className="text-xs text-muted-foreground">Upload passport-size photo</p>
-                </div>
-              </div>
-
-              {/* Student Info Section */}
-              <div className="col-span-2 border-b pb-1 pt-2">
-                <p className="text-sm font-semibold text-muted-foreground">Student Information</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Full Name *</Label>
-                <Input
-                  value={addFormData.full_name}
-                  onChange={(e) => setAddFormData(p => ({ ...p, full_name: e.target.value }))}
-                  placeholder="Student's full name"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Date of Birth *</Label>
-                <Input
-                  type="date"
-                  value={addFormData.date_of_birth}
-                  onChange={(e) => setAddFormData(p => ({ ...p, date_of_birth: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Gender *</Label>
-                <Select value={addFormData.gender} onValueChange={(v) => setAddFormData(p => ({ ...p, gender: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>School Section *</Label>
-                <Select value={addFormData.school_section} onValueChange={(v) => setAddFormData(p => ({ ...p, school_section: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Main">Main</SelectItem>
-                    <SelectItem value="Akhundabad">Akhundabad</SelectItem>
-                    <SelectItem value="J & G">J & G</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Student ID *</Label>
-                <Input
-                  value={addFormData.student_id}
-                  onChange={(e) => setAddFormData(p => ({ ...p, student_id: e.target.value.toUpperCase() }))}
-                  placeholder="e.g., 101"
-                  required
-                />
-                <div className="flex items-center justify-between">
-                  {lastStudentId && (
-                    <p className="text-xs text-muted-foreground">Last used: <span className="font-semibold text-primary">{lastStudentId}</span></p>
-                  )}
-                  {lastStudentId && (
-                    <Button 
-                      type="button" 
-                      variant="link" 
-                      size="sm" 
-                      className="text-xs h-auto p-0"
-                      onClick={() => setAddFormData(p => ({ ...p, student_id: getNextStudentId(lastStudentId) }))}
-                    >
-                      Use next: {getNextStudentId(lastStudentId)}
-                    </Button>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">Used for login</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Student Password *</Label>
-                <Input
-                  type="password"
-                  value={addFormData.password}
-                  onChange={(e) => setAddFormData(p => ({ ...p, password: e.target.value }))}
-                  placeholder="Min. 6 characters"
-                  minLength={6}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  value={addFormData.phone}
-                  onChange={(e) => setAddFormData(p => ({ ...p, phone: e.target.value }))}
-                  placeholder="+92 300 1234567"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Assign Class</Label>
-                <Select value={addFormData.class_id} onValueChange={(v) => setAddFormData(p => ({ ...p, class_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No class</SelectItem>
-                    {classes.map(c => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}{c.section ? ` - ${c.section}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Father/Guardian Section */}
-              <div className="col-span-2 border-b pb-1 pt-2">
-                <p className="text-sm font-semibold text-muted-foreground">Father/Guardian Information</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Father's Name *</Label>
-                <Input
-                  value={addFormData.father_name}
-                  onChange={(e) => setAddFormData(p => ({ ...p, father_name: e.target.value }))}
-                  placeholder="Father's full name"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Father's Phone *</Label>
-                <Input
-                  value={addFormData.father_phone}
-                  onChange={(e) => setAddFormData(p => ({ ...p, father_phone: e.target.value }))}
-                  placeholder="+92 300 1234567"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Father's CNIC *</Label>
-                <Input
-                  value={addFormData.father_cnic}
-                  onChange={(e) => setAddFormData(p => ({ ...p, father_cnic: e.target.value }))}
-                  placeholder="12345-1234567-1"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Father's Email</Label>
-                <Input
-                  type="email"
-                  value={addFormData.father_email}
-                  onChange={(e) => setAddFormData(p => ({ ...p, father_email: e.target.value }))}
-                  placeholder="email@example.com (optional)"
-                />
-              </div>
-              <div className="space-y-2 col-span-2">
-                <Label>Guardian's Occupation</Label>
-                <Input
-                  value={addFormData.occupation}
-                  onChange={(e) => setAddFormData(p => ({ ...p, occupation: e.target.value }))}
-                  placeholder="e.g., Teacher, Engineer, etc."
-                />
-              </div>
-
-              {/* Address & Previous Education */}
-              <div className="col-span-2 border-b pb-1 pt-2">
-                <p className="text-sm font-semibold text-muted-foreground">Address & Previous Education</p>
-              </div>
-              <div className="space-y-2 col-span-2">
-                <Label>Address *</Label>
-                <Input
-                  value={addFormData.address}
-                  onChange={(e) => setAddFormData(p => ({ ...p, address: e.target.value }))}
-                  placeholder="Full address"
-                  required
-                />
-              </div>
-              <div className="space-y-2 col-span-2">
-                <Label>Previous School</Label>
-                <Input
-                  value={addFormData.previous_school}
-                  onChange={(e) => setAddFormData(p => ({ ...p, previous_school: e.target.value }))}
-                  placeholder="Name of previous school (if any)"
-                />
-              </div>
-            </div>
+            <StudentFormTabs
+              formData={addFormData}
+              setFormData={setAddFormData}
+              classes={classes}
+              lastStudentId={lastStudentId}
+              getNextStudentId={getNextStudentId}
+              photoFile={photoFile}
+              setPhotoFile={setPhotoFile}
+              photoPreview={photoPreview}
+              setPhotoPreview={setPhotoPreview}
+              adminName={adminName}
+            />
             <div className="bg-accent/50 p-3 rounded-lg">
               <p className="text-sm text-muted-foreground">
-                <strong>Student Login:</strong> ID: <code className="bg-background px-1 rounded">{addFormData.student_id || "..."}</code> + Password<br />
-                <span className="text-xs">Parent account can be created later from Parent Management</span>
+                <strong>Student Login:</strong> ID: <code className="bg-background px-1 rounded">{addFormData.student_id || "..."}</code> + Password
               </p>
             </div>
             <DialogFooter>
