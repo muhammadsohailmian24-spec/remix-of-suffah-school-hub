@@ -18,7 +18,7 @@ import {
   ClipboardList, Bell, LogOut, Settings, UserCheck, UserPlus,
   Shield, Megaphone, BarChart3, CreditCard, TrendingUp, Image, Clock, FileText,
   Menu, X, ChevronLeft, AlertCircle, UserX, FileCheck, CalendarCheck, Calendar,
-  Award, ChevronDown, GraduationCap
+  Award, ChevronDown, GraduationCap, Library
 } from "lucide-react";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import SessionSelector from "./SessionSelector";
@@ -41,6 +41,7 @@ const sidebarItems: SidebarItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", link: "/admin/dashboard" },
   { icon: Users, label: "Students", link: "/admin/students" },
   { icon: School, label: "Classes", link: "/admin/classes" },
+  { icon: Library, label: "Subjects", link: "/admin/subjects" },
   { icon: CalendarCheck, label: "Attendance", link: "/admin/attendance" },
   { icon: GraduationCap, label: "Exams", link: "/admin/exams" },
   { 
