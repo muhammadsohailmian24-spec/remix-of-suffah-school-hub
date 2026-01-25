@@ -313,15 +313,15 @@ const StudentFeeCard = () => {
               
               <div>
                 <Label className="text-xs">Class</Label>
-                <Select value={selectedClassId} onValueChange={(val) => {
-                  setSelectedClassId(val);
+                <Select value={selectedClassId || "all"} onValueChange={(val) => {
+                  setSelectedClassId(val === "all" ? "" : val);
                   setSelectedSection("");
                 }}>
                   <SelectTrigger className="h-8">
                     <SelectValue placeholder="All Classes" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Classes</SelectItem>
+                    <SelectItem value="all">All Classes</SelectItem>
                     {classes.map(cls => (
                       <SelectItem key={cls.id} value={cls.id}>
                         {cls.name}
@@ -333,12 +333,12 @@ const StudentFeeCard = () => {
 
               <div>
                 <Label className="text-xs">Section</Label>
-                <Select value={selectedSection} onValueChange={setSelectedSection}>
+                <Select value={selectedSection || "all"} onValueChange={(val) => setSelectedSection(val === "all" ? "" : val)}>
                   <SelectTrigger className="h-8">
                     <SelectValue placeholder="All Sections" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Sections</SelectItem>
+                    <SelectItem value="all">All Sections</SelectItem>
                     {availableSections.map(section => (
                       <SelectItem key={section} value={section}>{section}</SelectItem>
                     ))}
