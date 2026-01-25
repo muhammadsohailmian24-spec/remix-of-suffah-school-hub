@@ -186,12 +186,25 @@ const ReportsModule = () => {
         profiles: profilesMap.get(student.user_id) || null
       }));
 
+      // Sort by name alphabetically to assign sequential roll numbers (same as roll number slip)
+      combined.sort((a, b) => {
+        const nameA = a.profiles?.full_name || "";
+        const nameB = b.profiles?.full_name || "";
+        return nameA.localeCompare(nameB);
+      });
+
+      // Assign sequential roll numbers (1, 2, 3, ...) based on alphabetical order
+      combined = combined.map((student, index) => ({
+        ...student,
+        sequentialRollNumber: index + 1
+      }));
+
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         combined = combined.filter((s: any) => 
           s.profiles?.full_name?.toLowerCase().includes(term) ||
           s.student_id?.toLowerCase().includes(term) ||
-          s.roll_number?.toString().toLowerCase().includes(term) ||
+          s.sequentialRollNumber?.toString().includes(term) ||
           s.father_name?.toLowerCase().includes(term)
         );
       }
@@ -265,6 +278,18 @@ const ReportsModule = () => {
       const studentsMap = new Map(studentsData?.map(s => [s.id, s]) || []);
       const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
 
+      // Build students list with names for sequential roll number calculation
+      const studentsWithNames = (studentsData || []).map(s => ({
+        id: s.id,
+        student_id: s.student_id,
+        roll_number: s.roll_number,
+        user_id: s.user_id,
+        name: profilesMap.get(s.user_id)?.full_name || ""
+      })).sort((a, b) => a.name.localeCompare(b.name));
+
+      // Create a map of student id -> sequential roll number (1-indexed position sorted by name)
+      const sequentialRollMap = new Map(studentsWithNames.map((s, idx) => [s.id, idx + 1]));
+
       // Group by student
       const studentMap = new Map();
       resultsData.forEach((result: any) => {
@@ -275,7 +300,7 @@ const ReportsModule = () => {
         if (!studentMap.has(studentId)) {
           studentMap.set(studentId, {
             studentId: student?.student_id,
-            rollNumber: student?.roll_number,
+            rollNumber: sequentialRollMap.get(studentId) || student?.roll_number || student?.student_id,
             name: profile?.full_name || "Unknown",
             subjects: [],
             totalMarks: 0,
@@ -553,6 +578,15 @@ const ReportsModule = () => {
       const studentsMap = new Map(studentsData?.map(s => [s.id, s]) || []);
       const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
 
+      // Build students list with names for sequential roll number calculation
+      const studentsWithNames = (studentsData || []).map(s => ({
+        id: s.id,
+        name: profilesMap.get(s.user_id)?.full_name || ""
+      })).sort((a, b) => a.name.localeCompare(b.name));
+
+      // Create a map of student id -> sequential roll number (1-indexed position sorted by name)
+      const sequentialRollMap = new Map(studentsWithNames.map((s, idx) => [s.id, idx + 1]));
+
       // Build award list
       const awardList = resultsData.map((result: any) => {
         const student = studentsMap.get(result.student_id);
@@ -560,7 +594,7 @@ const ReportsModule = () => {
         
         return {
           studentId: student?.student_id || "",
-          rollNumber: student?.roll_number || "",
+          rollNumber: sequentialRollMap.get(result.student_id)?.toString() || student?.roll_number || "",
           name: profile?.full_name || "Unknown",
           fatherName: student?.father_name || "",
           marksObtained: result.marks_obtained,
@@ -648,8 +682,8 @@ const ReportsModule = () => {
       const overallPercentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
       const { grade: overallGrade, feedback: overallFeedback } = getGradeAndFeedback(overallPercentage);
 
-      // Use roll_number if available, otherwise use student_id
-      const displayRollNumber = student.roll_number || student.student_id || "";
+      // Use sequentialRollNumber (position in class sorted by name) as used in roll number slips
+      const displayRollNumber = student.sequentialRollNumber?.toString() || student.roll_number || student.student_id || "";
 
       const dmcData: MarksCertificateData = {
         studentName: student.profiles?.full_name || "",
@@ -891,10 +925,10 @@ const ReportsModule = () => {
     const classData = classes.find(c => c.id === selectedClass);
     const subjectData = subjects.find(s => s.id === selectedSubject);
     
-    // Format students for award list PDF
+    // Format students for award list PDF - use rollNumber (sequential position in class)
     const awardStudents = awardListData.map((s, idx) => ({
       sr_no: idx + 1,
-      student_id: s.studentId || "",
+      student_id: s.rollNumber || s.studentId || "",
       name: s.name || "",
       father_name: s.fatherName || "",
       theory_marks: s.marksObtained,
