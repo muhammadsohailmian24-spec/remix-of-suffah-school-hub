@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,9 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Award, FileText, Printer, Search, GraduationCap, Medal, ScrollText } from "lucide-react";
+import { Award, FileText, Printer, Search, GraduationCap, Medal, ScrollText, Trophy, Heart, Calendar, Star, Briefcase } from "lucide-react";
 
 interface Student {
   id: string;
@@ -34,20 +34,30 @@ interface Class {
 }
 
 const certificateTypes = [
-  { id: "character", label: "Character Certificate", icon: Award, description: "Good character and conduct certificate" },
-  { id: "bonafide", label: "Bonafide Certificate", icon: ScrollText, description: "Student enrollment verification" },
-  { id: "slc", label: "School Leaving Certificate", icon: GraduationCap, description: "Transfer/leaving certificate" },
-  { id: "achievement", label: "Achievement Certificate", icon: Medal, description: "Academic achievement award" },
+  { id: "participation", label: "Certificate of Participation", icon: Trophy, description: "Event or activity participation" },
+  { id: "appreciation", label: "Appreciation & Character", icon: Heart, description: "Good character and conduct certificate" },
+  { id: "dob", label: "Date of Birth Certificate", icon: Calendar, description: "Official date of birth verification" },
+  { id: "honor", label: "Honor Certificate", icon: Star, description: "Academic excellence award" },
+  { id: "sports", label: "Sports Certificate", icon: Medal, description: "Sports achievement certificate" },
+  { id: "experience", label: "Staff Experience Certificate", icon: Briefcase, description: "Teacher/Staff work experience" },
+  { id: "marks", label: "Detailed Marks Certificate", icon: FileText, description: "Complete marks breakdown" },
+  { id: "monthly-progress", label: "Monthly Progress Report", icon: ScrollText, description: "Monthly academic progress" },
+  { id: "annual-progress", label: "Annual Progress Report", icon: GraduationCap, description: "Yearly academic performance" },
+  { id: "slc", label: "School Leaving Certificate", icon: Award, description: "Transfer/leaving certificate" },
 ];
 
 const Certificates = () => {
+  const [searchParams] = useSearchParams();
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [selectedCertType, setSelectedCertType] = useState("character");
   const [loading, setLoading] = useState(true);
+
+  // Get certificate type from URL or default to first one
+  const certType = searchParams.get("type") || certificateTypes[0].id;
+  const currentCert = certificateTypes.find(c => c.id === certType) || certificateTypes[0];
 
   useEffect(() => {
     fetchClasses();
@@ -77,7 +87,6 @@ const Certificates = () => {
   const fetchStudents = async () => {
     setLoading(true);
     
-    // Fetch students with explicit FK hint to disambiguate from admission_class_id
     const { data: studentsData, error: studentsError } = await supabase
       .from("students")
       .select(`
@@ -97,14 +106,12 @@ const Certificates = () => {
       return;
     }
 
-    // Fetch class info separately
     const { data: classData } = await supabase
       .from("classes")
       .select("id, name, section")
       .eq("id", selectedClass)
       .single();
 
-    // Then get profiles for those students
     const userIds = studentsData?.map(s => s.user_id) || [];
     if (userIds.length === 0) {
       setStudents([]);
@@ -117,7 +124,6 @@ const Certificates = () => {
       .select("user_id, full_name, date_of_birth, gender")
       .in("user_id", userIds);
 
-    // Merge the data
     const mergedStudents = studentsData.map(student => ({
       ...student,
       profiles: profilesData?.find(p => p.user_id === student.user_id) || null,
@@ -141,16 +147,14 @@ const Certificates = () => {
       return;
     }
 
-    // For now, show a toast - actual PDF generation would be implemented here
-    toast.success(`Generating ${certificateTypes.find(c => c.id === selectedCertType)?.label} for ${selectedStudent.profiles?.full_name}`);
-    
-    // TODO: Implement actual certificate PDF generation using the existing PDF utilities
+    toast.success(`Generating ${currentCert.label} for ${selectedStudent.profiles?.full_name}`);
+    // TODO: Implement actual certificate PDF generation
   };
 
   return (
     <AdminLayout 
-      title="Certificates" 
-      description="Generate and print student certificates"
+      title={currentCert.label}
+      description={currentCert.description}
     >
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Student Selection Panel */}
@@ -158,7 +162,7 @@ const Certificates = () => {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">Select Student</CardTitle>
-              <CardDescription>Choose class and student</CardDescription>
+              <CardDescription>Search by name or ID</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -251,77 +255,61 @@ const Certificates = () => {
           )}
         </div>
 
-        {/* Certificate Selection Panel */}
+        {/* Certificate Preview Panel */}
         <div className="lg:col-span-2">
           <Card className="h-full">
             <CardHeader>
-              <CardTitle>Certificate Type</CardTitle>
-              <CardDescription>Select certificate type and print</CardDescription>
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <currentCert.icon className="w-8 h-8 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>{currentCert.label}</CardTitle>
+                  <CardDescription>{currentCert.description}</CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <Tabs value={selectedCertType} onValueChange={setSelectedCertType}>
-                <TabsList className="grid grid-cols-2 lg:grid-cols-4 mb-6">
-                  {certificateTypes.map((cert) => (
-                    <TabsTrigger key={cert.id} value={cert.id} className="gap-2">
-                      <cert.icon className="w-4 h-4" />
-                      <span className="hidden sm:inline">{cert.label.split(" ")[0]}</span>
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
+              {selectedStudent ? (
+                <div className="space-y-6">
+                  <div className="bg-accent/50 rounded-lg p-4">
+                    <p className="text-sm text-center">
+                      Certificate will be generated for:{" "}
+                      <span className="font-bold">{selectedStudent.profiles?.full_name}</span>
+                    </p>
+                  </div>
 
-                {certificateTypes.map((cert) => (
-                  <TabsContent key={cert.id} value={cert.id}>
-                    <Card className="border-dashed">
-                      <CardContent className="pt-6">
-                        <div className="text-center mb-6">
-                          <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                            <cert.icon className="w-10 h-10 text-primary" />
-                          </div>
-                          <h3 className="text-xl font-bold mb-2">{cert.label}</h3>
-                          <p className="text-muted-foreground">{cert.description}</p>
-                        </div>
-
-                        {selectedStudent ? (
-                          <div className="bg-accent/50 rounded-lg p-4 mb-6">
-                            <p className="text-sm text-center">
-                              Certificate will be generated for:{" "}
-                              <span className="font-bold">{selectedStudent.profiles?.full_name}</span>
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-6">
-                            <p className="text-sm text-center text-warning">
-                              Please select a student from the left panel
-                            </p>
-                          </div>
-                        )}
-
-                        <div className="flex gap-3 justify-center">
-                          <Button
-                            size="lg"
-                            onClick={handlePrintCertificate}
-                            disabled={!selectedStudent}
-                            className="gap-2"
-                          >
-                            <Printer className="w-5 h-5" />
-                            Print Certificate
-                          </Button>
-                          <Button
-                            size="lg"
-                            variant="outline"
-                            onClick={handlePrintCertificate}
-                            disabled={!selectedStudent}
-                            className="gap-2"
-                          >
-                            <FileText className="w-5 h-5" />
-                            Preview
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                ))}
-              </Tabs>
+                  <div className="flex gap-3 justify-center">
+                    <Button
+                      size="lg"
+                      onClick={handlePrintCertificate}
+                      className="gap-2"
+                    >
+                      <Printer className="w-5 h-5" />
+                      Print Certificate
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      onClick={handlePrintCertificate}
+                      className="gap-2"
+                    >
+                      <FileText className="w-5 h-5" />
+                      Preview
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="w-20 h-20 mx-auto rounded-full bg-muted flex items-center justify-center mb-4">
+                    <Search className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">Select a Student</h3>
+                  <p className="text-muted-foreground">
+                    Choose a class and select a student to generate the certificate
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

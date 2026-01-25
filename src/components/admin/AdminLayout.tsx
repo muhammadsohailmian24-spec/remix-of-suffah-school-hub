@@ -9,10 +9,16 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   LayoutDashboard, Users, School, BookOpen, 
   ClipboardList, Bell, LogOut, Settings, UserCheck, UserPlus,
   Shield, Megaphone, BarChart3, CreditCard, TrendingUp, Image, Clock, FileText,
-  Menu, X, ChevronLeft, AlertCircle, UserX, FileCheck, CalendarCheck, Calendar
+  Menu, X, ChevronLeft, AlertCircle, UserX, FileCheck, CalendarCheck, Calendar,
+  Award, ChevronDown, GraduationCap
 } from "lucide-react";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import SessionSelector from "./SessionSelector";
@@ -23,11 +29,36 @@ interface AdminLayoutProps {
   description?: string;
 }
 
-// Sidebar navigation items - Legacy VB6-style modules (simplified)
-const sidebarItems = [
+interface SidebarItem {
+  icon: typeof LayoutDashboard;
+  label: string;
+  link?: string;
+  children?: { label: string; link: string }[];
+}
+
+// Sidebar navigation items - Legacy VB6-style modules
+const sidebarItems: SidebarItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", link: "/admin/dashboard" },
   { icon: Users, label: "Students", link: "/admin/students" },
   { icon: School, label: "Classes", link: "/admin/classes" },
+  { icon: CalendarCheck, label: "Attendance", link: "/admin/attendance" },
+  { icon: GraduationCap, label: "Exams", link: "/admin/exams" },
+  { 
+    icon: Award, 
+    label: "Certificates", 
+    children: [
+      { label: "Certificate of Participation", link: "/admin/certificates?type=participation" },
+      { label: "Appreciation & Character", link: "/admin/certificates?type=appreciation" },
+      { label: "Date of Birth Certificate", link: "/admin/certificates?type=dob" },
+      { label: "Honor Certificate", link: "/admin/certificates?type=honor" },
+      { label: "Sports Certificate", link: "/admin/certificates?type=sports" },
+      { label: "Staff Experience Certificate", link: "/admin/certificates?type=experience" },
+      { label: "Detailed Marks Certificate", link: "/admin/certificates?type=marks" },
+      { label: "Monthly Progress Report", link: "/admin/certificates?type=monthly-progress" },
+      { label: "Annual Progress Report", link: "/admin/certificates?type=annual-progress" },
+      { label: "School Leaving Certificate", link: "/admin/certificates?type=slc" },
+    ]
+  },
   { icon: CreditCard, label: "Fees", link: "/admin/fees" },
   { icon: Calendar, label: "Sessions", link: "/admin/sessions" },
   { icon: Image, label: "Gallery", link: "/admin/gallery" },
@@ -205,11 +236,60 @@ const AdminLayout = ({ children, title, description }: AdminLayoutProps) => {
         `}>
           <nav className="p-2 space-y-1 overflow-y-auto h-full">
             {sidebarItems.map((item) => {
-              const isActive = location.pathname === item.link;
+              const isActive = item.link ? location.pathname === item.link : 
+                item.children?.some(child => location.pathname + location.search === child.link);
+              const isCertificatesOpen = item.children && location.pathname.includes('/admin/certificates');
+              
+              // Items with children (collapsible)
+              if (item.children) {
+                return (
+                  <Collapsible key={item.label} defaultOpen={isCertificatesOpen}>
+                    <CollapsibleTrigger asChild>
+                      <button
+                        className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                          isActive 
+                            ? "bg-primary/10 text-primary" 
+                            : "hover:bg-accent text-muted-foreground hover:text-foreground"
+                        } ${!sidebarOpen && 'lg:justify-center lg:px-2'}`}
+                        title={!sidebarOpen ? item.label : undefined}
+                      >
+                        <item.icon className="w-5 h-5 flex-shrink-0" />
+                        <span className={`font-medium whitespace-nowrap flex-1 text-left ${!sidebarOpen && 'lg:hidden'}`}>
+                          {item.label}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 transition-transform ${!sidebarOpen && 'lg:hidden'}`} />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className={`${!sidebarOpen && 'lg:hidden'}`}>
+                      <div className="ml-4 pl-4 border-l border-border space-y-1 mt-1">
+                        {item.children.map((child) => {
+                          const isChildActive = location.pathname + location.search === child.link;
+                          return (
+                            <Link
+                              key={child.link}
+                              to={child.link}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className={`block px-3 py-2 text-sm rounded-lg transition-colors ${
+                                isChildActive 
+                                  ? "bg-primary text-primary-foreground" 
+                                  : "hover:bg-accent text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              {child.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              }
+
+              // Regular items
               return (
                 <Link
                   key={item.link}
-                  to={item.link}
+                  to={item.link!}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
                     isActive 
