@@ -28,6 +28,7 @@ const sidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", link: "/admin/dashboard" },
   { icon: Users, label: "Students", link: "/admin/students" },
   { icon: School, label: "Classes", link: "/admin/classes" },
+  { icon: CreditCard, label: "Fees", link: "/admin/fees" },
   { icon: Calendar, label: "Sessions", link: "/admin/sessions" },
   { icon: Image, label: "Gallery", link: "/admin/gallery" },
   { icon: Clock, label: "Timetable", link: "/admin/timetable" },

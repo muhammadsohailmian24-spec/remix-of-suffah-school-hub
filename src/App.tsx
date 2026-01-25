@@ -26,6 +26,7 @@ import Reports from "./pages/admin/Reports";
 import SystemSettings from "./pages/admin/SystemSettings";
 import RolesManagement from "./pages/admin/RolesManagement";
 import FeeManagement from "./pages/admin/FeeManagement";
+import StudentFeeCard from "./pages/admin/StudentFeeCard";
 import FeeAnalytics from "./pages/admin/FeeAnalytics";
 import AttendanceOverview from "./pages/admin/AttendanceOverview";
 import AttendanceScanner from "./pages/admin/AttendanceScanner";
@@ -95,7 +96,8 @@ const App = () => (
             <Route path="/admin/reports" element={<Reports />} />
             <Route path="/admin/settings" element={<SystemSettings />} />
             <Route path="/admin/roles" element={<RolesManagement />} />
-            <Route path="/admin/fees" element={<FeeManagement />} />
+            <Route path="/admin/fees" element={<StudentFeeCard />} />
+            <Route path="/admin/fee-management" element={<FeeManagement />} />
             <Route path="/admin/fee-analytics" element={<FeeAnalytics />} />
             <Route path="/admin/attendance" element={<AttendanceOverview />} />
             <Route path="/admin/attendance/scanner" element={<AttendanceScanner />} />
