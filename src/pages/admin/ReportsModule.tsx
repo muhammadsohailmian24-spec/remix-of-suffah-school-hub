@@ -22,6 +22,7 @@ import { format, parseISO } from "date-fns";
 import { generateMarksCertificatePdf, downloadMarksCertificate, MarksCertificateData } from "@/utils/generateMarksCertificatePdf";
 import { generateAwardListPdf, AwardListData } from "@/utils/generateAwardListPdf";
 import { generateClassTimetablePdf, ClassTimetablePdfData, TimetableEntry } from "@/utils/generateClassTimetablePdf";
+import { downloadGazetteBook, GazetteBookData } from "@/utils/generateGazetteBookPdf";
 import { exportToExcel, exportToCSV } from "@/utils/exportUtils";
 import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
@@ -768,14 +769,88 @@ const ReportsModule = () => {
       { header: "Percentage", key: "percentage", formatter: (v: any) => `${v}%` },
     ];
 
-    const filename = `Gazette-${selectedExamType}-${selectedClass ? classes.find(c => c.id === selectedClass)?.name : "All"}`;
+    const filename = `Gazette-Book-${selectedExamType}-${selectedClass ? classes.find(c => c.id === selectedClass)?.name : "All"}`;
 
     if (format === "excel") {
-      exportToExcel(gazetteData, columns, filename, "Gazette");
+      exportToExcel(gazetteData, columns, filename, "Gazette Book");
     } else {
       exportToCSV(gazetteData, columns, filename);
     }
-    toast({ title: "Success", description: `Gazette exported as ${format.toUpperCase()}` });
+    toast({ title: "Success", description: `Gazette Book exported as ${format.toUpperCase()}` });
+  };
+
+  const handleDownloadGazettePdf = async () => {
+    if (gazetteData.length === 0) {
+      toast({ title: "No Data", description: "No gazette data to download", variant: "destructive" });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Fetch grading schemes for grade calculation
+      const { data: gradingSchemes } = await supabase
+        .from("grading_schemes")
+        .select("*")
+        .order("min_percentage", { ascending: false });
+
+      const getGrade = (percentage: number) => {
+        if (!gradingSchemes) return "-";
+        const scheme = gradingSchemes.find(
+          (g) => percentage >= g.min_percentage && percentage <= g.max_percentage
+        );
+        return scheme ? scheme.grade.split(" ")[0] : "-";
+      };
+
+      // Get all unique subjects from gazette data
+      const allSubjects = [...new Set(gazetteData.flatMap(s => s.subjects.map((sub: any) => sub.name)))];
+
+      // Group students by class if no class is selected
+      let classResults: { className: string; section?: string; students: any[] }[] = [];
+
+      if (selectedClass) {
+        const classData = classes.find(c => c.id === selectedClass);
+        classResults = [{
+          className: classData?.name || "Class",
+          section: classData?.section || undefined,
+          students: gazetteData.map(s => ({
+            ...s,
+            grade: getGrade(parseFloat(s.percentage))
+          }))
+        }];
+      } else {
+        // Fetch class info for all students to group them
+        const studentClassMap = new Map<string, any[]>();
+        
+        // For simplicity, put all in one group when "All Classes" is selected
+        // In a more advanced version, we'd fetch class_id for each student
+        classResults = [{
+          className: "All Classes",
+          section: undefined,
+          students: gazetteData.map(s => ({
+            ...s,
+            grade: getGrade(parseFloat(s.percentage))
+          }))
+        }];
+      }
+
+      const gazetteBookData: GazetteBookData = {
+        examName: selectedExamType || "Examination",
+        session: selectedSession?.name || new Date().getFullYear().toString(),
+        schoolName: "THE SUFFAH PUBLIC SCHOOL & COLLEGE",
+        schoolAddress: "Madyan Swat, Pakistan",
+        generatedDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        classes: classResults,
+        allSubjects: allSubjects,
+      };
+
+      await downloadGazetteBook(gazetteBookData);
+      toast({ title: "Success", description: "Gazette Book PDF downloaded successfully" });
+    } catch (error) {
+      console.error("Error downloading gazette PDF:", error);
+      toast({ title: "Error", description: "Failed to download Gazette Book PDF", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePrintTimetable = async () => {
@@ -895,7 +970,7 @@ const ReportsModule = () => {
         <TabsList className="grid grid-cols-2 md:grid-cols-6 w-full">
           <TabsTrigger value="gazette" className="gap-2">
             <FileText className="w-4 h-4" />
-            <span className="hidden sm:inline">Gazette</span>
+            <span className="hidden sm:inline">Gazette Book</span>
           </TabsTrigger>
           <TabsTrigger value="dmc" className="gap-2">
             <GraduationCap className="w-4 h-4" />
@@ -925,9 +1000,9 @@ const ReportsModule = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                School Gazette
+                Gazette Book
               </CardTitle>
-              <CardDescription>Complete results of all students for a specific exam</CardDescription>
+              <CardDescription>Complete results of the whole school for a specific exam - downloadable as PDF</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -961,8 +1036,11 @@ const ReportsModule = () => {
                   </Select>
                 </div>
                 <div className="flex items-end gap-2">
-                  <Button onClick={() => handleExportGazette("excel")} disabled={gazetteData.length === 0}>
+                  <Button onClick={handleDownloadGazettePdf} disabled={gazetteData.length === 0 || loading}>
                     <Download className="w-4 h-4 mr-2" />
+                    Download PDF
+                  </Button>
+                  <Button variant="outline" onClick={() => handleExportGazette("excel")} disabled={gazetteData.length === 0}>
                     Excel
                   </Button>
                   <Button variant="outline" onClick={() => handleExportGazette("csv")} disabled={gazetteData.length === 0}>
@@ -1012,7 +1090,7 @@ const ReportsModule = () => {
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  Select an exam type to view gazette
+                  Select an exam type to view the Gazette Book
                 </div>
               )}
             </CardContent>
