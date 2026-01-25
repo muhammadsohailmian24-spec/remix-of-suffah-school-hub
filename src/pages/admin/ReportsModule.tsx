@@ -655,12 +655,12 @@ const ReportsModule = () => {
                 </div>
                 <div>
                   <Label>Class (Optional)</Label>
-                  <Select value={selectedClass} onValueChange={setSelectedClass}>
+                  <Select value={selectedClass || "all"} onValueChange={(v) => setSelectedClass(v === "all" ? "" : v)}>
                     <SelectTrigger>
                       <SelectValue placeholder="All classes" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Classes</SelectItem>
+                      <SelectItem value="all">All Classes</SelectItem>
                       {classes.map(cls => (
                         <SelectItem key={cls.id} value={cls.id}>
                           {cls.name} {cls.section || ""}
