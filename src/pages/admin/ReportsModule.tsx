@@ -589,6 +589,28 @@ const ReportsModule = () => {
       const student = students.find(s => s.id === studentId);
       if (!student) return;
 
+      // Fetch grading schemes for dynamic grading
+      const { data: gradingSchemes } = await supabase
+        .from("grading_schemes")
+        .select("*")
+        .order("min_percentage", { ascending: false });
+
+      // Helper function to get grade and feedback from percentage
+      const getGradeAndFeedback = (percentage: number) => {
+        if (!gradingSchemes) return { grade: "-", feedback: "" };
+        const scheme = gradingSchemes.find(
+          (g) => percentage >= g.min_percentage && percentage <= g.max_percentage
+        );
+        if (scheme) {
+          // The grade field contains both grade and feedback like "A++ Outstanding"
+          const parts = scheme.grade.split(" ");
+          const gradeCode = parts[0] || scheme.grade;
+          const feedback = parts.slice(1).join(" ") || scheme.remarks || "";
+          return { grade: gradeCode, feedback };
+        }
+        return { grade: "-", feedback: "" };
+      };
+
       // Fetch results for this student - filter by exam type if selected
       let query = supabase
         .from("results")
@@ -619,26 +641,41 @@ const ReportsModule = () => {
 
       const classData = classes.find(c => c.id === selectedClass);
 
+      // Calculate overall percentage and get feedback
+      const totalMarks = resultsData.reduce((sum: number, r: any) => sum + (r.exams?.max_marks || 100), 0);
+      const obtainedMarks = resultsData.reduce((sum: number, r: any) => sum + r.marks_obtained, 0);
+      const overallPercentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
+      const { grade: overallGrade, feedback: overallFeedback } = getGradeAndFeedback(overallPercentage);
+
+      // Use roll_number if available, otherwise use student_id
+      const displayRollNumber = student.roll_number || student.student_id || "";
+
       const dmcData: MarksCertificateData = {
         studentName: student.profiles?.full_name || "",
         fatherName: student.father_name || "",
         studentId: student.student_id,
-        rollNumber: student.roll_number || "",
+        rollNumber: displayRollNumber,
         className: classData?.name || "",
         section: classData?.section || "",
         session: selectedSession?.name || new Date().getFullYear().toString(),
         dateOfBirth: student.profiles?.date_of_birth,
         examName: selectedExamType || resultsData[0]?.exams?.exam_type || "Examination",
         examMonth: selectedExamType || "Examination",
-        subjects: resultsData.map((r: any) => ({
-          name: r.exams?.subjects?.name || "Unknown",
-          maxMarks: r.exams?.max_marks || 100,
-          marksObtained: r.marks_obtained,
-          grade: r.grade,
-        })),
+        subjects: resultsData.map((r: any) => {
+          const subjectPercentage = ((r.marks_obtained / (r.exams?.max_marks || 100)) * 100);
+          const { grade } = getGradeAndFeedback(subjectPercentage);
+          return {
+            name: r.exams?.subjects?.name || "Unknown",
+            maxMarks: r.exams?.max_marks || 100,
+            marksObtained: r.marks_obtained,
+            grade: grade,
+          };
+        }),
         photoUrl: student.profiles?.photo_url,
         schoolName: "THE SUFFAH PUBLIC SCHOOL & COLLEGE",
         schoolAddress: "Madyan Swat, Pakistan",
+        overallGrade: overallGrade,
+        overallFeedback: overallFeedback,
       };
 
       await downloadMarksCertificate(dmcData);
