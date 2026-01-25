@@ -61,52 +61,67 @@ serve(async (req) => {
       });
     }
 
-  const body: CreateUserRequest = await req.json();
-  const { email, fullName, phone, role, roleSpecificData } = body;
-  
-  // Default password is 123456 for students and parents
-  const password = body.password || "123456";
+    const body: CreateUserRequest = await req.json();
+    const { email, fullName, phone, role, roleSpecificData } = body;
+    
+    // Default password is 123456 for students and parents
+    const password = body.password || "123456";
 
-  if (!fullName || !role) {
-    return new Response(JSON.stringify({ error: "Missing required fields" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+    if (!fullName || !role) {
+      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // For students, use student ID-based email format
     // For parents, use CNIC-based email format
     let userEmail = email;
     let studentId = roleSpecificData?.student_id;
+    const adminProvidedId = !!studentId; // Track if admin provided the ID
     let fatherCnic = roleSpecificData?.father_cnic;
     
     if (role === "student") {
-      // Generate student ID if not provided
+      // Only generate student ID if admin didn't provide one
       if (!studentId) {
         studentId = `STU${new Date().getFullYear()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
       }
+      
       // Create email from student ID (studentid@suffah.local)
       userEmail = `${studentId.toLowerCase()}@suffah.local`;
       
-      // Check if student ID already exists, generate new one if so
-      let attempts = 0;
-      while (attempts < 10) {
-        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-        const emailExists = existingUsers?.users?.some(u => u.email === userEmail);
-        
-        if (!emailExists) break;
-        
-        // Generate a new student ID
-        studentId = `STU${new Date().getFullYear()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-        userEmail = `${studentId.toLowerCase()}@suffah.local`;
-        attempts++;
-      }
+      // Check if student ID already exists
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+      const emailExists = existingUsers?.users?.some(u => u.email === userEmail);
       
-      if (attempts >= 10) {
-        return new Response(JSON.stringify({ error: "Could not generate unique student ID. Please try again." }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (emailExists) {
+        // If admin provided the ID and it exists, return error - don't auto-generate
+        if (adminProvidedId) {
+          return new Response(JSON.stringify({ 
+            error: `Student ID "${studentId}" is already in use. Please enter a different ID.` 
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        
+        // Only auto-generate if admin didn't provide an ID
+        let attempts = 0;
+        while (attempts < 10) {
+          studentId = `STU${new Date().getFullYear()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+          userEmail = `${studentId.toLowerCase()}@suffah.local`;
+          
+          const exists = existingUsers?.users?.some(u => u.email === userEmail);
+          if (!exists) break;
+          attempts++;
+        }
+        
+        if (attempts >= 10) {
+          return new Response(JSON.stringify({ error: "Could not generate unique student ID. Please try again." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     } else if (role === "parent") {
       // For parents, use CNIC as the login identifier
@@ -153,7 +168,7 @@ serve(async (req) => {
       if (createError.message.includes("already been registered")) {
         return new Response(JSON.stringify({ 
           error: role === "student" 
-            ? "This student ID is already in use. Please use a different ID or leave blank to auto-generate."
+            ? `Student ID "${studentId}" is already in use. Please use a different ID.`
             : "A user with this email/CNIC already exists."
         }), {
           status: 400,
@@ -197,7 +212,7 @@ serve(async (req) => {
         .from("students")
         .insert({
           user_id: userId,
-          student_id: studentId, // Use the studentId we generated/received earlier
+          student_id: studentId, // Use the admin-provided or generated studentId
           class_id: roleSpecificData?.class_id || null,
           status: "active",
         });
