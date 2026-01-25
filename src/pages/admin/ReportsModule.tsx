@@ -24,6 +24,7 @@ import { generateAwardListPdf, AwardListData } from "@/utils/generateAwardListPd
 import { generateClassTimetablePdf, ClassTimetablePdfData, TimetableEntry } from "@/utils/generateClassTimetablePdf";
 import { downloadGazetteBook, GazetteBookData } from "@/utils/generateGazetteBookPdf";
 import { generatePositionListPdf, PositionListData } from "@/utils/generatePositionListPdf";
+import { generateContactListPdf, ContactListData } from "@/utils/generateContactListPdf";
 import { exportToExcel, exportToCSV } from "@/utils/exportUtils";
 import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
@@ -437,7 +438,7 @@ const ReportsModule = () => {
   const fetchContactsData = async () => {
     setLoading(true);
     try {
-      // Fetch students
+      // Fetch students with address and father_cnic
       const { data: studentsData, error: studentsError } = await supabase
         .from("students")
         .select(`
@@ -446,6 +447,7 @@ const ReportsModule = () => {
           roll_number,
           father_name,
           father_phone,
+          father_cnic,
           mother_name,
           mother_phone,
           emergency_contact,
@@ -466,19 +468,30 @@ const ReportsModule = () => {
         return;
       }
 
-      // Fetch profiles
+      // Fetch profiles with address
       const userIds = studentsData.map(s => s.user_id).filter(Boolean);
       const { data: profilesData } = await supabase
         .from("profiles")
-        .select("user_id, full_name, phone, email")
+        .select("user_id, full_name, phone, email, address")
         .in("user_id", userIds);
 
       const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
 
-      // Combine
-      const combined = studentsData.map(student => ({
+      // Sort by name and assign sequential roll numbers
+      let combined = studentsData.map(student => ({
         ...student,
         profiles: profilesMap.get(student.user_id) || null
+      }));
+
+      combined.sort((a, b) => {
+        const nameA = a.profiles?.full_name || "";
+        const nameB = b.profiles?.full_name || "";
+        return nameA.localeCompare(nameB);
+      });
+
+      combined = combined.map((student, index) => ({
+        ...student,
+        sequentialRollNumber: index + 1
       }));
 
       setContactsData(combined);
@@ -743,21 +756,53 @@ const ReportsModule = () => {
     }
   };
 
+  const handleDownloadContactListPdf = async () => {
+    if (contactsData.length === 0) {
+      toast({ title: "No Data", description: "No contact data to download", variant: "destructive" });
+      return;
+    }
+
+    const classData = classes.find(c => c.id === selectedClass);
+    
+    const pdfData: ContactListData = {
+      session: selectedSession?.name || new Date().getFullYear().toString(),
+      className: classData?.name || "Class",
+      section: classData?.section || "",
+      date: format(new Date(), "dd-MMM-yyyy"),
+      students: contactsData.map((s: any) => ({
+        rollNumber: s.sequentialRollNumber?.toString() || s.roll_number || "",
+        studentId: s.student_id,
+        name: s.profiles?.full_name || "",
+        fatherName: s.father_name || "",
+        address: s.profiles?.address || "",
+        fatherCnic: s.father_cnic || "",
+        phone: s.father_phone || s.profiles?.phone || "",
+      })),
+    };
+
+    const doc = await generateContactListPdf(pdfData);
+    doc.save(`Contact-List-${classData?.name || "Class"}.pdf`);
+    toast({ title: "Success", description: "Contact list PDF downloaded" });
+  };
+
   const handleExportContacts = (format: "excel" | "csv") => {
     const columns = [
-      { header: "Roll No", key: "roll_number" },
+      { header: "Roll No", key: "sequentialRollNumber" },
       { header: "Student ID", key: "student_id" },
       { header: "Student Name", key: "name", formatter: (v: any) => v?.profiles?.full_name || "" },
       { header: "Father Name", key: "father_name" },
+      { header: "Address", key: "address", formatter: (v: any) => v?.profiles?.address || "" },
+      { header: "Father CNIC", key: "father_cnic" },
       { header: "Father Phone", key: "father_phone" },
       { header: "Mother Name", key: "mother_name" },
       { header: "Mother Phone", key: "mother_phone" },
       { header: "Emergency Contact", key: "emergency_contact" },
     ];
 
-    const data = contactsData.map(s => ({
+    const data = contactsData.map((s: any) => ({
       ...s,
       name: s,
+      address: s,
     }));
 
     const classData = classes.find(c => c.id === selectedClass);
@@ -1695,12 +1740,12 @@ const ReportsModule = () => {
                   </Select>
                 </div>
                 <div className="flex items-end gap-2 col-span-2">
-                  <Button onClick={() => handleExportContacts("excel")} disabled={contactsData.length === 0}>
+                  <Button onClick={handleDownloadContactListPdf} disabled={contactsData.length === 0}>
                     <Download className="w-4 h-4 mr-2" />
-                    Excel
+                    Download PDF
                   </Button>
-                  <Button variant="outline" onClick={() => handleExportContacts("csv")} disabled={contactsData.length === 0}>
-                    CSV
+                  <Button variant="outline" onClick={() => handleExportContacts("excel")} disabled={contactsData.length === 0}>
+                    Excel
                   </Button>
                 </div>
               </div>
@@ -1710,27 +1755,27 @@ const ReportsModule = () => {
                   <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                 </div>
               ) : contactsData.length > 0 ? (
-                <div className="border rounded-lg overflow-hidden">
+                <div className="border rounded-lg overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Roll</TableHead>
+                        <TableHead className="w-14">Roll</TableHead>
                         <TableHead>Student Name</TableHead>
                         <TableHead>Father Name</TableHead>
-                        <TableHead>Father Phone</TableHead>
-                        <TableHead>Mother Phone</TableHead>
-                        <TableHead>Emergency</TableHead>
+                        <TableHead>Address</TableHead>
+                        <TableHead>Father CNIC</TableHead>
+                        <TableHead>Phone</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {contactsData.map((student: any) => (
                         <TableRow key={student.id}>
-                          <TableCell>{student.roll_number || "-"}</TableCell>
+                          <TableCell className="font-medium">{student.sequentialRollNumber || "-"}</TableCell>
                           <TableCell className="font-medium">{student.profiles?.full_name || "-"}</TableCell>
                           <TableCell>{student.father_name || "-"}</TableCell>
-                          <TableCell>{student.father_phone || "-"}</TableCell>
-                          <TableCell>{student.mother_phone || "-"}</TableCell>
-                          <TableCell>{student.emergency_contact || "-"}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{student.profiles?.address || "-"}</TableCell>
+                          <TableCell>{student.father_cnic || "-"}</TableCell>
+                          <TableCell>{student.father_phone || student.profiles?.phone || "-"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
