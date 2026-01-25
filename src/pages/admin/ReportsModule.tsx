@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { generateMarksCertificatePdf, downloadMarksCertificate, MarksCertificateData } from "@/utils/generateMarksCertificatePdf";
-import { generateAwardListPdf, AwardListData } from "@/utils/generateAwardListPdf";
+import { generateAwardListPdf, AwardListData, downloadBlankAwardList } from "@/utils/generateAwardListPdf";
 import { generateClassTimetablePdf, ClassTimetablePdfData, TimetableEntry } from "@/utils/generateClassTimetablePdf";
 import { downloadGazetteBook, GazetteBookData } from "@/utils/generateGazetteBookPdf";
 import { exportToExcel, exportToCSV } from "@/utils/exportUtils";
@@ -1503,13 +1503,17 @@ const ReportsModule = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-end gap-2">
+                <div className="flex items-end gap-2 flex-wrap">
                   <Button onClick={handleDownloadAwardList} disabled={awardListData.length === 0}>
                     <Download className="w-4 h-4 mr-2" />
                     PDF
                   </Button>
                   <Button variant="outline" onClick={() => handleExportAwardList("excel")} disabled={awardListData.length === 0}>
                     Excel
+                  </Button>
+                  <Button variant="secondary" onClick={downloadBlankAwardList}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Blank Form
                   </Button>
                 </div>
               </div>

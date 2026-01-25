@@ -40,6 +40,7 @@ interface SidebarItem {
 const sidebarItems: SidebarItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", link: "/admin/dashboard" },
   { icon: Users, label: "Students", link: "/admin/students" },
+  { icon: UserCheck, label: "Teachers", link: "/admin/teachers" },
   { icon: School, label: "Classes", link: "/admin/classes" },
   { icon: Library, label: "Subjects", link: "/admin/subjects" },
   { icon: CalendarCheck, label: "Attendance", link: "/admin/attendance" },
@@ -65,7 +66,8 @@ const sidebarItems: SidebarItem[] = [
   { icon: Calendar, label: "Sessions", link: "/admin/sessions" },
   { icon: Image, label: "Gallery", link: "/admin/gallery" },
   { icon: Clock, label: "Timetable", link: "/admin/timetable" },
-  { icon: Shield, label: "Administrator", link: "/admin/settings" },
+  { icon: Shield, label: "Roles", link: "/admin/roles" },
+  { icon: Settings, label: "Administrator", link: "/admin/settings" },
 ];
 
 interface Notification {
