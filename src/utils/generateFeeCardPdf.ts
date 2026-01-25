@@ -163,30 +163,51 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   doc.setFont("helvetica", "bold");
   doc.text("Monthly Fee Breakdown", margin + 40, tableY - 3, { align: "center" });
 
-  // Build table data with arrears tracking - NO Annual Fee row, just balance tracking
-  // The grid shows only: Arrears B/F, Total Amount, Paid, Balance C/F
-  let cumulativeArrears = 0;
-  const arrearsRow = ["Arrears B/F"];
-  const monthlyFeeRow = ["Monthly Fee"];
+  // Calculate how many months have been paid based on totalPaid
+  const monthsPaid = data.monthlyAmount > 0 ? Math.floor(data.totalPaid / data.monthlyAmount) : 0;
+  const currentBalance = data.balance;
+  
+  // Build table data - show paid months, balance in current month, empty for future
+  const arrearsRow = ["Arrears"];
+  const feeRow = [`${data.feeType} Fee`];
   const totalRow = ["Total Amount"];
-  const paidRow = ["Paid"];
-  const balanceRow = ["Balance C/F"];
+  const offAdjRow = ["Off/Adjustment"];
+  const paidRow = ["Paid Amount"];
+  const balanceRow = ["Balance"];
 
-  MONTHS.forEach(() => {
-    arrearsRow.push(cumulativeArrears > 0 ? cumulativeArrears.toLocaleString() : "-");
-    monthlyFeeRow.push(data.monthlyAmount.toLocaleString());
-    
-    const monthTotal = cumulativeArrears + data.monthlyAmount;
-    totalRow.push(monthTotal.toLocaleString());
-    paidRow.push("-"); // Legacy doesn't track per-month payments
-    balanceRow.push(monthTotal.toLocaleString());
-    
-    cumulativeArrears = monthTotal;
+  MONTHS.forEach((month, index) => {
+    if (index < monthsPaid) {
+      // Paid months - show fee values
+      arrearsRow.push(data.monthlyAmount.toLocaleString());
+      feeRow.push("");
+      totalRow.push(data.monthlyAmount.toLocaleString());
+      offAdjRow.push("");
+      paidRow.push(data.monthlyAmount.toLocaleString());
+      balanceRow.push("");
+    } else if (index === monthsPaid && currentBalance > 0) {
+      // Current unpaid month - show balance
+      const monthlyDue = data.monthlyAmount;
+      const partialPaid = data.totalPaid - (monthsPaid * data.monthlyAmount);
+      arrearsRow.push("");
+      feeRow.push(monthlyDue.toLocaleString());
+      totalRow.push(monthlyDue.toLocaleString());
+      offAdjRow.push("");
+      paidRow.push(partialPaid > 0 ? partialPaid.toLocaleString() : "");
+      balanceRow.push(currentBalance.toLocaleString());
+    } else {
+      // Future months - empty
+      arrearsRow.push("");
+      feeRow.push("");
+      totalRow.push("");
+      offAdjRow.push("");
+      paidRow.push("");
+      balanceRow.push("");
+    }
   });
 
   autoTable(doc, {
     head: [["Description", ...MONTHS]],
-    body: [arrearsRow, monthlyFeeRow, totalRow, paidRow, balanceRow],
+    body: [arrearsRow, feeRow, totalRow, offAdjRow, paidRow, balanceRow],
     startY: tableY,
     margin: { left: margin, right: margin },
     styles: {
