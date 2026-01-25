@@ -207,26 +207,6 @@ export const generateAwardListPdf = async (data: AwardListData): Promise<jsPDF> 
     tableLineWidth: 0.2,
   });
 
-  // ===== SIGNATURE SECTION =====
-  const finalY = (doc as any).lastAutoTable?.finalY || tableStartY + 100;
-  
-  if (finalY < pageHeight - 35) {
-    const sigY = finalY + 15;
-    
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.3);
-    
-    // Left signature line
-    doc.line(margin + 15, sigY, margin + 55, sigY);
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Teacher Signature', margin + 35, sigY + 5, { align: 'center' });
-    
-    // Right signature line  
-    doc.line(pageWidth - margin - 55, sigY, pageWidth - margin - 15, sigY);
-    doc.text('Principal Signature', pageWidth - margin - 35, sigY + 5, { align: 'center' });
-  }
-
   // Footer
   doc.setFontSize(7);
   doc.setTextColor(...grayColor);
