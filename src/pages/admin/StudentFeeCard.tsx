@@ -256,49 +256,45 @@ const StudentFeeCard = () => {
     navigate("/admin/fee-management");
   };
 
-  // Build fee card data for PDF - matches legacy layout with arrears tracking
+  // Build fee card data for PDF - matches legacy layout
+  // Logic: Annual fee / 12 = monthly amount
+  // Payments reduce balance month by month
+  // If balance = 0 (fully paid), don't generate fee card
   const buildFeeCardData = (): FeeCardData | null => {
     if (!selectedStudent || !selectedProfile) return null;
 
     // Use first selected fee type for the card (legacy shows one fee type per card)
     const primaryFeeType = selectedFeeTypes[0] || "Annual";
     
-    // Find the matching fee structure
+    // Find the matching fee structure for this fee type
     const matchingFee = studentFees.find(sf =>
       sf.fee_structure?.name?.toLowerCase().includes(primaryFeeType.toLowerCase()) ||
       sf.fee_structure?.fee_type?.toLowerCase().includes(primaryFeeType.toLowerCase())
     );
     
+    // Calculate annual total for this specific fee type
     const annualTotal = matchingFee?.final_amount || totals.netTotal;
+    
+    // Monthly breakdown = annual / 12
     const monthlyAmount = Math.round(annualTotal / 12);
     
-    // Build monthly data with arrears tracking (academic year: Sep to Aug)
+    // Calculate total paid for this fee type
+    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+    
+    // Calculate how many months have been paid
+    // Example: If annual = 42000, monthly = 3500, paid = 14000 → 4 months paid
+    const monthsPaid = Math.floor(totalPaid / monthlyAmount);
+    
+    // Academic year months (Sep to Aug)
     const academicMonths = ["Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
-    const monthlyData: Record<string, { arrears: number; totalAmount: number; adjustment: number; paid: number; balance: number }> = {};
     
-    let runningArrears = 0;
-    let totalPaidSoFar = payments.reduce((sum, p) => sum + p.amount, 0);
-    let remainingPaid = totalPaidSoFar;
+    // Mark which months are paid (first N months based on payment amount)
+    const paidMonths = academicMonths.slice(0, monthsPaid);
     
-    academicMonths.forEach((month, idx) => {
-      const monthPaid = Math.min(remainingPaid, monthlyAmount);
-      remainingPaid = Math.max(0, remainingPaid - monthlyAmount);
-      
-      const balance = monthPaid < monthlyAmount ? monthlyAmount - monthPaid : 0;
-      
-      monthlyData[month] = {
-        arrears: runningArrears,
-        totalAmount: monthlyAmount,
-        adjustment: 0,
-        paid: monthPaid,
-        balance: balance,
-      };
-      
-      // Accumulate arrears for next month
-      runningArrears += balance;
-    });
-
-    // Determine which month we're billing for
+    // Remaining balance (arrears)
+    const balance = Math.max(0, annualTotal - totalPaid);
+    
+    // Determine current billing month
     const currentMonth = new Date().toLocaleString('en-US', { month: 'short' });
 
     return {
@@ -308,17 +304,11 @@ const StudentFeeCard = () => {
       className: selectedStudent.class?.name || "N/A",
       section: selectedStudent.class?.section,
       session: currentSession?.name || "2025-26",
-      feeType: `${primaryFeeType} Fee`,
+      feeType: primaryFeeType, // Just the type name, not "Fee" suffix
       monthlyAmount,
       annualTotal,
-      monthlyData,
-      totals: {
-        arrears: runningArrears,
-        totalPayables: totals.netTotal,
-        adjustment: totals.discount,
-        paid: totals.paid,
-        balance: totals.balance,
-      },
+      paidMonths,
+      totalPaid,
       dueDate: new Date(dueDate).toLocaleDateString(),
       feeOfMonth: currentMonth,
     };
@@ -340,6 +330,13 @@ const StudentFeeCard = () => {
       return;
     }
 
+    // Check if balance is 0 - don't print for fully paid students
+    const balance = data.annualTotal - data.totalPaid;
+    if (dontPrintFreeStudents && balance <= 0) {
+      toast.info("Student has no outstanding balance - fee card not generated");
+      return;
+    }
+
     try {
       await downloadFeeCard(data);
       toast.success("Fee card downloaded successfully!");
@@ -353,6 +350,13 @@ const StudentFeeCard = () => {
     const data = buildFeeCardData();
     if (!data) {
       toast.error("Please select a student first");
+      return;
+    }
+
+    // Check if balance is 0 - don't print for fully paid students
+    const balance = data.annualTotal - data.totalPaid;
+    if (dontPrintFreeStudents && balance <= 0) {
+      toast.info("Student has no outstanding balance - fee card not printed");
       return;
     }
 
