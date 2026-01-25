@@ -134,7 +134,7 @@ const ReportsModule = () => {
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      // Fetch students first
+      // Fetch students first with all needed fields
       let query = supabase
         .from("students")
         .select(`
@@ -143,7 +143,9 @@ const ReportsModule = () => {
           roll_number,
           father_name,
           father_phone,
+          mother_name,
           mother_phone,
+          emergency_contact,
           class_id,
           user_id
         `)
@@ -153,7 +155,8 @@ const ReportsModule = () => {
         query = query.eq("class_id", selectedClass);
       }
 
-      const { data: studentsData, error: studentsError } = await query.order("roll_number");
+      // Order by roll_number, handling nulls
+      const { data: studentsData, error: studentsError } = await query.order("roll_number", { nullsFirst: false });
       
       if (studentsError) {
         console.error("Error fetching students:", studentsError);
@@ -170,7 +173,7 @@ const ReportsModule = () => {
       const userIds = studentsData.map(s => s.user_id).filter(Boolean);
       const { data: profilesData } = await supabase
         .from("profiles")
-        .select("user_id, full_name, photo_url, date_of_birth")
+        .select("user_id, full_name, photo_url, date_of_birth, phone, email")
         .in("user_id", userIds);
 
       // Create a map of profiles by user_id
@@ -187,7 +190,8 @@ const ReportsModule = () => {
         combined = combined.filter((s: any) => 
           s.profiles?.full_name?.toLowerCase().includes(term) ||
           s.student_id?.toLowerCase().includes(term) ||
-          s.roll_number?.toString().includes(term)
+          s.roll_number?.toString().toLowerCase().includes(term) ||
+          s.father_name?.toLowerCase().includes(term)
         );
       }
       
@@ -585,8 +589,8 @@ const ReportsModule = () => {
       const student = students.find(s => s.id === studentId);
       if (!student) return;
 
-      // Fetch results for this student
-      const { data: resultsData } = await supabase
+      // Fetch results for this student - filter by exam type if selected
+      let query = supabase
         .from("results")
         .select(`
           marks_obtained,
@@ -595,11 +599,18 @@ const ReportsModule = () => {
             name,
             exam_type,
             max_marks,
+            class_id,
             subjects (name)
           )
         `)
         .eq("student_id", studentId)
         .eq("is_published", true);
+
+      if (selectedExamType) {
+        query = query.eq("exams.exam_type", selectedExamType);
+      }
+
+      const { data: resultsData } = await query;
 
       if (!resultsData || resultsData.length === 0) {
         toast({ title: "No Results", description: "No published results found for this student", variant: "destructive" });
@@ -610,12 +621,15 @@ const ReportsModule = () => {
 
       const dmcData: MarksCertificateData = {
         studentName: student.profiles?.full_name || "",
+        fatherName: student.father_name || "",
         studentId: student.student_id,
-        rollNumber: student.roll_number || student.student_id,
-        className: classData ? `${classData.name} ${classData.section || ""}`.trim() : "",
-        session: new Date().getFullYear().toString(),
+        rollNumber: student.roll_number || "",
+        className: classData?.name || "",
+        section: classData?.section || "",
+        session: selectedSession?.name || new Date().getFullYear().toString(),
         dateOfBirth: student.profiles?.date_of_birth,
         examName: selectedExamType || resultsData[0]?.exams?.exam_type || "Examination",
+        examMonth: selectedExamType || "Examination",
         subjects: resultsData.map((r: any) => ({
           name: r.exams?.subjects?.name || "Unknown",
           maxMarks: r.exams?.max_marks || 100,
@@ -623,6 +637,8 @@ const ReportsModule = () => {
           grade: r.grade,
         })),
         photoUrl: student.profiles?.photo_url,
+        schoolName: "THE SUFFAH PUBLIC SCHOOL & COLLEGE",
+        schoolAddress: "Madyan Swat, Pakistan",
       };
 
       await downloadMarksCertificate(dmcData);
