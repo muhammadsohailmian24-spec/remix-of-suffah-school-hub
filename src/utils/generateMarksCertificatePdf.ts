@@ -27,6 +27,8 @@ export interface MarksCertificateData {
   schoolAddress?: string;
   resultDate?: string;
   preparedBy?: string;
+  overallGrade?: string;
+  overallFeedback?: string;
 }
 
 const convertToWords = (num: number): string => {
@@ -303,7 +305,7 @@ export const generateMarksCertificatePdf = async (data: MarksCertificateData) =>
   });
 
   // Date of Birth in words section
-  const tableEndY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+  const tableEndY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
 
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
@@ -313,8 +315,47 @@ export const generateMarksCertificatePdf = async (data: MarksCertificateData) =>
   doc.setTextColor(...darkColor);
   doc.text(formatDateToWords(data.dateOfBirth), margin + 45, tableEndY);
 
+  // Overall Grade and Feedback section
+  let gradeY = tableEndY + 10;
+  if (data.overallGrade || data.overallFeedback) {
+    // Grade box with gold background
+    const gradeBoxWidth = 80;
+    const gradeBoxX = margin;
+    doc.setFillColor(255, 248, 220);
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.8);
+    doc.roundedRect(gradeBoxX, gradeY - 4, gradeBoxWidth, 14, 2, 2, 'FD');
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...primaryColor);
+    doc.text("Overall Grade:", gradeBoxX + 3, gradeY + 3);
+    doc.setFontSize(12);
+    doc.setTextColor(...goldColor);
+    doc.text(data.overallGrade || "-", gradeBoxX + 35, gradeY + 3);
+
+    // Feedback box
+    if (data.overallFeedback) {
+      const feedbackBoxX = gradeBoxX + gradeBoxWidth + 5;
+      const feedbackBoxWidth = pageWidth - margin * 2 - gradeBoxWidth - 5;
+      doc.setFillColor(245, 250, 255);
+      doc.setDrawColor(...primaryColor);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(feedbackBoxX, gradeY - 4, feedbackBoxWidth, 14, 2, 2, 'FD');
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...primaryColor);
+      doc.text("Feedback:", feedbackBoxX + 3, gradeY + 3);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...darkColor);
+      doc.text(data.overallFeedback, feedbackBoxX + 25, gradeY + 3);
+    }
+    gradeY += 18;
+  }
+
   // Bottom section with signatures
-  const bottomY = tableEndY + 18;
+  const bottomY = gradeY + 5;
   
   // Left side - Prepared by
   doc.setFontSize(8);
