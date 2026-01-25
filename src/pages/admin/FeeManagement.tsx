@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Receipt, CreditCard, FileText, Loader2, Search, Download, Printer, Mail, Users, User, Eye } from "lucide-react";
+import { Plus, Receipt, CreditCard, FileText, Loader2, Search, Download, Printer, Mail, Users, User, Eye, Grid3X3 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { downloadInvoice, printInvoice, generateInvoicePdf, InvoiceData } from "@/utils/generateInvoicePdf";
 import { downloadReceipt, printReceipt, generateReceiptPdf, ReceiptData } from "@/utils/generateReceiptPdf";
@@ -54,6 +55,7 @@ interface Payment {
 }
 
 const FeeManagement = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
   const [studentFees, setStudentFees] = useState<StudentFee[]>([]);
@@ -742,6 +744,10 @@ const FeeManagement = () => {
             <TabsTrigger value="history">Payment History</TabsTrigger>
           </TabsList>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/admin/fee-structure")}>
+              <Grid3X3 className="h-4 w-4 mr-2" />
+              Fee Structure
+            </Button>
             <Dialog open={reportDialog} onOpenChange={setReportDialog}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">

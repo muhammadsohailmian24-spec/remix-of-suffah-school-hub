@@ -657,6 +657,44 @@ export type Database = {
           },
         ]
       }
+      fee_type_structures: {
+        Row: {
+          academic_year_id: string | null
+          annual_amount: number
+          created_at: string
+          fee_type_name: string
+          grade_level: number
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          academic_year_id?: string | null
+          annual_amount?: number
+          created_at?: string
+          fee_type_name: string
+          grade_level: number
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          academic_year_id?: string | null
+          annual_amount?: number
+          created_at?: string
+          fee_type_name?: string
+          grade_level?: number
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_type_structures_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fingerprint_templates: {
         Row: {
           created_at: string
