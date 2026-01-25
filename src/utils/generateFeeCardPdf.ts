@@ -2,7 +2,8 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { loadLogo, addWatermark, primaryColor, goldColor, darkColor, grayColor } from "./pdfDesignUtils";
 
-const MONTHS = ["Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
+// Academic year months starting from March (new session)
+const MONTHS = ["Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"];
 
 export interface FeeCardData {
   studentId: string;
@@ -162,21 +163,22 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   doc.setFont("helvetica", "bold");
   doc.text("Monthly Fee Breakdown", margin + 40, tableY - 3, { align: "center" });
 
-  // Build table data with arrears tracking
+  // Build table data with arrears tracking - NO Annual Fee row, just balance tracking
+  // The grid shows only: Arrears B/F, Total Amount, Paid, Balance C/F
   let cumulativeArrears = 0;
   const arrearsRow = ["Arrears B/F"];
-  const feeRow = [`${data.feeType} Fee`];
+  const monthlyFeeRow = ["Monthly Fee"];
   const totalRow = ["Total Amount"];
   const paidRow = ["Paid"];
   const balanceRow = ["Balance C/F"];
 
   MONTHS.forEach(() => {
     arrearsRow.push(cumulativeArrears > 0 ? cumulativeArrears.toLocaleString() : "-");
-    feeRow.push(data.monthlyAmount.toLocaleString());
+    monthlyFeeRow.push(data.monthlyAmount.toLocaleString());
     
     const monthTotal = cumulativeArrears + data.monthlyAmount;
     totalRow.push(monthTotal.toLocaleString());
-    paidRow.push("-");
+    paidRow.push("-"); // Legacy doesn't track per-month payments
     balanceRow.push(monthTotal.toLocaleString());
     
     cumulativeArrears = monthTotal;
@@ -184,7 +186,7 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
 
   autoTable(doc, {
     head: [["Description", ...MONTHS]],
-    body: [arrearsRow, feeRow, totalRow, paidRow, balanceRow],
+    body: [arrearsRow, monthlyFeeRow, totalRow, paidRow, balanceRow],
     startY: tableY,
     margin: { left: margin, right: margin },
     styles: {
