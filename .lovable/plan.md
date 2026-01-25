@@ -1,204 +1,257 @@
 
-# Admin Dashboard Restructure - Legacy VB6-Style Navigation
+# Fee Structure Matrix Implementation Plan
 
 ## Overview
-This plan restructures the admin dashboard navigation from the current sidebar modules to match the legacy VB6 software behavior. The focus is on:
-1. Keeping the sidebar navigation (not switching to menu bar)
-2. Simplifying to core modules: Classes, Session, and Students
-3. Implementing a multi-part student registration form matching the legacy workflow
+Implement a Fee Structure management page that displays a matrix/grid of fee types vs class grades (matching the legacy VB6 interface from your screenshot). Admins can set annual fees for each fee type and grade, with support for adding new fee types.
 
-## Current State Analysis
-- Sidebar has: Dashboard, Students, Classes, Fees, Examinations, Certificates, Reports, Administrator
-- Classes page exists but needs to support school sections (Main, J&G, Akhundabad)
-- Session management exists in header via SessionSelector
-- Student form is a single dialog, not a multi-part tabbed form
+---
 
-## Changes Required
+## Understanding Your Requirements
 
-### 1. Sidebar Navigation Update
-**File: `src/components/admin/AdminLayout.tsx`**
-- Keep only these items in sidebar:
-  - Dashboard
-  - Classes (existing)
-  - Sessions (new - dedicated page for managing academic sessions)
-  - Students (existing but will be redesigned)
-  - Gallery (keep)
-  - Timetable (keep)
-  - Administrator (keep)
+Based on the screenshot, the system includes:
+- **Data Grid**: Rows = Fee Types (Annual, Admission, Tuition, etc.), Columns = Grades (P.G, Nur, KG, 1st through 12th, DIT, CIT)
+- **Add New Fee Type Section**: Dropdown to select fee type + "Add New" button
+- **Update Section**: Select Class + Fee Type + Enter Fee Amount + "Update Fee" button
+- **Print Button**: Export the fee structure as a PDF
 
-### 2. New Session Management Page
-**File: `src/pages/admin/Sessions.tsx`** (new)
-- Create academic sessions (e.g., "2026-27")
-- Set current session
-- View/edit session dates
-- Simple CRUD interface matching legacy behavior
+---
 
-### 3. Enhanced Class & Section Management
-**File: `src/pages/admin/Classes.tsx`** (modify)
-- Add support for "School Sections" (Main, J&G, Akhundabad)
-- Each class belongs to a school section
-- Button to create/manage school sections
-- Classes are just labels (no promotion logic, no academic-year dependency)
+## Database Changes
 
-### 4. Database Changes Required
-New tables/columns needed:
-- `school_sections` table: id, name, description, created_at
-- `houses` table: id, name, description, created_at (for student houses like IQBAL, QADEER)
-- Add columns to `students` table:
-  - `religion`
-  - `nationality`
-  - `blood_group`
-  - `health_notes`
-  - `house_id` (FK to houses)
-  - `domicile`
-  - `hostel_facility` (boolean)
-  - `transport_facility` (boolean)
-  - `admission_class_id` (class at time of admission)
-  - `roll_number`
-  - `previous_school_admission_no`
-  - `school_leaving_number`
-  - `school_leaving_date`
-  - `created_by` (admin who created the record)
+### New Table: `fee_type_structures`
 
-### 5. Redesigned Student Management - Multi-Part Form
-**File: `src/pages/admin/StudentManagement.tsx`** (major rewrite)
+This table will store the fee matrix data (annual amounts per fee type per grade level):
 
-The student form will have 4 tabs/parts:
+| Column | Type | Description |
+|--------|------|-------------|
+| id | uuid | Primary key |
+| fee_type_name | text | e.g., "Annual", "Tuition", "Admission" |
+| grade_level | integer | -3 (PG) to 15 (Special) matching existing schema |
+| annual_amount | numeric | Fee amount for that grade |
+| academic_year_id | uuid | Links to academic_years table |
+| created_at | timestamp | Auto-set |
+| updated_at | timestamp | Auto-set |
 
-**Part 1: Primary Data**
-- Student ID (manual entry, show last used ID)
-- Student Name
-- Father Name
-- Address
-- Date of Birth
-- Date of Admission
-- Class of Admission
-- Current Session
-- Current Class
-- Current Section (school section: Main, J&G, Akhundabad)
-- Button to create/manage sections
+**Unique constraint**: `(fee_type_name, grade_level, academic_year_id)` to prevent duplicates.
 
-**Part 2: Student Identity**
-- Fingerprint setup placeholder (for biometric integration)
-- Student Photo upload
-- Religion
-- Nationality
-- Gender
+**RLS Policies**:
+- Admin can manage all records
+- Everyone can read (for fee calculations)
 
-**Part 3: Secondary Data Part 1**
-- Father Occupation
-- Father CNIC (used for parent login)
-- Father Mobile Number
-- Blood Group
-- Health Notes
-- House (IQBAL, QADEER, etc.)
-- Button to add/manage houses
+---
 
-**Part 4: Secondary Data Part 2**
-- Domicile (province/region)
-- Hostel Facility (Yes/No)
-- Transport Facility (Yes/No)
-- Display current admin name (who is logged in)
-- Radio buttons: New Student / From Previous School
-- If Previous School selected:
-  - Previous School Name
-  - Previous School Admission Number
-  - School Leaving Number
-  - School Leaving Date
+## Predefined Fee Types
 
-### 6. Houses Management
-**File: `src/components/admin/HousesDialog.tsx`** (new)
-- Dialog to add/edit/delete houses (IQBAL, QADEER, etc.)
-- Triggered from Student form Part 3
+Based on your screenshot, these fee types will be pre-configured:
 
-### 7. School Sections Management
-**File: `src/components/admin/SchoolSectionsDialog.tsx`** (new)
-- Dialog to add/edit/delete school sections (Main, J&G, Akhundabad)
-- Triggered from Classes page or Student form
+1. Annual
+2. Admission
+3. Tuition
+4. Exam
+5. Monthly-Test
+6. Late-Fee
+7. Hostal (Hostel)
+8. Transport
+9. Arrears
+10. Dues
+11. Medical Fee
+12. Events Fee
+13. Promotion Fee
+14. Certificate Fee
+15. Urgent Certificate Fee
+16. Annual Practical Fee
+17. Annual Stationery Fee
+18. Annual Computer Fee
+19. Circular Tests Fee
+20. Afternoon Classes
+21. Combine Arrears
 
-## Implementation Phases
+---
 
-### Phase 1: Database Schema Updates
-1. Create `school_sections` table with RLS
-2. Create `houses` table with RLS
-3. Add new columns to `students` table
+## Grade Level Mapping
 
-### Phase 2: Sidebar & Navigation
-1. Update AdminLayout.tsx sidebar items
-2. Create Sessions.tsx page
-3. Add route in App.tsx
+Using the existing grade level system:
 
-### Phase 3: Classes Enhancement
-1. Update Classes.tsx to include school section selection
-2. Create SchoolSectionsDialog component
+| Grade Level (ID) | Display Label |
+|------------------|---------------|
+| -3 | P.G (Playgroup) |
+| -2 | Nur (Nursery) |
+| -1 | KG |
+| 1 | 1st |
+| 2 | 2nd |
+| 3 | 3rd |
+| 4 | 4th |
+| 5 | 5th |
+| 6 | 6th |
+| 7 | 7th |
+| 8 | 8th |
+| 9 | 9th |
+| 10 | 10th |
+| 11 | 11th |
+| 12 | 12th |
+| 13 | DIT |
+| 14 | CIT |
+| 15 | Special |
 
-### Phase 4: Houses Management
-1. Create HousesDialog component
-2. Add house selection to student form
+---
 
-### Phase 5: Student Form Redesign
-1. Refactor StudentManagement.tsx to use tabs
-2. Implement all 4 parts of the form
-3. Add "Last Student ID" display
-4. Add current admin name display
-5. Add previous school toggle logic
+## User Interface Design
 
-## Technical Considerations
+### Page Layout
 
-### Sidebar Items (Final List)
 ```text
-+------------------+
-| Dashboard        |
-+------------------+
-| Students         |
-+------------------+
-| Classes          |
-+------------------+
-| Sessions         |
-+------------------+
-| Gallery          |
-+------------------+
-| Timetable        |
-+------------------+
-| Administrator    |
-+------------------+
++------------------------------------------------------------+
+| Fee Structure                                               |
+| Manage fee amounts for each grade level                     |
++------------------------------------------------------------+
+| [Academic Year: 2025-26 v]  [+ Add Fee Type]  [Print] [Save]|
++------------------------------------------------------------+
+|                                                             |
+|  +------+------+------+-----+-----+-----+ ... +-----+-----+ |
+|  | S.No | Fee Type | P.G | Nur | KG | 1st | ... | 12th| DIT | |
+|  +------+----------+-----+-----+----+-----+ ... +-----+-----+ |
+|  |  1   | Annual   |41000|41000|41000|41000|...|166000| 0   | |
+|  |  2   | Admission| 5000| 5000| 5000| 5000|...|10000 | 0   | |
+|  |  3   | Tuition  | 3000| 3000| 3000| 3000|...| 8500 |4500 | |
+|  |  4   | Exam     |  0  |  0  |  0  |  0  |...|  500 | 0   | |
+|  | ...  | ...      | ... | ... | ... | ... |...|  ... | ... | |
+|  +------+----------+-----+-----+----+-----+ ... +-----+-----+ |
+|                                                             |
++------------------------------------------------------------+
+| Update Section (collapsible)                                |
+| [Class: _____v]  [Fee-Type: _____v]  [Fee: ______]          |
+|                           [Update Fee]                       |
++------------------------------------------------------------+
 ```
 
-### Student Form Layout
-```text
-+-------------------------------------------+
-| [ Primary Data ] [ Identity ] [ Secondary 1 ] [ Secondary 2 ] |
-+-------------------------------------------+
-|                                           |
-|   Form fields for selected tab            |
-|                                           |
-+-------------------------------------------+
-|              [ Save ] [ Cancel ]          |
-+-------------------------------------------+
+### Key Features
+
+1. **Scrollable Grid Table**: Horizontal scroll for many grade columns
+2. **Editable Cells**: Click to edit any cell value
+3. **Add Fee Type Dialog**: Add new custom fee types to the list
+4. **Quick Update Panel**: Select class + fee type + enter amount to update
+5. **Academic Year Selector**: Switch between years
+6. **Save Button**: Persist all changes to database
+7. **Print Button**: Export PDF matching legacy format
+
+---
+
+## Files to Create
+
+### 1. `src/pages/admin/FeeStructureMatrix.tsx`
+Main page component with:
+- Academic year selector
+- Data grid with fee types (rows) and grades (columns)
+- Add Fee Type dialog
+- Quick Update section
+- Save and Print buttons
+
+### 2. `src/utils/generateFeeStructurePdf.ts`
+PDF generator matching the legacy orange-themed format:
+- School header with logo
+- Date
+- Fee matrix table with all fee types and grades
+- Footer
+
+---
+
+## Files to Modify
+
+### 1. `src/App.tsx`
+Add route: `/admin/fee-structure`
+
+### 2. `src/pages/admin/FeeManagement.tsx`
+Add navigation button to Fee Structure page in the header
+
+### 3. Database Migration
+Create `fee_type_structures` table with proper RLS policies
+
+---
+
+## Technical Implementation Details
+
+### Component State Structure
+
+```typescript
+// Fee matrix data structure
+interface FeeMatrixData {
+  [feeTypeName: string]: {
+    [gradeLevel: number]: number; // annual amount
+  };
+}
+
+// Grade columns configuration
+const GRADE_COLUMNS = [
+  { level: -3, label: "P.G" },
+  { level: -2, label: "Nur" },
+  { level: -1, label: "KG" },
+  { level: 1, label: "1st" },
+  // ... through 12, DIT (13), CIT (14), Special (15)
+];
+
+// Default fee types
+const DEFAULT_FEE_TYPES = [
+  "Annual", "Admission", "Tuition", "Exam", 
+  "Monthly-Test", "Late-Fee", "Hostal", "Transport", ...
+];
 ```
 
-### Files to Create
-- `src/pages/admin/Sessions.tsx` - Session management page
-- `src/components/admin/SchoolSectionsDialog.tsx` - School sections CRUD
-- `src/components/admin/HousesDialog.tsx` - Houses CRUD
-- `src/components/admin/StudentFormTabs.tsx` - Multi-part student form
+### Data Flow
 
-### Files to Modify
-- `src/components/admin/AdminLayout.tsx` - Update sidebar
-- `src/pages/admin/Classes.tsx` - Add school section support
-- `src/pages/admin/StudentManagement.tsx` - Complete redesign
-- `src/App.tsx` - Add Sessions route
+1. **Load**: Fetch all `fee_type_structures` for selected academic year
+2. **Transform**: Convert to matrix format `{ feeTypeName: { gradeLevel: amount } }`
+3. **Edit**: Update local state on cell changes
+4. **Save**: Upsert changed records to database
+5. **Print**: Generate PDF from current matrix data
 
-### Database Migrations Needed
-1. Create `school_sections` table
-2. Create `houses` table
-3. ALTER `students` table with new columns
-4. Add foreign keys and RLS policies
+### Quick Update Logic
 
-## Core Behavior Rules (Preserved)
-- Admin can freely navigate all modules
-- No enforced academic lifecycle
-- No required setup sequence
-- Student-centric and fee-centric logic
-- Saving a student immediately makes them available everywhere
-- Soft delete (records deactivated, not removed)
+When admin selects Class + Fee Type + enters Amount:
+- Find the grade level of the selected class
+- Update the matrix cell for that fee type and grade
+- Mark as dirty for save
+
+---
+
+## PDF Export Design
+
+The PDF will match the legacy orange-themed design:
+- Orange header bar with school name and date
+- "Fee Structure" title
+- Matrix table with:
+  - S.No column
+  - Fee Type column
+  - Grade columns (P.G through Special)
+- Footer with page number
+
+---
+
+## Integration with Existing Fee System
+
+The new fee structure matrix will:
+1. Store default fee amounts per grade level
+2. When assigning fees to students, the system can pull default amounts from this matrix based on student's grade
+3. Monthly fee calculation: `annual_amount / 12` for monthly billing
+
+---
+
+## Implementation Order
+
+1. **Database Migration**: Create `fee_type_structures` table
+2. **Route Setup**: Add route in App.tsx
+3. **Main Component**: Build FeeStructureMatrix.tsx with grid UI
+4. **PDF Generator**: Create generateFeeStructurePdf.ts
+5. **Navigation**: Add button in FeeManagement.tsx to access the new page
+6. **Testing**: Verify save/load/print functionality
+
+---
+
+## Summary
+
+This implementation creates a dedicated Fee Structure Matrix page that:
+- Matches the legacy VB6 interface layout
+- Supports all grade levels from Playgroup to Special Class
+- Allows adding custom fee types
+- Provides quick update functionality
+- Exports to PDF for printing
+- Integrates with the existing academic year system
