@@ -11,28 +11,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Printer, Download, RefreshCw, User, Users, FileText } from "lucide-react";
+import { Loader2, Printer, Download, RefreshCw, User, Users } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import { downloadFeeCard, printFeeCard, FeeCardData } from "@/utils/generateFeeCardPdf";
 
-// Grade level mapping
-const GRADE_LABELS: Record<number, string> = {
-  [-3]: "P.G", [-2]: "Nur", [-1]: "KG",
-  1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th", 6: "6th",
-  7: "7th", 8: "8th", 9: "9th", 10: "10th", 11: "11th", 12: "12th",
-  13: "DIT", 14: "CIT", 15: "Special"
-};
+// Academic year months (Sep to Aug) - matches legacy
+const MONTHS_ACADEMIC = ["Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
 
 // Default fee types
 const DEFAULT_FEE_TYPES = [
-  "Annual", "Admission", "Tuition", "Exam", "Monthly-Test", "Late-Fee",
-  "Hostal", "Transport", "Arrears", "Medical Fee", "Events Fee",
+  "Tuition", "Transport", "Admission", "Exam", "Monthly-Test", "Late-Fee",
+  "Hostal", "Arrears", "Medical Fee", "Events Fee",
   "Promotion Fee", "Certificate Fee", "Urgent Certificate Fee",
-  "Annual Practical Fee", "Annual Stationery Fee", "Annual Computer Fee",
+  "Practical Fee", "Stationery Fee", "Computer Fee",
   "Circular Tests Fee", "Afternoon Classes", "Dues", "Combine Arrears"
 ];
-
-const MONTHS = ["Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan"];
 
 interface Student {
   id: string;
@@ -50,20 +43,19 @@ interface Profile {
   photo_url: string | null;
 }
 
-interface FeeMatrixEntry {
-  feeType: string;
-  months: Record<string, number>; // month -> amount
+interface FeeTypeStructure {
+  id: string;
+  fee_type_name: string;
+  grade_level: number;
+  annual_amount: number;
+  academic_year_id: string | null;
 }
 
-interface StudentFeeRecord {
-  id: string;
-  fee_structure_id: string;
-  amount: number;
-  discount: number;
-  final_amount: number;
-  status: string;
-  due_date: string;
-  fee_structure?: { name: string; fee_type: string };
+interface FeeMatrixEntry {
+  feeType: string;
+  annualAmount: number;
+  monthlyAmount: number;
+  months: Record<string, number>; // Empty per legacy - populated during fee card generation only
 }
 
 interface Payment {
@@ -83,14 +75,15 @@ const StudentFeeCard = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [classes, setClasses] = useState<{ id: string; name: string; grade_level: number; section?: string }[]>([]);
   const [feeTypes, setFeeTypes] = useState<string[]>(DEFAULT_FEE_TYPES);
-  const [studentFees, setStudentFees] = useState<StudentFeeRecord[]>([]);
+  const [feeTypeStructures, setFeeTypeStructures] = useState<FeeTypeStructure[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   
   // Selection states
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
-  const [selectedFeeTypes, setSelectedFeeTypes] = useState<string[]>(["Annual"]);
+  const [selectedFeeTypes, setSelectedFeeTypes] = useState<string[]>(["Tuition"]);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleString('en-US', { month: 'short' }));
   
   // Fee card options
   const [feeCardMode, setFeeCardMode] = useState<"specific" | "wholeClass">("specific");
@@ -142,37 +135,61 @@ const StudentFeeCard = () => {
     }
   };
 
-  const fetchStudentFees = async (studentId: string) => {
-    const { data: feesData } = await supabase
+  // Fetch fee structures for selected student's grade level
+  const fetchStudentFeeData = async (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student?.class?.grade_level) {
+      setFeeTypeStructures([]);
+      setPayments([]);
+      return;
+    }
+
+    const gradeLevel = student.class.grade_level;
+
+    // Get fee amounts from fee_type_structures for this grade
+    const { data: feeStructures } = await supabase
+      .from("fee_type_structures")
+      .select("*")
+      .eq("grade_level", gradeLevel)
+      .eq("academic_year_id", currentSession?.id);
+
+    if (feeStructures) {
+      setFeeTypeStructures(feeStructures);
+    } else {
+      setFeeTypeStructures([]);
+    }
+
+    // Get any payments made by this student (through student_fees junction)
+    const { data: studentFeesData } = await supabase
       .from("student_fees")
-      .select(`
-        *,
-        fee_structure:fee_structures(name, fee_type)
-      `)
+      .select("id")
       .eq("student_id", studentId);
 
-    if (feesData) setStudentFees(feesData);
-
-    // Fetch payments
-    if (feesData && feesData.length > 0) {
-      const feeIds = feesData.map(f => f.id);
+    if (studentFeesData && studentFeesData.length > 0) {
+      const feeIds = studentFeesData.map(f => f.id);
       const { data: paymentsData } = await supabase
         .from("fee_payments")
         .select("*")
         .in("student_fee_id", feeIds);
       
-      if (paymentsData) setPayments(paymentsData);
+      if (paymentsData) {
+        setPayments(paymentsData);
+      } else {
+        setPayments([]);
+      }
+    } else {
+      setPayments([]);
     }
   };
 
   useEffect(() => {
     if (selectedStudentId) {
-      fetchStudentFees(selectedStudentId);
+      fetchStudentFeeData(selectedStudentId);
     } else {
-      setStudentFees([]);
+      setFeeTypeStructures([]);
       setPayments([]);
     }
-  }, [selectedStudentId]);
+  }, [selectedStudentId, students, currentSession]);
 
   // Get selected student details
   const selectedStudent = useMemo(() => {
@@ -198,32 +215,44 @@ const StudentFeeCard = () => {
     return cls?.section ? [cls.section] : [];
   }, [classes, selectedClassId]);
 
-  // Build fee matrix for display
+  // Build fee matrix - Legacy accurate: months NOT prefilled, only fee structure amounts
   const feeMatrix = useMemo<FeeMatrixEntry[]>(() => {
     return selectedFeeTypes.map(feeType => {
-      const monthData: Record<string, number> = {};
-      MONTHS.forEach(month => {
-        // Find fee records matching this type and month
-        const matchingFee = studentFees.find(sf => 
-          sf.fee_structure?.name?.toLowerCase().includes(feeType.toLowerCase()) ||
-          sf.fee_structure?.fee_type?.toLowerCase().includes(feeType.toLowerCase())
-        );
-        monthData[month] = matchingFee ? matchingFee.final_amount : 0;
-      });
-      return { feeType, months: monthData };
-    });
-  }, [selectedFeeTypes, studentFees]);
+      // Find fee structure for this type and student's grade
+      const feeStructure = feeTypeStructures.find(
+        f => f.fee_type_name === feeType
+      );
+      
+      const annualAmount = feeStructure?.annual_amount || 0;
+      const monthlyAmount = Math.round(annualAmount / 12);
 
-  // Calculate totals
+      // IMPORTANT: months are NOT prefilled per legacy rules
+      // Grid only activates when fee card exists
+      const monthData: Record<string, number> = {};
+
+      return { 
+        feeType, 
+        annualAmount,
+        monthlyAmount,
+        months: monthData 
+      };
+    });
+  }, [selectedFeeTypes, feeTypeStructures]);
+
+  // Calculate totals - Legacy accurate
   const totals = useMemo(() => {
-    const totalAmount = studentFees.reduce((sum, sf) => sum + sf.amount, 0);
-    const totalDiscount = studentFees.reduce((sum, sf) => sum + (sf.discount || 0), 0) + discount;
-    const netTotal = totalAmount - totalDiscount;
+    // Sum all annual amounts for selected fee types
+    const totalAnnual = feeMatrix.reduce(
+      (sum, row) => sum + row.annualAmount,
+      0
+    );
+
+    const netTotal = totalAnnual - discount;
     const paid = payments.reduce((sum, p) => sum + p.amount, 0);
     const balance = Math.max(0, netTotal - paid);
-    
-    return { total: totalAmount, discount: totalDiscount, netTotal, paid, balance };
-  }, [studentFees, payments, discount]);
+
+    return { total: totalAnnual, discount, netTotal, paid, balance };
+  }, [feeMatrix, payments, discount]);
 
   // Handle fee type checkbox toggle
   const handleFeeTypeToggle = (feeType: string, checked: boolean) => {
@@ -236,7 +265,7 @@ const StudentFeeCard = () => {
 
   const handleRefresh = () => {
     if (selectedStudentId) {
-      fetchStudentFees(selectedStudentId);
+      fetchStudentFeeData(selectedStudentId);
     }
     fetchData();
   };
@@ -245,9 +274,9 @@ const StudentFeeCard = () => {
     setSelectedStudentId("");
     setSelectedClassId("");
     setSelectedSection("");
-    setSelectedFeeTypes(["Annual"]);
+    setSelectedFeeTypes(["Tuition"]);
     setDiscount(0);
-    setStudentFees([]);
+    setFeeTypeStructures([]);
     setPayments([]);
   };
 
@@ -256,46 +285,17 @@ const StudentFeeCard = () => {
     navigate("/admin/fee-management");
   };
 
-  // Build fee card data for PDF - matches legacy layout
-  // Logic: Annual fee / 12 = monthly amount
-  // Payments reduce balance month by month
-  // If balance = 0 (fully paid), don't generate fee card
+  // Build fee card data for PDF - Legacy accurate
   const buildFeeCardData = (): FeeCardData | null => {
     if (!selectedStudent || !selectedProfile) return null;
+    if (selectedFeeTypes.length === 0) return null;
 
-    // Use first selected fee type for the card (legacy shows one fee type per card)
-    const primaryFeeType = selectedFeeTypes[0] || "Annual";
-    
-    // Find the matching fee structure for this fee type
-    const matchingFee = studentFees.find(sf =>
-      sf.fee_structure?.name?.toLowerCase().includes(primaryFeeType.toLowerCase()) ||
-      sf.fee_structure?.fee_type?.toLowerCase().includes(primaryFeeType.toLowerCase())
-    );
-    
-    // Calculate annual total for this specific fee type
-    const annualTotal = matchingFee?.final_amount || totals.netTotal;
-    
-    // Monthly breakdown = annual / 12
-    const monthlyAmount = Math.round(annualTotal / 12);
-    
-    // Calculate total paid for this fee type
+    const feeRow = feeMatrix[0];
+    if (!feeRow) return null;
+
+    // Calculate totals - legacy logic
     const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-    
-    // Calculate how many months have been paid
-    // Example: If annual = 42000, monthly = 3500, paid = 14000 → 4 months paid
-    const monthsPaid = Math.floor(totalPaid / monthlyAmount);
-    
-    // Academic year months (Sep to Aug)
-    const academicMonths = ["Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
-    
-    // Mark which months are paid (first N months based on payment amount)
-    const paidMonths = academicMonths.slice(0, monthsPaid);
-    
-    // Remaining balance (arrears)
-    const balance = Math.max(0, annualTotal - totalPaid);
-    
-    // Determine current billing month
-    const currentMonth = new Date().toLocaleString('en-US', { month: 'short' });
+    const balance = Math.max(0, totals.netTotal - totalPaid);
 
     return {
       studentId: selectedStudent.student_id,
@@ -304,13 +304,12 @@ const StudentFeeCard = () => {
       className: selectedStudent.class?.name || "N/A",
       section: selectedStudent.class?.section,
       session: currentSession?.name || "2025-26",
-      feeType: primaryFeeType, // Just the type name, not "Fee" suffix
-      monthlyAmount,
-      annualTotal,
-      paidMonths,
+      feeType: feeRow.feeType,
+      monthlyAmount: feeRow.monthlyAmount,
       totalPaid,
+      balance,
       dueDate: new Date(dueDate).toLocaleDateString(),
-      feeOfMonth: currentMonth,
+      feeOfMonth: selectedMonth,
     };
   };
 
@@ -326,13 +325,13 @@ const StudentFeeCard = () => {
 
     const data = buildFeeCardData();
     if (!data) {
-      toast.error("Please select a student first");
+      toast.error("Please select a student and fee type first");
       return;
     }
 
-    // Check if balance is 0 - don't print for fully paid students
-    const balance = data.annualTotal - data.totalPaid;
-    if (dontPrintFreeStudents && balance <= 0) {
+    // Legacy rule: Checkbox is FINAL authority
+    // Only skip if BOTH balance = 0 AND checkbox is checked
+    if (data.balance <= 0 && dontPrintFreeStudents) {
       toast.info("Student has no outstanding balance - fee card not generated");
       return;
     }
@@ -349,13 +348,12 @@ const StudentFeeCard = () => {
   const handlePrintFeeCards = async () => {
     const data = buildFeeCardData();
     if (!data) {
-      toast.error("Please select a student first");
+      toast.error("Please select a student and fee type first");
       return;
     }
 
-    // Check if balance is 0 - don't print for fully paid students
-    const balance = data.annualTotal - data.totalPaid;
-    if (dontPrintFreeStudents && balance <= 0) {
+    // Legacy rule: Checkbox is FINAL authority
+    if (data.balance <= 0 && dontPrintFreeStudents) {
       toast.info("Student has no outstanding balance - fee card not printed");
       return;
     }
@@ -439,6 +437,20 @@ const StudentFeeCard = () => {
                     <SelectItem value="all">All Sections</SelectItem>
                     {availableSections.map(section => (
                       <SelectItem key={section} value={section}>{section}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs">Fee Month</Label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="Select Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTHS_ACADEMIC.map(month => (
+                      <SelectItem key={month} value={month}>{month}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -582,40 +594,38 @@ const StudentFeeCard = () => {
             </CardContent>
           </Card>
 
-          {/* Monthly Fee Grid */}
+          {/* Fee Summary Grid */}
           <Card>
-            <CardContent className="pt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Selected Fee Types</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-2">
               <ScrollArea className="w-full">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-24">Fee Type</TableHead>
-                      {MONTHS.map(month => (
-                        <TableHead key={month} className="text-center w-14 text-xs">
-                          {month}
-                        </TableHead>
-                      ))}
+                      <TableHead className="w-32">Fee Type</TableHead>
+                      <TableHead className="text-right">Monthly</TableHead>
+                      <TableHead className="text-right">Yearly</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {feeMatrix.map(row => (
                       <TableRow key={row.feeType}>
-                        <TableCell className="font-medium text-xs">{row.feeType}</TableCell>
-                        {MONTHS.map(month => (
-                          <TableCell key={month} className="text-center text-xs">
-                            {row.months[month] || 0}
-                          </TableCell>
-                        ))}
+                        <TableCell className="font-medium text-sm">{row.feeType}</TableCell>
+                        <TableCell className="text-right text-sm">{row.monthlyAmount.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-sm">{row.annualAmount.toLocaleString()}</TableCell>
                       </TableRow>
                     ))}
-                    <TableRow className="font-bold bg-muted/50">
-                      <TableCell>Total</TableCell>
-                      {MONTHS.map(month => (
-                        <TableCell key={month} className="text-center text-xs">
-                          {feeMatrix.reduce((sum, row) => sum + (row.months[month] || 0), 0)}
+                    {feeMatrix.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground text-sm py-4">
+                          {selectedStudent 
+                            ? "No fee structures found for this student's class" 
+                            : "Select a student to view fee structures"}
                         </TableCell>
-                      ))}
-                    </TableRow>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </ScrollArea>

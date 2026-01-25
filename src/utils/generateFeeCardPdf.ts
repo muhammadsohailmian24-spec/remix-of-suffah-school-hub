@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { loadLogo, primaryColor, goldColor, darkColor, grayColor } from "./pdfDesignUtils";
+import { loadLogo, addWatermark, primaryColor, goldColor, darkColor, grayColor } from "./pdfDesignUtils";
 
 // Academic year months order (Sep to Aug)
 const MONTHS = ["Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
@@ -12,25 +12,13 @@ export interface FeeCardData {
   className: string;
   section?: string;
   session: string;
-  feeType: string; // e.g., "Transport", "Tuition", "Annual"
-  annualTotal: number; // Total annual fee for this fee type
-  monthlyAmount: number; // Monthly breakdown = annualTotal / 12
-  paidMonths: string[]; // List of months that have been paid
-  totalPaid: number; // Total amount paid so far
+  feeType: string;
+  monthlyAmount: number;
+  totalPaid: number;
+  balance: number;
   dueDate: string;
   feeOfMonth: string;
 }
-
-const drawWhiteCircles = (doc: jsPDF): void => {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  
-  // White semi-transparent circles in header
-  doc.setFillColor(255, 255, 255);
-  doc.circle(pageWidth - 28, 18, 38, 'F');
-  doc.circle(pageWidth - 65, -12, 28, 'F');
-  doc.circle(32, 38, 22, 'F');
-  doc.circle(pageWidth - 35, 45, 15, 'F');
-};
 
 export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   const doc = new jsPDF({
@@ -42,8 +30,9 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // Load logo
+  // Load logo and add watermark first
   const logoImg = await loadLogo();
+  await addWatermark(doc, 0.06);
 
   // Header background
   doc.setFillColor(...primaryColor);
@@ -52,9 +41,6 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   // Gold accent stripe
   doc.setFillColor(...goldColor);
   doc.rect(0, 42, pageWidth, 2, "F");
-
-  // White circular decorations
-  drawWhiteCircles(doc);
 
   // Left logo with gold ring
   if (logoImg) {
@@ -102,8 +88,8 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   // Content area starts
   const contentY = 48;
   
-  // Calculate arrears - remaining balance from annual fee after payments
-  const arrearsAmount = Math.max(0, data.annualTotal - data.totalPaid);
+  // Calculate arrears (remaining balance)
+  const arrearsAmount = data.balance;
   
   // Left section - Student Info
   const leftSectionX = 8;
@@ -243,61 +229,58 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   // Main transaction table
   const tableY = feeTypeY + 10;
   
-  // Build monthly data - show monthly amount in cells where payment is due/made
-  // Arrears row shows running balance from previous months
-  // The "Annual" row shows the monthly breakdown amount (annualTotal / 12)
+  // Build monthly data - Legacy logic:
+  // - Grid shows monthly amount in each month
+  // - Arrears accumulate for unpaid months
+  // - Payments reduce balance only, NOT mark individual months
   
   const monthlyAmount = data.monthlyAmount;
-  let runningArrears = 0;
-  let remainingToPay = data.annualTotal - data.totalPaid;
+  let cumulativeArrears = 0;
   
-  // Calculate how many months have been paid
-  const paidMonthsCount = data.paidMonths.length;
+  // Calculate how many months could be paid based on total paid
+  // But per legacy: we don't track individual paid months
+  // Instead, arrears = balance, and grid shows structure only
   
   // Build table data
   const arrearsRow = ["Arrears"];
-  const annualRow = [data.feeType]; // Fee type name (e.g., "Transport", "Annual")
+  const feeTypeRow = [data.feeType];
   const totalAmountRow = ["Total Amount"];
   const adjustmentRow = ["Off/Adjustment"];
   const paidRow = ["Paid Amount"];
   const balanceRow = ["Balance"];
   
-  let cumulativeArrears = 0;
+  // Per legacy: Grid shows monthly structure
+  // Arrears only shown if there's outstanding balance
+  // Each month shows the monthly fee amount
   
   MONTHS.forEach((month, idx) => {
-    const isPaid = data.paidMonths.includes(month);
-    
-    // Arrears from previous month
+    // Arrears from previous month (starts at 0, carries forward)
     arrearsRow.push(cumulativeArrears > 0 ? cumulativeArrears.toString() : "");
     
-    // Monthly fee amount - show only if this month has fee due (active month)
-    // In legacy system, shows monthly amount in each month column
-    annualRow.push(monthlyAmount > 0 ? monthlyAmount.toString() : "");
+    // Monthly fee amount - always show the monthly breakdown
+    feeTypeRow.push(monthlyAmount > 0 ? monthlyAmount.toString() : "");
     
     // Total amount = arrears + monthly
     const totalForMonth = cumulativeArrears + monthlyAmount;
     totalAmountRow.push(totalForMonth > 0 ? totalForMonth.toString() : "");
     
-    // Adjustment (none in this basic implementation)
+    // Adjustment (none in basic implementation)
     adjustmentRow.push("");
     
-    // Paid amount for this month
-    const paidForMonth = isPaid ? monthlyAmount : 0;
-    paidRow.push(paidForMonth > 0 ? paidForMonth.toString() : "");
+    // Paid amount - legacy doesn't track per-month payments
+    // Just shows structure, actual payments affect balance only
+    paidRow.push("");
     
-    // Balance = total - paid
-    const balanceForMonth = totalForMonth - paidForMonth;
-    balanceRow.push(balanceForMonth > 0 ? balanceForMonth.toString() : "");
+    // Balance = total for month (unpaid carries as arrears)
+    balanceRow.push(totalForMonth > 0 ? totalForMonth.toString() : "");
     
-    // If not paid, arrears carry to next month
-    if (!isPaid) {
-      cumulativeArrears += monthlyAmount;
-    }
+    // Arrears carry to next month (cumulative)
+    cumulativeArrears = totalForMonth;
   });
 
   const tableData = [
     arrearsRow,
-    annualRow,
+    feeTypeRow,
     totalAmountRow,
     adjustmentRow,
     paidRow,
@@ -339,11 +322,12 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.3);
   
-  // Summary table data
+  // Summary table data - monthly-centric (no annual reference)
+  const totalPayables = data.monthlyAmount * 12; // Full year monthly breakdown
   const summaryData = [
     ["Description", "Amount"],
-    [`Arrears ${data.feeType}`, arrearsAmount.toString()],
-    ["Total Payables", data.annualTotal.toString()],
+    [`${data.feeType} Arrears`, arrearsAmount.toString()],
+    ["Total Payables", totalPayables.toString()],
     ["Adjustment", "0"],
     ["Paid", data.totalPaid.toString()],
   ];
