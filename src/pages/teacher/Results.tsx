@@ -52,20 +52,73 @@ const TeacherResults = () => {
   }, []);
 
   const fetchExams = async () => {
-    const { data } = await supabase
-      .from("exams")
-      .select(`
-        id,
-        name,
-        exam_type,
-        exam_date,
-        max_marks,
-        classes (name),
-        subjects (name)
-      `)
-      .order("exam_date", { ascending: false });
+    // Get current user
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setLoading(false);
+      return;
+    }
 
-    setExams((data as Exam[]) || []);
+    // Get teacher record
+    const { data: teacher } = await supabase
+      .from("teachers")
+      .select("id")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+
+    if (!teacher) {
+      setLoading(false);
+      return;
+    }
+
+    // Get the class_id and subject_id combinations this teacher is assigned to via timetable
+    const { data: assignments } = await supabase
+      .from("timetable")
+      .select("class_id, subject_id")
+      .eq("teacher_id", teacher.id);
+
+    if (!assignments || assignments.length === 0) {
+      setExams([]);
+      setLoading(false);
+      return;
+    }
+
+    // Get unique class-subject pairs
+    const uniqueAssignments = assignments.reduce((acc, curr) => {
+      const key = `${curr.class_id}-${curr.subject_id}`;
+      if (!acc.find(a => `${a.class_id}-${a.subject_id}` === key)) {
+        acc.push(curr);
+      }
+      return acc;
+    }, [] as { class_id: string; subject_id: string }[]);
+
+    // Fetch exams that match the teacher's class-subject assignments
+    const allExams: Exam[] = [];
+    for (const assignment of uniqueAssignments) {
+      const { data } = await supabase
+        .from("exams")
+        .select(`
+          id,
+          name,
+          exam_type,
+          exam_date,
+          max_marks,
+          classes (name),
+          subjects (name)
+        `)
+        .eq("class_id", assignment.class_id)
+        .eq("subject_id", assignment.subject_id)
+        .order("exam_date", { ascending: false });
+
+      if (data) {
+        allExams.push(...(data as Exam[]));
+      }
+    }
+
+    // Sort by date
+    allExams.sort((a, b) => new Date(b.exam_date).getTime() - new Date(a.exam_date).getTime());
+    
+    setExams(allExams);
     setLoading(false);
   };
 
