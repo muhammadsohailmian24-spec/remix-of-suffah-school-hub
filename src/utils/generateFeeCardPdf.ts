@@ -2,7 +2,6 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { loadLogo, addWatermark, primaryColor, goldColor, darkColor, grayColor } from "./pdfDesignUtils";
 
-// Academic year months order (Sep to Aug)
 const MONTHS = ["Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
 
 export interface FeeCardData {
@@ -29,371 +28,228 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 12;
 
-  // Load logo and add watermark first
+  // Add watermark
+  await addWatermark(doc, 0.05);
+
+  // Load logo
   const logoImg = await loadLogo();
-  await addWatermark(doc, 0.06);
 
-  // Header background
+  // ===== HEADER SECTION =====
+  // Gradient-style header background
   doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, pageWidth, 42, "F");
-
-  // Gold accent stripe
+  doc.rect(0, 0, pageWidth, 38, "F");
+  
+  // Gold accent line
   doc.setFillColor(...goldColor);
-  doc.rect(0, 42, pageWidth, 2, "F");
+  doc.rect(0, 38, pageWidth, 2, "F");
 
-  // Left logo with gold ring
+  // Logo on left
   if (logoImg) {
-    const logoSize = 32;
-    const logoX = 8;
-    const logoY = 5;
-
-    doc.setDrawColor(...goldColor);
-    doc.setLineWidth(2);
-    doc.circle(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 + 3);
     doc.setFillColor(255, 255, 255);
-    doc.circle(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 + 1, "F");
-    doc.addImage(logoImg, "PNG", logoX, logoY, logoSize, logoSize);
+    doc.circle(margin + 14, 19, 15, "F");
+    doc.addImage(logoImg, "PNG", margin + 2, 7, 24, 24);
   }
 
-  // Right logo with gold ring
-  if (logoImg) {
-    const logoSize = 32;
-    const logoX = pageWidth - logoSize - 8;
-    const logoY = 5;
-
-    doc.setDrawColor(...goldColor);
-    doc.setLineWidth(2);
-    doc.circle(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 + 3);
-    doc.setFillColor(255, 255, 255);
-    doc.circle(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 + 1, "F");
-    doc.addImage(logoImg, "PNG", logoX, logoY, logoSize, logoSize);
-  }
-
-  // School name - stylized
+  // School name and details
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
+  doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
-  doc.text("The Suffah", pageWidth / 2 - 20, 18, { align: "center" });
+  doc.text("The Suffah Public School & College", pageWidth / 2, 14, { align: "center" });
   
-  doc.setFontSize(14);
-  doc.text("Public School & College Madyan", pageWidth / 2, 28, { align: "center" });
-
-  // Registration numbers
-  doc.setFontSize(8);
+  doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text("PSRA Reg. No. 200445000302", pageWidth / 2 - 40, 35);
-  doc.text("BISE Reg. No. 434-B/Swat-C", pageWidth / 2 + 10, 35);
+  doc.text("Madyan Swat, Pakistan | PSRA Reg. No. 200445000302 | BISE Reg. No. 434-B/Swat-C", pageWidth / 2, 22, { align: "center" });
 
-  // Content area starts
-  const contentY = 48;
-  
-  // Calculate arrears (remaining balance)
-  const arrearsAmount = data.balance;
-  
-  // Left section - Student Info
-  const leftSectionX = 8;
-  const leftSectionWidth = 70;
-  
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.3);
-  doc.rect(leftSectionX, contentY, leftSectionWidth, 45);
-
-  doc.setFontSize(9);
+  // Fee Card Title Badge
+  doc.setFillColor(...goldColor);
+  doc.roundedRect(pageWidth / 2 - 35, 26, 70, 10, 2, 2, "F");
   doc.setTextColor(...darkColor);
-  doc.setFont("helvetica", "normal");
-  
-  let infoY = contentY + 7;
-  doc.text("Student-ID:", leftSectionX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.text(data.studentId, leftSectionX + 35, infoY);
-  
-  infoY += 7;
-  doc.setFont("helvetica", "normal");
-  doc.text("Student's-Name:", leftSectionX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.text(data.studentName, leftSectionX + 35, infoY);
-  
-  infoY += 7;
-  doc.setFont("helvetica", "normal");
-  doc.text("Student's-Father Name:", leftSectionX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.text(data.fatherName || "N/A", leftSectionX + 45, infoY);
-  
-  infoY += 7;
-  doc.setFont("helvetica", "normal");
-  doc.text("Session:", leftSectionX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.text(data.session, leftSectionX + 35, infoY);
-
-  // Middle section - Class info
-  const midInfoX = leftSectionX + leftSectionWidth + 3;
-  const midInfoWidth = 55;
-  
-  doc.setDrawColor(0, 0, 0);
-  doc.rect(midInfoX, contentY, midInfoWidth, 45);
-
-  infoY = contentY + 7;
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text("Class:", midInfoX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.text(data.className, midInfoX + 20, infoY);
-  
-  infoY += 7;
-  doc.setFont("helvetica", "normal");
-  doc.text("Section:", midInfoX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.text(data.section || "Main", midInfoX + 20, infoY);
-  
-  infoY += 7;
-  doc.setFont("helvetica", "normal");
-  doc.text("Fee-of:", midInfoX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.text(data.feeOfMonth, midInfoX + 20, infoY);
-  
-  infoY += 7;
-  doc.setFont("helvetica", "normal");
-  doc.text("Due-Date:", midInfoX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...primaryColor);
-  doc.text(data.dueDate, midInfoX + 22, infoY);
-
-  // Right section - Summary slip
-  const rightSectionX = pageWidth - 68;
-  const rightSectionWidth = 60;
-  
-  doc.setDrawColor(0, 0, 0);
-  doc.setTextColor(...darkColor);
-  doc.rect(rightSectionX, contentY, rightSectionWidth, 45);
-
-  infoY = contentY + 7;
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text("Student-ID:", rightSectionX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.text(data.studentId, rightSectionX + 28, infoY);
-  
-  infoY += 7;
-  doc.setFont("helvetica", "normal");
-  doc.text("Name:", rightSectionX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...primaryColor);
-  doc.text(data.studentName, rightSectionX + 18, infoY);
-  
-  infoY += 7;
-  doc.setTextColor(...darkColor);
-  doc.setFont("helvetica", "normal");
-  doc.text("F/Name:", rightSectionX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.text(data.fatherName || "N/A", rightSectionX + 20, infoY);
-  
-  infoY += 7;
-  doc.setFont("helvetica", "normal");
-  doc.text("Class:", rightSectionX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.text(`${data.className}${data.section ? ` (${data.section})` : ""}`, rightSectionX + 16, infoY);
-  
-  infoY += 7;
-  doc.setFont("helvetica", "normal");
-  doc.text("Due Date:", rightSectionX + 3, infoY);
-  doc.setFont("helvetica", "bold");
-  doc.text(data.dueDate, rightSectionX + 22, infoY);
-
-  // Fee Type Title - centered
-  const feeTypeY = contentY + 50;
-  doc.setFillColor(...primaryColor);
-  doc.roundedRect(pageWidth / 2 - 30, feeTypeY - 5, 60, 10, 2, 2, "F");
-  doc.setTextColor(255, 255, 255);
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(`${data.feeType} Fee`, pageWidth / 2, feeTypeY + 2, { align: "center" });
+  doc.text(`${data.feeType} FEE CARD`, pageWidth / 2, 33, { align: "center" });
 
-  // Date range badge - extract session year
-  const sessionYear = data.session.split("-")[0] || "20";
+  // Session badge on right
   doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(...darkColor);
-  doc.roundedRect(pageWidth / 2 + 40, feeTypeY - 5, 50, 10, 2, 2, "FD");
-  doc.setTextColor(...darkColor);
+  doc.roundedRect(pageWidth - margin - 50, 10, 48, 18, 3, 3, "F");
+  doc.setTextColor(...primaryColor);
   doc.setFontSize(8);
-  doc.text(`From Sep ${sessionYear} To Aug ${sessionYear}`, pageWidth / 2 + 65, feeTypeY + 2, { align: "center" });
+  doc.text("Academic Session", pageWidth - margin - 26, 17, { align: "center" });
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.text(data.session, pageWidth - margin - 26, 24, { align: "center" });
 
-  // Transactions Details label
+  // ===== STUDENT INFO SECTION =====
+  const infoY = 46;
+  
+  // Student info card - left side
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(margin, infoY, 130, 32, 3, 3, "F");
+  doc.setDrawColor(...primaryColor);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(margin, infoY, 130, 32, 3, 3, "S");
+
+  doc.setFontSize(9);
+  doc.setTextColor(...grayColor);
+  doc.setFont("helvetica", "normal");
+  
+  // Left column
+  doc.text("Student ID:", margin + 4, infoY + 8);
+  doc.text("Student Name:", margin + 4, infoY + 16);
+  doc.text("Father's Name:", margin + 4, infoY + 24);
+  
+  doc.setTextColor(...darkColor);
+  doc.setFont("helvetica", "bold");
+  doc.text(data.studentId, margin + 35, infoY + 8);
+  doc.text(data.studentName, margin + 35, infoY + 16);
+  doc.text(data.fatherName, margin + 35, infoY + 24);
+
+  // Right column within student card
+  doc.setTextColor(...grayColor);
+  doc.setFont("helvetica", "normal");
+  doc.text("Class:", margin + 80, infoY + 8);
+  doc.text("Section:", margin + 80, infoY + 16);
+  doc.text("Fee Month:", margin + 80, infoY + 24);
+  
+  doc.setTextColor(...darkColor);
+  doc.setFont("helvetica", "bold");
+  doc.text(data.className, margin + 100, infoY + 8);
+  doc.text(data.section || "Main", margin + 100, infoY + 16);
+  doc.setTextColor(...primaryColor);
+  doc.text(data.feeOfMonth, margin + 100, infoY + 24);
+
+  // Summary card - right side
+  const summaryX = pageWidth - margin - 90;
+  doc.setFillColor(...primaryColor);
+  doc.roundedRect(summaryX, infoY, 90, 32, 3, 3, "F");
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  
+  const monthlyTotal = data.monthlyAmount * 12;
+  
+  doc.text("Monthly Fee:", summaryX + 5, infoY + 9);
+  doc.text("Total Payable:", summaryX + 5, infoY + 17);
+  doc.text("Total Paid:", summaryX + 5, infoY + 25);
+  
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text(`Rs. ${data.monthlyAmount.toLocaleString()}`, summaryX + 50, infoY + 9);
+  doc.text(`Rs. ${monthlyTotal.toLocaleString()}`, summaryX + 50, infoY + 17);
+  doc.text(`Rs. ${data.totalPaid.toLocaleString()}`, summaryX + 50, infoY + 25);
+
+  // Balance badge
+  const balanceY = infoY + 34;
+  doc.setFillColor(...goldColor);
+  doc.roundedRect(summaryX, balanceY, 90, 12, 3, 3, "F");
+  doc.setTextColor(...darkColor);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("BALANCE DUE:", summaryX + 5, balanceY + 8);
+  doc.setFontSize(12);
+  doc.text(`Rs. ${data.balance.toLocaleString()}`, summaryX + 55, balanceY + 8);
+
+  // ===== MONTHLY BREAKDOWN TABLE =====
+  const tableY = 92;
+  
+  // Table title
   doc.setFillColor(...darkColor);
-  doc.rect(leftSectionX, feeTypeY - 5, 45, 8, "F");
+  doc.roundedRect(margin, tableY - 8, 80, 7, 1, 1, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
-  doc.text("Transactions: Details", leftSectionX + 22.5, feeTypeY + 1, { align: "center" });
+  doc.text("Monthly Fee Breakdown", margin + 40, tableY - 3, { align: "center" });
 
-  // Main transaction table
-  const tableY = feeTypeY + 10;
-  
-  // Build monthly data - Legacy logic:
-  // - Grid shows monthly amount in each month
-  // - Arrears accumulate for unpaid months
-  // - Payments reduce balance only, NOT mark individual months
-  
-  const monthlyAmount = data.monthlyAmount;
+  // Build table data with arrears tracking
   let cumulativeArrears = 0;
-  
-  // Calculate how many months could be paid based on total paid
-  // But per legacy: we don't track individual paid months
-  // Instead, arrears = balance, and grid shows structure only
-  
-  // Build table data
-  const arrearsRow = ["Arrears"];
-  const feeTypeRow = [data.feeType];
-  const totalAmountRow = ["Total Amount"];
-  const adjustmentRow = ["Off/Adjustment"];
-  const paidRow = ["Paid Amount"];
-  const balanceRow = ["Balance"];
-  
-  // Per legacy: Grid shows monthly structure
-  // Arrears only shown if there's outstanding balance
-  // Each month shows the monthly fee amount
-  
-  MONTHS.forEach((month, idx) => {
-    // Arrears from previous month (starts at 0, carries forward)
-    arrearsRow.push(cumulativeArrears > 0 ? cumulativeArrears.toString() : "");
-    
-    // Monthly fee amount - always show the monthly breakdown
-    feeTypeRow.push(monthlyAmount > 0 ? monthlyAmount.toString() : "");
-    
-    // Total amount = arrears + monthly
-    const totalForMonth = cumulativeArrears + monthlyAmount;
-    totalAmountRow.push(totalForMonth > 0 ? totalForMonth.toString() : "");
-    
-    // Adjustment (none in basic implementation)
-    adjustmentRow.push("");
-    
-    // Paid amount - legacy doesn't track per-month payments
-    // Just shows structure, actual payments affect balance only
-    paidRow.push("");
-    
-    // Balance = total for month (unpaid carries as arrears)
-    balanceRow.push(totalForMonth > 0 ? totalForMonth.toString() : "");
-    
-    // Arrears carry to next month (cumulative)
-    cumulativeArrears = totalForMonth;
-  });
+  const arrearsRow = ["Arrears B/F"];
+  const feeRow = [`${data.feeType} Fee`];
+  const totalRow = ["Total Amount"];
+  const paidRow = ["Paid"];
+  const balanceRow = ["Balance C/F"];
 
-  const tableData = [
-    arrearsRow,
-    feeTypeRow,
-    totalAmountRow,
-    adjustmentRow,
-    paidRow,
-    balanceRow,
-  ];
+  MONTHS.forEach(() => {
+    arrearsRow.push(cumulativeArrears > 0 ? cumulativeArrears.toLocaleString() : "-");
+    feeRow.push(data.monthlyAmount.toLocaleString());
+    
+    const monthTotal = cumulativeArrears + data.monthlyAmount;
+    totalRow.push(monthTotal.toLocaleString());
+    paidRow.push("-");
+    balanceRow.push(monthTotal.toLocaleString());
+    
+    cumulativeArrears = monthTotal;
+  });
 
   autoTable(doc, {
     head: [["Description", ...MONTHS]],
-    body: tableData,
+    body: [arrearsRow, feeRow, totalRow, paidRow, balanceRow],
     startY: tableY,
-    margin: { left: leftSectionX, right: 70 },
+    margin: { left: margin, right: margin },
     styles: {
-      fontSize: 8,
-      cellPadding: 2,
+      fontSize: 7,
+      cellPadding: 3,
       halign: "center",
       valign: "middle",
-      lineColor: [0, 0, 0],
-      lineWidth: 0.2,
+      lineColor: [200, 200, 200],
+      lineWidth: 0.3,
     },
     headStyles: {
-      fillColor: [255, 255, 255],
-      textColor: [0, 0, 0],
+      fillColor: primaryColor,
+      textColor: [255, 255, 255],
       fontStyle: "bold",
-      fontSize: 7,
+      fontSize: 8,
+    },
+    bodyStyles: {
+      fillColor: [255, 255, 255],
+      textColor: darkColor,
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252],
     },
     columnStyles: {
-      0: { cellWidth: 35, halign: "left", fontStyle: "bold" },
+      0: { cellWidth: 28, halign: "left", fontStyle: "bold", fillColor: [240, 240, 240] },
     },
     theme: "grid",
   });
 
   const finalTableY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
 
-  // Right side summary table
-  const summaryX = rightSectionX;
-  const summaryY = tableY;
-  const summaryWidth = rightSectionWidth;
-  
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.3);
-  
-  // Summary table data - monthly-centric (no annual reference)
-  const totalPayables = data.monthlyAmount * 12; // Full year monthly breakdown
-  const summaryData = [
-    ["Description", "Amount"],
-    [`${data.feeType} Arrears`, arrearsAmount.toString()],
-    ["Total Payables", totalPayables.toString()],
-    ["Adjustment", "0"],
-    ["Paid", data.totalPaid.toString()],
-  ];
+  // ===== FOOTER SECTION =====
+  const footerY = finalTableY + 10;
 
-  let summaryRowY = summaryY;
-  summaryData.forEach((row, idx) => {
-    const isHeader = idx === 0;
-    const rowHeight = 8;
-    
-    if (isHeader) {
-      doc.setFillColor(240, 240, 240);
-    } else {
-      doc.setFillColor(255, 255, 255);
-    }
-    
-    doc.rect(summaryX, summaryRowY, summaryWidth / 2, rowHeight, "FD");
-    doc.rect(summaryX + summaryWidth / 2, summaryRowY, summaryWidth / 2, rowHeight, "FD");
-    
-    doc.setFontSize(8);
-    doc.setTextColor(...darkColor);
-    doc.setFont("helvetica", isHeader ? "bold" : "normal");
-    doc.text(row[0], summaryX + 2, summaryRowY + 5.5);
-    doc.text(row[1], summaryX + summaryWidth - 2, summaryRowY + 5.5, { align: "right" });
-    
-    summaryRowY += rowHeight;
-  });
-
-  // Cashier signature section - right
-  summaryRowY += 5;
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text("Cashier Signature:", summaryX, summaryRowY + 5);
-  doc.line(summaryX + 32, summaryRowY + 5, summaryX + summaryWidth, summaryRowY + 5);
-
-  // Footer section
-  const footerY = Math.max(finalTableY + 8, summaryRowY + 15);
-  
-  doc.setDrawColor(...grayColor);
+  // Due date notice
+  doc.setFillColor(254, 243, 199);
+  doc.roundedRect(margin, footerY, 100, 12, 2, 2, "F");
+  doc.setDrawColor(234, 179, 8);
   doc.setLineWidth(0.5);
-  doc.line(leftSectionX, footerY, pageWidth - 8, footerY);
-
-  // Footer fields
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...darkColor);
-  
-  doc.text("Cashier Signature:", leftSectionX, footerY + 8);
-  doc.line(leftSectionX + 35, footerY + 8, leftSectionX + 70, footerY + 8);
-  
-  doc.text("Total Payables:", leftSectionX + 80, footerY + 8);
+  doc.roundedRect(margin, footerY, 100, 12, 2, 2, "S");
+  doc.setTextColor(146, 64, 14);
+  doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...primaryColor);
-  doc.text(arrearsAmount.toString(), leftSectionX + 115, footerY + 8);
-  
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...darkColor);
-  doc.text("Adjust:", leftSectionX + 135, footerY + 8);
-  doc.line(leftSectionX + 150, footerY + 8, leftSectionX + 170, footerY + 8);
-  
-  doc.text("Paid:", leftSectionX + 180, footerY + 8);
-  doc.line(leftSectionX + 193, footerY + 8, leftSectionX + 215, footerY + 8);
+  doc.text(`Due Date: ${data.dueDate}`, margin + 50, footerY + 7.5, { align: "center" });
 
-  // Generation date at bottom
+  // Signature sections
+  const sigY = footerY + 20;
+  doc.setTextColor(...grayColor);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  
+  doc.text("Parent/Guardian Signature", margin + 35, sigY + 12, { align: "center" });
+  doc.setDrawColor(...grayColor);
+  doc.line(margin, sigY + 8, margin + 70, sigY + 8);
+
+  doc.text("Cashier Signature", pageWidth / 2, sigY + 12, { align: "center" });
+  doc.line(pageWidth / 2 - 35, sigY + 8, pageWidth / 2 + 35, sigY + 8);
+
+  doc.text("Principal Signature", pageWidth - margin - 35, sigY + 12, { align: "center" });
+  doc.line(pageWidth - margin - 70, sigY + 8, pageWidth - margin, sigY + 8);
+
+  // Generation date
   doc.setFontSize(7);
   doc.setTextColor(...grayColor);
-  doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 8, { align: "center" });
+  doc.text(`Generated: ${new Date().toLocaleDateString()} | This is a computer-generated document`, pageWidth / 2, pageHeight - 8, { align: "center" });
 
   return doc;
 };
