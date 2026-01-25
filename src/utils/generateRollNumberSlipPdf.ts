@@ -36,12 +36,6 @@ const generateSingleSlip = async (doc: jsPDF, data: RollNumberSlipData, logoImg:
   doc.setFillColor(...goldColor);
   doc.rect(0, 42, pageWidth, 3, "F");
   
-  // Decorative circles in header
-  doc.setFillColor(255, 255, 255);
-  doc.circle(pageWidth - 20, 12, 25, 'F');
-  doc.circle(pageWidth - 45, -5, 18, 'F');
-  doc.circle(20, 35, 12, 'F');
-
   // Circular logo with gold ring
   if (logoImg) {
     const logoSize = 30;
@@ -191,19 +185,6 @@ const generateSingleSlip = async (doc: jsPDF, data: RollNumberSlipData, logoImg:
     doc.setTextColor(...darkColor);
     doc.text(instruction, leftMargin + 8, finalY + 8 + index * 6);
   });
-
-  // Footer with signatures
-  const footerY = doc.internal.pageSize.getHeight() - 32;
-  
-  doc.setLineWidth(0.5);
-  doc.setDrawColor(...grayColor);
-  doc.line(leftMargin, footerY, leftMargin + 50, footerY);
-  doc.line(pageWidth - leftMargin - 50, footerY, pageWidth - leftMargin, footerY);
-
-  doc.setFontSize(9);
-  doc.setTextColor(...darkColor);
-  doc.text("Principal's Signature", leftMargin, footerY + 6);
-  doc.text("Controller of Examination", pageWidth - leftMargin - 50, footerY + 6);
   
   // Apply styled footer
   drawStyledFooter(doc, 1, 1, data.schoolAddress || "Madyan Swat, Pakistan");
