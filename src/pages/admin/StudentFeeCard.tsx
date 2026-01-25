@@ -98,6 +98,7 @@ const StudentFeeCard = () => {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentForMonth, setPaymentForMonth] = useState(new Date().toLocaleString('en-US', { month: 'short' }));
   const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
@@ -890,70 +891,90 @@ const StudentFeeCard = () => {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label>Student</Label>
-              <Input value={selectedProfile?.full_name || ""} disabled className="bg-muted" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Student</Label>
+                <Input value={selectedProfile?.full_name || ""} disabled className="bg-muted text-sm" />
+              </div>
+              <div className="space-y-2">
+                <Label>Current Balance</Label>
+                <Input 
+                  value={`Rs. ${totals.balance.toLocaleString()}`} 
+                  disabled 
+                  className={`bg-muted font-medium ${totals.balance > 0 ? "text-destructive" : "text-primary"}`} 
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Current Balance</Label>
-              <Input 
-                value={`Rs. ${totals.balance.toLocaleString()}`} 
-                disabled 
-                className={`bg-muted font-medium ${totals.balance > 0 ? "text-destructive" : "text-primary"}`} 
-              />
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="paymentAmount">Amount</Label>
+                <Input
+                  id="paymentAmount"
+                  type="number"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Fee for Month</Label>
+                <Select value={paymentForMonth} onValueChange={setPaymentForMonth}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTHS_ACADEMIC.map(month => (
+                      <SelectItem key={month} value={month}>{month}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="paymentAmount">Payment Amount</Label>
-              <Input
-                id="paymentAmount"
-                type="number"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-                placeholder="Enter custom amount"
-                autoFocus
-              />
-              {/* Quick amount buttons for monthly payments */}
-              {feeMatrix.length > 0 && feeMatrix[0].monthlyAmount > 0 && (
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPaymentAmount(feeMatrix[0].monthlyAmount.toString())}
-                    className="text-xs"
-                  >
-                    1 Month ({feeMatrix[0].monthlyAmount.toLocaleString()})
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPaymentAmount((feeMatrix[0].monthlyAmount * 2).toString())}
-                    className="text-xs"
-                  >
-                    2 Months ({(feeMatrix[0].monthlyAmount * 2).toLocaleString()})
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPaymentAmount((feeMatrix[0].monthlyAmount * 3).toString())}
-                    className="text-xs"
-                  >
-                    3 Months ({(feeMatrix[0].monthlyAmount * 3).toLocaleString()})
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPaymentAmount(totals.balance.toString())}
-                    className="text-xs"
-                  >
-                    Full Balance ({totals.balance.toLocaleString()})
-                  </Button>
-                </div>
-              )}
-            </div>
+
+            {/* Quick amount buttons for monthly payments */}
+            {feeMatrix.length > 0 && feeMatrix[0].monthlyAmount > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPaymentAmount(feeMatrix[0].monthlyAmount.toString())}
+                  className="text-xs"
+                >
+                  1 Month ({feeMatrix[0].monthlyAmount.toLocaleString()})
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPaymentAmount((feeMatrix[0].monthlyAmount * 2).toString())}
+                  className="text-xs"
+                >
+                  2 Months ({(feeMatrix[0].monthlyAmount * 2).toLocaleString()})
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPaymentAmount((feeMatrix[0].monthlyAmount * 3).toString())}
+                  className="text-xs"
+                >
+                  3 Months ({(feeMatrix[0].monthlyAmount * 3).toLocaleString()})
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPaymentAmount(totals.balance.toString())}
+                  className="text-xs"
+                >
+                  Full Balance ({totals.balance.toLocaleString()})
+                </Button>
+              </div>
+            )}
+            
             <div className="space-y-2">
               <Label>Payment Method</Label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
