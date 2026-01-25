@@ -168,12 +168,18 @@ serve(async (req) => {
 
     const userId = newUser.user.id;
 
-    // Update profile with phone if provided
-    if (phone) {
-      await supabaseAdmin
-        .from("profiles")
-        .update({ phone })
-        .eq("user_id", userId);
+    // Create or update profile - ensure profile exists with all data
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .upsert({
+        user_id: userId,
+        email: userEmail || "",
+        full_name: fullName,
+        phone: phone || null,
+      }, { onConflict: "user_id" });
+
+    if (profileError) {
+      console.error("Error creating/updating profile:", profileError);
     }
 
     // Add user role
