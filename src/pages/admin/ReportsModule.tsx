@@ -25,7 +25,7 @@ import { generateClassTimetablePdf, ClassTimetablePdfData, TimetableEntry } from
 import { exportToExcel, exportToCSV } from "@/utils/exportUtils";
 import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
-type ReportType = "gazette" | "dmc" | "position" | "timetable" | "awards" | "contacts";
+type ReportType = "gazette" | "dmc" | "position" | "timetable" | "awardlist" | "contacts";
 
 interface Class {
   id: string;
@@ -34,8 +34,9 @@ interface Class {
   grade_level: number;
 }
 
-interface ExamType {
-  exam_type: string;
+interface Subject {
+  id: string;
+  name: string;
 }
 
 const ReportsModule = () => {
@@ -46,10 +47,12 @@ const ReportsModule = () => {
   const activeTab = (searchParams.get("type") as ReportType) || "gazette";
   
   const [classes, setClasses] = useState<Class[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [examTypes, setExamTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [selectedExamType, setSelectedExamType] = useState<string>("");
+  const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [students, setStudents] = useState<any[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
@@ -57,6 +60,7 @@ const ReportsModule = () => {
   const [positionData, setPositionData] = useState<any[]>([]);
   const [contactsData, setContactsData] = useState<any[]>([]);
   const [timetableData, setTimetableData] = useState<any[]>([]);
+  const [awardListData, setAwardListData] = useState<any[]>([]);
   
   // Preview states
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -66,6 +70,7 @@ const ReportsModule = () => {
   useEffect(() => {
     fetchClasses();
     fetchExamTypes();
+    fetchSubjects();
   }, []);
 
   useEffect(() => {
@@ -98,8 +103,13 @@ const ReportsModule = () => {
     }
   }, [selectedClass, selectedExamType]);
 
+  useEffect(() => {
+    if (selectedClass && selectedExamType && selectedSubject && activeTab === "awardlist") {
+      fetchAwardListData();
+    }
+  }, [selectedClass, selectedExamType, selectedSubject]);
+
   const fetchClasses = async () => {
-    // Fetch all classes regardless of session - classes may not have academic_year_id set
     const { data } = await supabase
       .from("classes")
       .select("id, name, section, grade_level")
@@ -107,51 +117,93 @@ const ReportsModule = () => {
     setClasses(data || []);
   };
 
+  const fetchSubjects = async () => {
+    const { data } = await supabase
+      .from("subjects")
+      .select("id, name")
+      .order("name");
+    setSubjects(data || []);
+  };
+
   const fetchExamTypes = async () => {
-    // Fetch all exam types regardless of session
     const { data } = await supabase.from("exams").select("exam_type");
     const types = [...new Set(data?.map(e => e.exam_type) || [])];
     setExamTypes(types);
   };
 
   const fetchStudents = async () => {
-    let query = supabase
-      .from("students")
-      .select(`
-        id,
-        student_id,
-        roll_number,
-        father_name,
-        father_phone,
-        mother_phone,
-        class_id,
-        user_id,
-        profiles!students_user_id_fkey (full_name, photo_url, date_of_birth)
-      `)
-      .eq("status", "active");
+    setLoading(true);
+    try {
+      // Fetch students first
+      let query = supabase
+        .from("students")
+        .select(`
+          id,
+          student_id,
+          roll_number,
+          father_name,
+          father_phone,
+          mother_phone,
+          class_id,
+          user_id
+        `)
+        .eq("status", "active");
 
-    if (selectedClass) {
-      query = query.eq("class_id", selectedClass);
-    }
+      if (selectedClass) {
+        query = query.eq("class_id", selectedClass);
+      }
 
-    const { data } = await query.order("roll_number");
-    
-    let filtered = data || [];
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter((s: any) => 
-        s.profiles?.full_name?.toLowerCase().includes(term) ||
-        s.student_id?.toLowerCase().includes(term) ||
-        s.roll_number?.toString().includes(term)
-      );
+      const { data: studentsData, error: studentsError } = await query.order("roll_number");
+      
+      if (studentsError) {
+        console.error("Error fetching students:", studentsError);
+        setStudents([]);
+        return;
+      }
+
+      if (!studentsData || studentsData.length === 0) {
+        setStudents([]);
+        return;
+      }
+
+      // Fetch profiles for these students
+      const userIds = studentsData.map(s => s.user_id).filter(Boolean);
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, photo_url, date_of_birth")
+        .in("user_id", userIds);
+
+      // Create a map of profiles by user_id
+      const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
+
+      // Combine students with their profiles
+      let combined = studentsData.map(student => ({
+        ...student,
+        profiles: profilesMap.get(student.user_id) || null
+      }));
+
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        combined = combined.filter((s: any) => 
+          s.profiles?.full_name?.toLowerCase().includes(term) ||
+          s.student_id?.toLowerCase().includes(term) ||
+          s.roll_number?.toString().includes(term)
+        );
+      }
+      
+      setStudents(combined);
+    } catch (error) {
+      console.error("Error in fetchStudents:", error);
+      setStudents([]);
+    } finally {
+      setLoading(false);
     }
-    
-    setStudents(filtered);
   };
 
   const fetchGazetteData = async () => {
     setLoading(true);
     try {
+      // First fetch results with exams
       let query = supabase
         .from("results")
         .select(`
@@ -166,14 +218,6 @@ const ReportsModule = () => {
             max_marks,
             class_id,
             subjects (name)
-          ),
-          students!inner (
-            id,
-            student_id,
-            roll_number,
-            class_id,
-            user_id,
-            profiles!students_user_id_fkey (full_name)
           )
         `)
         .eq("exams.exam_type", selectedExamType)
@@ -183,32 +227,65 @@ const ReportsModule = () => {
         query = query.eq("exams.class_id", selectedClass);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const { data: resultsData, error: resultsError } = await query;
+      
+      if (resultsError) {
+        console.error("Error fetching results:", resultsError);
+        setGazetteData([]);
+        return;
+      }
+
+      if (!resultsData || resultsData.length === 0) {
+        setGazetteData([]);
+        return;
+      }
+
+      // Get unique student IDs from results
+      const studentIds = [...new Set(resultsData.map(r => r.student_id))];
+      
+      // Fetch students data
+      const { data: studentsData } = await supabase
+        .from("students")
+        .select("id, student_id, roll_number, user_id")
+        .in("id", studentIds);
+
+      // Fetch profiles
+      const userIds = studentsData?.map(s => s.user_id).filter(Boolean) || [];
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+
+      // Create maps
+      const studentsMap = new Map(studentsData?.map(s => [s.id, s]) || []);
+      const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
 
       // Group by student
       const studentMap = new Map();
-      (data || []).forEach((result: any) => {
-        const studentId = result.students?.id;
+      resultsData.forEach((result: any) => {
+        const studentId = result.student_id;
+        const student = studentsMap.get(studentId);
+        const profile = student ? profilesMap.get(student.user_id) : null;
+        
         if (!studentMap.has(studentId)) {
           studentMap.set(studentId, {
-            studentId: result.students?.student_id,
-            rollNumber: result.students?.roll_number,
-            name: result.students?.profiles?.full_name,
+            studentId: student?.student_id,
+            rollNumber: student?.roll_number,
+            name: profile?.full_name || "Unknown",
             subjects: [],
             totalMarks: 0,
             totalMax: 0,
           });
         }
-        const student = studentMap.get(studentId);
-        student.subjects.push({
+        const studentData = studentMap.get(studentId);
+        studentData.subjects.push({
           name: result.exams?.subjects?.name,
           obtained: result.marks_obtained,
           max: result.exams?.max_marks || 100,
           grade: result.grade,
         });
-        student.totalMarks += result.marks_obtained;
-        student.totalMax += (result.exams?.max_marks || 100);
+        studentData.totalMarks += result.marks_obtained;
+        studentData.totalMax += (result.exams?.max_marks || 100);
       });
 
       const gazetteArr = Array.from(studentMap.values())
@@ -235,49 +312,75 @@ const ReportsModule = () => {
   const fetchPositionData = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: resultsData, error: resultsError } = await supabase
         .from("results")
         .select(`
           id,
           marks_obtained,
           grade,
           position_in_class,
+          student_id,
           exams!inner (
             id,
             exam_type,
             max_marks,
             class_id
-          ),
-          students!inner (
-            id,
-            student_id,
-            roll_number,
-            user_id,
-            profiles!students_user_id_fkey (full_name)
           )
         `)
         .eq("exams.exam_type", selectedExamType)
         .eq("exams.class_id", selectedClass)
         .eq("is_published", true);
 
-      if (error) throw error;
+      if (resultsError) {
+        console.error("Error fetching results:", resultsError);
+        setPositionData([]);
+        return;
+      }
+
+      if (!resultsData || resultsData.length === 0) {
+        setPositionData([]);
+        return;
+      }
+
+      // Get unique student IDs
+      const studentIds = [...new Set(resultsData.map(r => r.student_id))];
+      
+      // Fetch students
+      const { data: studentsData } = await supabase
+        .from("students")
+        .select("id, student_id, roll_number, user_id")
+        .in("id", studentIds);
+
+      // Fetch profiles
+      const userIds = studentsData?.map(s => s.user_id).filter(Boolean) || [];
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+
+      // Create maps
+      const studentsMap = new Map(studentsData?.map(s => [s.id, s]) || []);
+      const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
 
       // Group by student and calculate totals
       const studentMap = new Map();
-      (data || []).forEach((result: any) => {
-        const studentId = result.students?.id;
+      resultsData.forEach((result: any) => {
+        const studentId = result.student_id;
+        const student = studentsMap.get(studentId);
+        const profile = student ? profilesMap.get(student.user_id) : null;
+        
         if (!studentMap.has(studentId)) {
           studentMap.set(studentId, {
-            studentId: result.students?.student_id,
-            rollNumber: result.students?.roll_number,
-            name: result.students?.profiles?.full_name,
+            studentId: student?.student_id,
+            rollNumber: student?.roll_number,
+            name: profile?.full_name || "Unknown",
             totalMarks: 0,
             totalMax: 0,
           });
         }
-        const student = studentMap.get(studentId);
-        student.totalMarks += result.marks_obtained;
-        student.totalMax += (result.exams?.max_marks || 100);
+        const studentData = studentMap.get(studentId);
+        studentData.totalMarks += result.marks_obtained;
+        studentData.totalMax += (result.exams?.max_marks || 100);
       });
 
       const positionArr = Array.from(studentMap.values())
@@ -303,7 +406,8 @@ const ReportsModule = () => {
   const fetchContactsData = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch students
+      const { data: studentsData, error: studentsError } = await supabase
         .from("students")
         .select(`
           id,
@@ -314,15 +418,39 @@ const ReportsModule = () => {
           mother_name,
           mother_phone,
           emergency_contact,
-          user_id,
-          profiles!students_user_id_fkey (full_name, phone, email)
+          user_id
         `)
         .eq("class_id", selectedClass)
         .eq("status", "active")
         .order("roll_number");
 
-      if (error) throw error;
-      setContactsData(data || []);
+      if (studentsError) {
+        console.error("Error fetching students:", studentsError);
+        setContactsData([]);
+        return;
+      }
+
+      if (!studentsData || studentsData.length === 0) {
+        setContactsData([]);
+        return;
+      }
+
+      // Fetch profiles
+      const userIds = studentsData.map(s => s.user_id).filter(Boolean);
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, phone, email")
+        .in("user_id", userIds);
+
+      const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
+
+      // Combine
+      const combined = studentsData.map(student => ({
+        ...student,
+        profiles: profilesMap.get(student.user_id) || null
+      }));
+
+      setContactsData(combined);
     } catch (error) {
       console.error("Error fetching contacts:", error);
       toast({ title: "Error", description: "Failed to fetch contact data", variant: "destructive" });
@@ -358,6 +486,89 @@ const ReportsModule = () => {
     } catch (error) {
       console.error("Error fetching timetable:", error);
       toast({ title: "Error", description: "Failed to fetch timetable", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAwardListData = async () => {
+    setLoading(true);
+    try {
+      // Fetch results for the specific subject, class, and exam type
+      const { data: resultsData, error: resultsError } = await supabase
+        .from("results")
+        .select(`
+          id,
+          marks_obtained,
+          grade,
+          student_id,
+          exams!inner (
+            id,
+            name,
+            exam_type,
+            max_marks,
+            class_id,
+            subject_id,
+            subjects (name)
+          )
+        `)
+        .eq("exams.exam_type", selectedExamType)
+        .eq("exams.class_id", selectedClass)
+        .eq("exams.subject_id", selectedSubject)
+        .eq("is_published", true);
+
+      if (resultsError) {
+        console.error("Error fetching award list:", resultsError);
+        setAwardListData([]);
+        return;
+      }
+
+      if (!resultsData || resultsData.length === 0) {
+        setAwardListData([]);
+        return;
+      }
+
+      // Get unique student IDs
+      const studentIds = [...new Set(resultsData.map(r => r.student_id))];
+      
+      // Fetch students
+      const { data: studentsData } = await supabase
+        .from("students")
+        .select("id, student_id, roll_number, father_name, user_id")
+        .in("id", studentIds);
+
+      // Fetch profiles
+      const userIds = studentsData?.map(s => s.user_id).filter(Boolean) || [];
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+
+      // Create maps
+      const studentsMap = new Map(studentsData?.map(s => [s.id, s]) || []);
+      const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
+
+      // Build award list
+      const awardList = resultsData.map((result: any) => {
+        const student = studentsMap.get(result.student_id);
+        const profile = student ? profilesMap.get(student.user_id) : null;
+        
+        return {
+          studentId: student?.student_id || "",
+          rollNumber: student?.roll_number || "",
+          name: profile?.full_name || "Unknown",
+          fatherName: student?.father_name || "",
+          marksObtained: result.marks_obtained,
+          maxMarks: result.exams?.max_marks || 100,
+          grade: result.grade,
+          subjectName: result.exams?.subjects?.name || ""
+        };
+      }).sort((a, b) => b.marksObtained - a.marksObtained);
+
+      setAwardListData(awardList);
+    } catch (error) {
+      console.error("Error fetching award list:", error);
+      toast({ title: "Error", description: "Failed to fetch award list", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -543,40 +754,70 @@ const ReportsModule = () => {
     toast({ title: "Success", description: "Exam timetable downloaded" });
   };
 
-  const handleGenerateAwardList = async () => {
-    if (gazetteData.length === 0) {
+  const handleDownloadAwardList = async () => {
+    if (awardListData.length === 0) {
       toast({ title: "No Data", description: "No results found for award list", variant: "destructive" });
       return;
     }
 
     const classData = classes.find(c => c.id === selectedClass);
+    const subjectData = subjects.find(s => s.id === selectedSubject);
     
-    // Top 10 students formatted for award list
-    const topStudents = gazetteData.slice(0, 10).map((s, idx) => ({
+    // Format students for award list PDF
+    const awardStudents = awardListData.map((s, idx) => ({
       sr_no: idx + 1,
       student_id: s.studentId || "",
       name: s.name || "",
-      father_name: "",
-      theory_marks: s.totalMarks,
+      father_name: s.fatherName || "",
+      theory_marks: s.marksObtained,
       practical_marks: "-",
-      total_marks: s.totalMarks,
+      total_marks: s.marksObtained,
     }));
 
     const awardData: AwardListData = {
-      session: new Date().getFullYear().toString(),
+      session: selectedSession?.name || new Date().getFullYear().toString(),
       date: format(new Date(), "dd/MM/yyyy"),
-      className: classData ? classData.name : "All Classes",
+      className: classData ? classData.name : "Class",
       section: classData?.section || "",
-      subject: "All Subjects",
+      subject: subjectData?.name || "Subject",
       teacherName: "",
-      maxMarks: gazetteData[0]?.totalMax?.toString() || "100",
-      students: topStudents,
+      maxMarks: awardListData[0]?.maxMarks?.toString() || "100",
+      students: awardStudents,
     };
 
     const doc = await generateAwardListPdf(awardData);
-    doc.save(`Award-List-${selectedExamType}-${classData?.name || "All"}.pdf`);
+    doc.save(`Award-List-${subjectData?.name || "Subject"}-${classData?.name || "Class"}-${selectedExamType}.pdf`);
 
-    toast({ title: "Success", description: "Award list generated" });
+    toast({ title: "Success", description: "Award list downloaded" });
+  };
+
+  const handleExportAwardList = (format: "excel" | "csv") => {
+    const columns = [
+      { header: "Sr No", key: "srNo" },
+      { header: "Roll No", key: "rollNumber" },
+      { header: "Student ID", key: "studentId" },
+      { header: "Name", key: "name" },
+      { header: "Father Name", key: "fatherName" },
+      { header: "Marks Obtained", key: "marksObtained" },
+      { header: "Max Marks", key: "maxMarks" },
+      { header: "Grade", key: "grade" },
+    ];
+
+    const data = awardListData.map((s, idx) => ({
+      ...s,
+      srNo: idx + 1,
+    }));
+
+    const classData = classes.find(c => c.id === selectedClass);
+    const subjectData = subjects.find(s => s.id === selectedSubject);
+    const filename = `AwardList-${subjectData?.name || "Subject"}-${classData?.name || "Class"}-${selectedExamType}`;
+
+    if (format === "excel") {
+      exportToExcel(data, columns, filename, "Award List");
+    } else {
+      exportToCSV(data, columns, filename);
+    }
+    toast({ title: "Success", description: `Award list exported as ${format.toUpperCase()}` });
   };
 
   const toggleStudentSelection = (studentId: string) => {
@@ -615,9 +856,9 @@ const ReportsModule = () => {
             <Clock className="w-4 h-4" />
             <span className="hidden sm:inline">Timetable</span>
           </TabsTrigger>
-          <TabsTrigger value="awards" className="gap-2">
+          <TabsTrigger value="awardlist" className="gap-2">
             <Award className="w-4 h-4" />
-            <span className="hidden sm:inline">Awards</span>
+            <span className="hidden sm:inline">Award List</span>
           </TabsTrigger>
           <TabsTrigger value="contacts" className="gap-2">
             <Phone className="w-4 h-4" />
@@ -789,7 +1030,11 @@ const ReportsModule = () => {
                 </div>
               )}
 
-              {selectedClass && students.length > 0 ? (
+              {loading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : selectedClass && students.length > 0 ? (
                 <div className="border rounded-lg overflow-hidden">
                   <Table>
                     <TableHeader>
@@ -817,7 +1062,7 @@ const ReportsModule = () => {
                           </TableCell>
                           <TableCell>{student.roll_number || "-"}</TableCell>
                           <TableCell>{student.student_id}</TableCell>
-                          <TableCell className="font-medium">{student.profiles?.full_name}</TableCell>
+                          <TableCell className="font-medium">{student.profiles?.full_name || "-"}</TableCell>
                           <TableCell className="text-right">
                             <Button
                               size="sm"
@@ -836,7 +1081,7 @@ const ReportsModule = () => {
                 </div>
               ) : selectedClass ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No students found
+                  No students found in this class
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
@@ -1038,18 +1283,33 @@ const ReportsModule = () => {
           </Card>
         </TabsContent>
 
-        {/* Awards Tab */}
-        <TabsContent value="awards">
+        {/* Award List Tab */}
+        <TabsContent value="awardlist">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Award className="w-5 h-5" />
-                Award Lists
+                Subject-wise Award List
               </CardTitle>
-              <CardDescription>Generate award lists for top performers</CardDescription>
+              <CardDescription>Marks of the whole class for a single subject</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <Label>Class</Label>
+                  <Select value={selectedClass} onValueChange={setSelectedClass}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes.map(cls => (
+                        <SelectItem key={cls.id} value={cls.id}>
+                          {cls.name} {cls.section || ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <Label>Exam Type</Label>
                   <Select value={selectedExamType} onValueChange={setSelectedExamType}>
@@ -1064,46 +1324,75 @@ const ReportsModule = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label>Class (Optional)</Label>
-                  <Select value={selectedClass || "all"} onValueChange={(v) => setSelectedClass(v === "all" ? "" : v)}>
+                  <Label>Subject</Label>
+                  <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                     <SelectTrigger>
-                      <SelectValue placeholder="All classes" />
+                      <SelectValue placeholder="Select subject" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Classes</SelectItem>
-                      {classes.map(cls => (
-                        <SelectItem key={cls.id} value={cls.id}>
-                          {cls.name} {cls.section || ""}
+                      {subjects.map(subject => (
+                        <SelectItem key={subject.id} value={subject.id}>
+                          {subject.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-end">
-                  <Button onClick={handleGenerateAwardList} disabled={gazetteData.length === 0}>
+                <div className="flex items-end gap-2">
+                  <Button onClick={handleDownloadAwardList} disabled={awardListData.length === 0}>
                     <Download className="w-4 h-4 mr-2" />
-                    Generate Award List
+                    PDF
+                  </Button>
+                  <Button variant="outline" onClick={() => handleExportAwardList("excel")} disabled={awardListData.length === 0}>
+                    Excel
                   </Button>
                 </div>
               </div>
 
-              {gazetteData.length > 0 && (
-                <div className="grid md:grid-cols-3 gap-4">
-                  {gazetteData.slice(0, 3).map((student, idx) => (
-                    <Card key={student.studentId} className={`${idx === 0 ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20" : idx === 1 ? "border-gray-400 bg-gray-50 dark:bg-gray-950/20" : "border-amber-600 bg-amber-50 dark:bg-amber-950/20"}`}>
-                      <CardContent className="pt-6 text-center">
-                        <div className="text-4xl mb-2">
-                          {idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}
-                        </div>
-                        <h4 className="font-bold text-lg">{student.name}</h4>
-                        <p className="text-muted-foreground">Roll No: {student.rollNumber}</p>
-                        <p className="text-2xl font-bold mt-2">{student.percentage}%</p>
-                        <p className="text-sm text-muted-foreground">
-                          {student.totalMarks}/{student.totalMax} marks
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ))}
+              {loading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : awardListData.length > 0 ? (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">Sr No</TableHead>
+                        <TableHead>Roll No</TableHead>
+                        <TableHead>Student ID</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Father Name</TableHead>
+                        <TableHead className="text-right">Marks</TableHead>
+                        <TableHead className="text-center">Grade</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {awardListData.map((student, idx) => (
+                        <TableRow key={student.studentId}>
+                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell>{student.rollNumber || "-"}</TableCell>
+                          <TableCell>{student.studentId}</TableCell>
+                          <TableCell className="font-medium">{student.name}</TableCell>
+                          <TableCell>{student.fatherName || "-"}</TableCell>
+                          <TableCell className="text-right">
+                            {student.marksObtained}/{student.maxMarks}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline">{student.grade || "-"}</Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (selectedClass && selectedExamType && selectedSubject) ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No results found for the selected criteria
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Select class, exam type, and subject to view award list
                 </div>
               )}
             </CardContent>
@@ -1169,7 +1458,7 @@ const ReportsModule = () => {
                       {contactsData.map((student: any) => (
                         <TableRow key={student.id}>
                           <TableCell>{student.roll_number || "-"}</TableCell>
-                          <TableCell className="font-medium">{student.profiles?.full_name}</TableCell>
+                          <TableCell className="font-medium">{student.profiles?.full_name || "-"}</TableCell>
                           <TableCell>{student.father_name || "-"}</TableCell>
                           <TableCell>{student.father_phone || "-"}</TableCell>
                           <TableCell>{student.mother_phone || "-"}</TableCell>
@@ -1193,6 +1482,7 @@ const ReportsModule = () => {
         </TabsContent>
       </Tabs>
 
+      {/* Preview Dialog */}
       {previewData && (
         <DocumentPreviewDialog
           open={previewOpen}
