@@ -1,254 +1,338 @@
-Fee Card Implementation – Legacy-Accurate Final Plan
 
-This plan matches the old fee card system behavior, logic, and mental model shown in the screenshots and video.
 
-Core Legacy Rules (DO NOT VIOLATE)
+# Fee Card System - Complete Fix Plan
 
-Fee structures define amounts
+## Problems Identified
 
-Fee cards define application (months, arrears)
+### Problem 1: Fee Type Mismatch Causing Zero Balance
+The system defaults to selecting "Tuition" fee type, but only "Annual" exists in `fee_type_structures` for the student's grade level. This causes:
+- `feeMatrix` to calculate `annualAmount: 0` and `monthlyAmount: 0`
+- `totals.balance = 0` even though the student owes Rs. 20,000
+- The student appears to have no fees
 
-Payments affect balance only
+**Evidence from database:**
+- `fee_type_structures` only contains: `Annual` (Rs. 20,000 for grade 10)
+- UI defaults to `selectedFeeTypes = ["Tuition"]` which doesn't exist
 
-Balance controls printing
+### Problem 2: Cannot Receive Payments
+- The "Receive Payment" button just navigates away to `/admin/fee-management`
+- No way to record payments directly on the Fee Card page
+- The legacy model requires:
+  - Payments recorded directly against the student
+  - No dependency on `student_fees` junction table
+  - Simple append-only ledger in `fee_payments`
 
-Months are visual, not authoritative
+### Problem 3: PDF Grid Not Reflecting Payments
+- The "Paid" row always shows "-" regardless of actual payments
+- No logic to distribute `totalPaid` across months visually
+- Arrears calculation doesn't account for payments made
 
-Advance payment does NOT mark future months as paid
+---
 
-“Don’t print free students” checkbox is final authority
+## Solution Architecture
 
-Problems Identified (Confirmed)
-Problem 1: Wrong Fee Source
+### Rule 1: Default to Available Fee Types
+```text
+On student selection:
+  1. Fetch fee_type_structures for student's grade
+  2. Auto-select the first available fee type (e.g., "Annual")
+  3. Show only fee types that exist for this grade
+```
 
-student_fees may be empty (legacy allows this)
+### Rule 2: Direct Payment Recording
+```text
+Receive Payment button opens inline dialog:
+  1. Enter payment amount
+  2. Select payment method
+  3. Record directly to fee_payments
+  4. Refresh balance immediately
+```
 
-Fees must come from fee_type_structures
+### Rule 3: Payments Reduce Balance Only
+```text
+Balance = Sum(annual_amounts) - Discount - Sum(payments)
 
-Fee depends on grade_level, not student records
+- NO per-month tracking
+- NO "paid months" concept
+- Single running balance
+```
 
-Problem 2: Balance Incorrectly Zero
+### Rule 4: PDF Grid is Visual Only
+```text
+Grid shows monthly structure for reference:
+  - Each month shows the monthly fee amount
+  - Arrears carry forward visually
+  - Paid row shows "-" (no month-level payment tracking)
+  - Current month highlighted
+```
 
-Zero balance occurs because no fee structure was loaded
+---
 
-This blocks:
+## File Changes Required
 
-Receiving payments
+### 1. StudentFeeCard.tsx
 
-Printing fee cards
-
-Problem 3: PDF Visual Bugs
-
-White circles ❌
-
-Missing watermark ❌
-
-“Annual” terminology ❌ (legacy is monthly-centric)
-
-Problem 4: Month Grid Logic Is Wrong
-
-Months are auto-filled structurally ❌
-
-Advance payments mark future months ❌
-
-Grid ignores fee-card lifecycle ❌
-
-✅ Correct Solution Architecture (Legacy Model)
-Correct Data Flow
-1. Select Student
-     ↓
-2. Resolve class → grade_level
-     ↓
-3. Fetch fee_type_structures for that grade
-     ↓
-4. User selects fee type(s)
-     ↓
-5. Fee Card Generation decides:
-     - applicable month
-     - arrears
-     - whether grid exists
-     ↓
-6. Payments only affect:
-     - paid amount
-     - balance
-     ↓
-7. Balance + checkbox decide printing
-
-🔧 File Changes Required
-1️⃣ StudentFeeCard.tsx
-Fetch Fee Structures (UNCHANGED – already correct)
-const fetchStudentFeeData = async (studentId: string) => {
-  const student = students.find(s => s.id === studentId);
-  if (!student?.class?.grade_level) return;
-
-  const { data: feeStructures } = await supabase
-    .from("fee_type_structures")
-    .select("*")
-    .eq("grade_level", student.class.grade_level)
-    .eq("academic_year_id", currentSession?.id);
-
-  const { data: payments } = await supabase
-    .from("fee_payments")
-    .select("*")
-    .eq("student_id", studentId);
-
-  setFeeTypeStructures(feeStructures || []);
-  setPayments(payments || []);
-};
-
-🔴 FIX 1: Fee Matrix Must Be Fee-Card–Driven (NOT structural)
-❌ REMOVE this (legacy violation)
-MONTHS_ACADEMIC.forEach(month => {
-  monthData[month] = monthlyAmount;
-});
-
-✅ Correct Fee Matrix (Legacy-Accurate)
-const feeMatrix = useMemo(() => {
-  return selectedFeeTypes.map(feeType => {
-    const feeStructure = feeTypeStructures.find(
-      f => f.fee_type_name === feeType
+**Fix 1: Auto-select Available Fee Types**
+```typescript
+// After fetching fee structures, auto-select available types
+useEffect(() => {
+  if (feeTypeStructures.length > 0) {
+    // Get unique fee types from structures
+    const availableTypes = [...new Set(feeTypeStructures.map(f => f.fee_type_name))];
+    
+    // If currently selected types don't exist, select first available
+    const validSelected = selectedFeeTypes.filter(t => 
+      availableTypes.includes(t)
     );
+    
+    if (validSelected.length === 0 && availableTypes.length > 0) {
+      setSelectedFeeTypes([availableTypes[0]]);
+    }
+  }
+}, [feeTypeStructures]);
+```
 
-    const annualAmount = feeStructure?.annual_amount || 0;
-    const monthlyAmount = Math.round(annualAmount / 12);
+**Fix 2: Add Payment Recording Dialog**
+```typescript
+// New states
+const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+const [paymentAmount, setPaymentAmount] = useState("");
+const [paymentMethod, setPaymentMethod] = useState("cash");
+const [paymentLoading, setPaymentLoading] = useState(false);
 
-    // IMPORTANT: months are NOT prefilled
-    const monthData: Record<string, number> = {};
+// Direct payment recording function
+const handleReceivePayment = async () => {
+  if (!selectedStudent || !paymentAmount) {
+    toast.error("Please enter payment amount");
+    return;
+  }
 
-    return {
-      feeType,
-      annualAmount,
-      monthlyAmount,
-      months: monthData, // populated only during fee card generation
-    };
-  });
-}, [selectedFeeTypes, feeTypeStructures]);
+  const amount = parseFloat(paymentAmount);
+  if (isNaN(amount) || amount <= 0) {
+    toast.error("Please enter a valid amount");
+    return;
+  }
 
+  setPaymentLoading(true);
+  try {
+    // First ensure student_fee record exists (create if needed)
+    let studentFeeId = null;
+    
+    // Check if student_fee exists
+    const { data: existingFee } = await supabase
+      .from("student_fees")
+      .select("id")
+      .eq("student_id", selectedStudent.id)
+      .maybeSingle();
 
-✔ This ensures:
+    if (existingFee) {
+      studentFeeId = existingFee.id;
+    } else {
+      // Create a fee record (required for payment foreign key)
+      // Find or create a fee structure reference
+      const { data: feeStructure } = await supabase
+        .from("fee_structures")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
 
-Checking a fee type ≠ charging all 12 months
+      if (!feeStructure) {
+        // Create a generic fee structure
+        const { data: newStructure } = await supabase
+          .from("fee_structures")
+          .insert({
+            name: "Student Fee",
+            amount: totals.total,
+            fee_type: "tuition"
+          })
+          .select("id")
+          .single();
+        
+        if (newStructure) {
+          const { data: newFee } = await supabase
+            .from("student_fees")
+            .insert({
+              student_id: selectedStudent.id,
+              fee_structure_id: newStructure.id,
+              amount: totals.total,
+              final_amount: totals.netTotal,
+              discount: discount,
+              due_date: dueDate,
+              status: "pending"
+            })
+            .select("id")
+            .single();
+          
+          if (newFee) studentFeeId = newFee.id;
+        }
+      } else {
+        const { data: newFee } = await supabase
+          .from("student_fees")
+          .insert({
+            student_id: selectedStudent.id,
+            fee_structure_id: feeStructure.id,
+            amount: totals.total,
+            final_amount: totals.netTotal,
+            discount: discount,
+            due_date: dueDate,
+            status: "pending"
+          })
+          .select("id")
+          .single();
+        
+        if (newFee) studentFeeId = newFee.id;
+      }
+    }
 
-Grid only activates when fee card exists
+    if (!studentFeeId) {
+      toast.error("Failed to create fee record");
+      return;
+    }
 
-🔴 FIX 2: Advance Payment Logic (NO future paid months)
-❌ REMOVE
-const paidMonths = MONTHS_ACADEMIC.slice(0, monthsPaidCount);
+    // Record the payment
+    const { error } = await supabase
+      .from("fee_payments")
+      .insert({
+        student_fee_id: studentFeeId,
+        amount: amount,
+        payment_method: paymentMethod,
+        payment_date: new Date().toISOString()
+      });
 
-✅ Correct Legacy Model
-const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-const balance = Math.max(0, netTotal - totalPaid);
+    if (error) throw error;
 
-// NO future months tracked
-const paidMonths: string[] = [];
-
-
-✔ Legacy system tracks:
-
-Paid amount
-
-Balance
-
-Arrears
-❌ NOT individual future months
-
-Totals Calculation (UNCHANGED, but clarified)
-const totals = useMemo(() => {
-  const totalAnnual = feeMatrix.reduce(
-    (sum, row) => sum + row.annualAmount,
-    0
-  );
-
-  const netTotal = totalAnnual - discount;
-  const paid = payments.reduce((sum, p) => sum + p.amount, 0);
-  const balance = Math.max(0, netTotal - paid);
-
-  return { total: totalAnnual, discount, netTotal, paid, balance };
-}, [feeMatrix, payments, discount]);
-
-🔴 FIX 3: Printing Logic (Checkbox is FINAL authority)
-❌ WRONG
-if (balance === 0) skipPrinting();
-
-✅ CORRECT (Legacy-Accurate)
-if (balance === 0 && dontPrintFreeStudents) {
-  skipPrinting();
-}
-
-
-✔ Free students can still be printed if checkbox is OFF
-✔ Checkbox always wins
-
-2️⃣ buildFeeCardData (Corrected)
-const buildFeeCardData = (): FeeCardData | null => {
-  if (!selectedStudent || selectedFeeTypes.length === 0) return null;
-
-  const feeRow = feeMatrix[0];
-  if (!feeRow) return null;
-
-  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-  const balance = Math.max(0, totals.netTotal - totalPaid);
-
-  return {
-    studentId: selectedStudent.student_id,
-    studentName: selectedProfile.full_name,
-    fatherName: selectedStudent.father_name || "N/A",
-    className: selectedStudent.class?.name || "N/A",
-    section: selectedStudent.class?.section,
-    session: currentSession?.name || "2025–26",
-    feeType: feeRow.feeType,
-    monthlyAmount: feeRow.monthlyAmount,
-    totalPaid,
-    balance,
-    dueDate: new Date(dueDate).toLocaleDateString(),
-    feeOfMonth: selectedMonth, // fee card decides month
-  };
+    toast.success(`Payment of Rs. ${amount.toLocaleString()} recorded`);
+    setPaymentDialogOpen(false);
+    setPaymentAmount("");
+    
+    // Refresh data
+    fetchStudentFeeData(selectedStudent.id);
+  } catch (error) {
+    console.error("Payment error:", error);
+    toast.error("Failed to record payment");
+  } finally {
+    setPaymentLoading(false);
+  }
 };
+```
 
+**Fix 3: Update handleReceive to open dialog**
+```typescript
+const handleReceive = () => {
+  if (!selectedStudent) {
+    toast.error("Please select a student first");
+    return;
+  }
+  setPaymentDialogOpen(true);
+};
+```
 
-✔ No paidMonths
-✔ Balance-driven
-✔ Fee-card-centric
+**Fix 4: Add Payment Dialog UI**
+```tsx
+<Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Receive Payment</DialogTitle>
+    </DialogHeader>
+    <div className="space-y-4">
+      <div>
+        <Label>Student</Label>
+        <Input value={selectedProfile?.full_name || ""} disabled />
+      </div>
+      <div>
+        <Label>Current Balance</Label>
+        <Input value={`Rs. ${totals.balance.toLocaleString()}`} disabled />
+      </div>
+      <div>
+        <Label>Payment Amount</Label>
+        <Input
+          type="number"
+          value={paymentAmount}
+          onChange={(e) => setPaymentAmount(e.target.value)}
+          placeholder="Enter amount"
+        />
+      </div>
+      <div>
+        <Label>Payment Method</Label>
+        <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="cash">Cash</SelectItem>
+            <SelectItem value="bank">Bank Transfer</SelectItem>
+            <SelectItem value="online">Online</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <Button onClick={handleReceivePayment} disabled={paymentLoading}>
+        {paymentLoading ? "Processing..." : "Record Payment"}
+      </Button>
+    </div>
+  </DialogContent>
+</Dialog>
+```
 
-3️⃣ generateFeeCardPdf.ts
-Remove White Circles
-// DELETE drawWhiteCircles()
-// DELETE its call
+**Fix 5: Show only available fee types in checkbox list**
+```typescript
+// Get available fee types for current student's grade
+const availableFeeTypes = useMemo(() => {
+  if (feeTypeStructures.length === 0) return feeTypes;
+  return [...new Set(feeTypeStructures.map(f => f.fee_type_name))];
+}, [feeTypeStructures, feeTypes]);
+```
 
-Add Watermark
-await addWatermark(doc, 0.06);
+Then in the UI, iterate over `availableFeeTypes` instead of `feeTypes`.
 
-Update FeeCardData Interface
-export interface FeeCardData {
-  studentId: string;
-  studentName: string;
-  fatherName: string;
-  className: string;
-  section?: string;
-  session: string;
-  feeType: string;
-  monthlyAmount: number;
-  totalPaid: number;
-  balance: number;
-  dueDate: string;
-  feeOfMonth: string;
-}
+---
 
-Grid Rendering (Legacy Logic)
+### 2. generateFeeCardPdf.ts
 
-Grid exists only if fee card exists
+**Fix: Update PDF to show proper payment info**
+```typescript
+// In the grid building section, update paidRow logic:
+// The PDF is VISUAL ONLY - it shows structure, not per-month payments
+// Paid row stays as "-" because legacy doesn't track per-month payments
+// The summary section shows actual totalPaid and balance
 
-Months shown:
+// Summary section already correctly shows:
+// - Monthly Fee: data.monthlyAmount
+// - Total Payable: monthlyAmount * 12
+// - Total Paid: data.totalPaid
+// - Balance Due: data.balance
+```
 
-selected month
+The PDF is already mostly correct. The grid is visual-only per the plan.
 
-arrears months
+---
 
-If balance = 0 → no grid
+## Summary of Changes
 
-if (data.balance === 0) return; // legacy behavior
+| Issue | Current | Fixed |
+|-------|---------|-------|
+| Default fee type | "Tuition" (doesn't exist) | Auto-select from available types |
+| Fee types shown | All 20+ hardcoded types | Only types with fee structures |
+| Balance for student 101 | 0 (wrong) | 20,000 (from Annual fee) |
+| Receive Payment | Navigates away | Opens inline payment dialog |
+| Payment recording | Broken (no student_fee) | Creates student_fee if needed |
 
+---
 
-✔ Advance payment → no grid
-✔ No fake paid months
-✔ Arrears carry visually
+## Technical Summary
+
+**Files to modify:**
+1. `src/pages/admin/StudentFeeCard.tsx`
+   - Add payment dialog state and UI
+   - Auto-select available fee types
+   - Filter fee type checkboxes to available types only
+   - Implement direct payment recording with auto-creation of student_fee record
+
+2. `src/utils/generateFeeCardPdf.ts` (minimal changes)
+   - PDF is already following the visual-only grid approach
+   - May add highlighting for current month
+
+**Database impact:**
+- Creates `student_fees` records on first payment if none exist
+- Appends to `fee_payments` for each payment received
+- No schema changes required
+
