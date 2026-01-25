@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail, CreditCard } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail, CreditCard, ArrowUpRight } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +19,7 @@ import { downloadAdmissionForm, AdmissionFormData, generateAdmissionFormPdf } fr
 import { downloadStudentCard, StudentCardData, generateStudentCardPdf } from "@/utils/generateStudentCardPdf";
 import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 import StudentFormTabs, { StudentFormData } from "@/components/admin/StudentFormTabs";
+import StudentPromotionDialog from "@/components/admin/StudentPromotionDialog";
 
 interface Student {
   id: string;
@@ -54,6 +55,7 @@ interface ClassOption {
   id: string;
   name: string;
   section: string | null;
+  grade_level?: number;
 }
 
 const StudentManagement = () => {
@@ -132,6 +134,9 @@ const StudentManagement = () => {
   const [previewStudent, setPreviewStudent] = useState<Student | null>(null);
   const [previewType, setPreviewType] = useState<"card" | "admission" | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  
+  // Promotion dialog state
+  const [isPromotionDialogOpen, setIsPromotionDialogOpen] = useState(false);
 
   useEffect(() => {
     checkAuthAndFetch();
@@ -201,7 +206,7 @@ const StudentManagement = () => {
   };
 
   const fetchClasses = async () => {
-    const { data } = await supabase.from("classes").select("id, name, section").order("grade_level");
+    const { data } = await supabase.from("classes").select("id, name, section, grade_level").order("grade_level");
     setClasses(data || []);
   };
 
@@ -679,6 +684,14 @@ const StudentManagement = () => {
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsPromotionDialogOpen(true)}
+              className="border-primary text-primary hover:bg-primary/10"
+            >
+              <ArrowUpRight className="w-4 h-4 mr-2" />
+              Promotion
+            </Button>
             <Button onClick={() => setIsAddDialogOpen(true)} className="hero-gradient text-primary-foreground">
               <Plus className="w-4 h-4 mr-2" />
               Add Student
@@ -1044,6 +1057,15 @@ const StudentManagement = () => {
           }
         />
       )}
+
+      {/* Student Promotion Dialog */}
+      <StudentPromotionDialog
+        open={isPromotionDialogOpen}
+        onOpenChange={setIsPromotionDialogOpen}
+        students={students}
+        classes={classes}
+        onSuccess={fetchStudents}
+      />
     </AdminLayout>
   );
 };
