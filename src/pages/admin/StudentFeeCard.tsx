@@ -9,16 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Printer, Download, RefreshCw, User, Users } from "lucide-react";
+import { Loader2, Printer, Download, RefreshCw, User, Users, CreditCard } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import { downloadFeeCard, printFeeCard, FeeCardData } from "@/utils/generateFeeCardPdf";
 
 // Academic year months (Sep to Aug) - matches legacy
 const MONTHS_ACADEMIC = ["Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
 
-// Default fee types
+// Default fee types - fallback only
 const DEFAULT_FEE_TYPES = [
   "Tuition", "Transport", "Admission", "Exam", "Monthly-Test", "Late-Fee",
   "Hostal", "Arrears", "Medical Fee", "Events Fee",
@@ -82,7 +83,7 @@ const StudentFeeCard = () => {
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
-  const [selectedFeeTypes, setSelectedFeeTypes] = useState<string[]>(["Tuition"]);
+  const [selectedFeeTypes, setSelectedFeeTypes] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleString('en-US', { month: 'short' }));
   
   // Fee card options
@@ -92,6 +93,12 @@ const StudentFeeCard = () => {
   
   // Totals
   const [discount, setDiscount] = useState(0);
+
+  // Payment dialog states
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -191,6 +198,25 @@ const StudentFeeCard = () => {
     }
   }, [selectedStudentId, students, currentSession]);
 
+  // Auto-select available fee types when fee structures are loaded
+  useEffect(() => {
+    if (feeTypeStructures.length > 0) {
+      // Get unique fee types from structures for this grade
+      const availableTypes = [...new Set(feeTypeStructures.map(f => f.fee_type_name))];
+      
+      // Check if currently selected types are valid
+      const validSelected = selectedFeeTypes.filter(t => availableTypes.includes(t));
+      
+      // If no valid selections and we have available types, select the first one
+      if (validSelected.length === 0 && availableTypes.length > 0) {
+        setSelectedFeeTypes([availableTypes[0]]);
+      } else if (validSelected.length !== selectedFeeTypes.length) {
+        // Update to only valid selections
+        setSelectedFeeTypes(validSelected.length > 0 ? validSelected : [availableTypes[0]]);
+      }
+    }
+  }, [feeTypeStructures]);
+
   // Get selected student details
   const selectedStudent = useMemo(() => {
     return students.find(s => s.student_id === selectedStudentId || s.id === selectedStudentId);
@@ -214,6 +240,16 @@ const StudentFeeCard = () => {
     const cls = classes.find(c => c.id === selectedClassId);
     return cls?.section ? [cls.section] : [];
   }, [classes, selectedClassId]);
+
+  // Get available fee types for current student's grade - ONLY show types with structures
+  const availableFeeTypes = useMemo(() => {
+    if (feeTypeStructures.length === 0) {
+      // No structures loaded yet - show default types but they'll have 0 amounts
+      return feeTypes;
+    }
+    // Return only fee types that have structures for this grade
+    return [...new Set(feeTypeStructures.map(f => f.fee_type_name))];
+  }, [feeTypeStructures, feeTypes]);
 
   // Build fee matrix - Legacy accurate: months NOT prefilled, only fee structure amounts
   const feeMatrix = useMemo<FeeMatrixEntry[]>(() => {
@@ -274,15 +310,138 @@ const StudentFeeCard = () => {
     setSelectedStudentId("");
     setSelectedClassId("");
     setSelectedSection("");
-    setSelectedFeeTypes(["Tuition"]);
+    setSelectedFeeTypes([]);
     setDiscount(0);
     setFeeTypeStructures([]);
     setPayments([]);
   };
 
+  // Open payment dialog instead of navigating away
   const handleReceive = () => {
-    // Navigate to fee management for payment
-    navigate("/admin/fee-management");
+    if (!selectedStudent) {
+      toast.error("Please select a student first");
+      return;
+    }
+    setPaymentDialogOpen(true);
+  };
+
+  // Direct payment recording function
+  const handleReceivePayment = async () => {
+    if (!selectedStudent || !paymentAmount) {
+      toast.error("Please enter payment amount");
+      return;
+    }
+
+    const amount = parseFloat(paymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    setPaymentLoading(true);
+    try {
+      // First ensure student_fee record exists (create if needed)
+      let studentFeeId: string | null = null;
+      
+      // Check if student_fee exists
+      const { data: existingFee } = await supabase
+        .from("student_fees")
+        .select("id")
+        .eq("student_id", selectedStudent.id)
+        .maybeSingle();
+
+      if (existingFee) {
+        studentFeeId = existingFee.id;
+      } else {
+        // Create a fee record (required for payment foreign key)
+        // Find or create a fee structure reference
+        const { data: feeStructure } = await supabase
+          .from("fee_structures")
+          .select("id")
+          .limit(1)
+          .maybeSingle();
+
+        if (!feeStructure) {
+          // Create a generic fee structure
+          const { data: newStructure, error: structureError } = await supabase
+            .from("fee_structures")
+            .insert({
+              name: "Student Fee",
+              amount: totals.total,
+              fee_type: "tuition"
+            })
+            .select("id")
+            .single();
+          
+          if (structureError) throw structureError;
+          
+          if (newStructure) {
+            const { data: newFee, error: feeError } = await supabase
+              .from("student_fees")
+              .insert({
+                student_id: selectedStudent.id,
+                fee_structure_id: newStructure.id,
+                amount: totals.total,
+                final_amount: totals.netTotal,
+                discount: discount,
+                due_date: dueDate,
+                status: "pending"
+              })
+              .select("id")
+              .single();
+            
+            if (feeError) throw feeError;
+            if (newFee) studentFeeId = newFee.id;
+          }
+        } else {
+          const { data: newFee, error: feeError } = await supabase
+            .from("student_fees")
+            .insert({
+              student_id: selectedStudent.id,
+              fee_structure_id: feeStructure.id,
+              amount: totals.total,
+              final_amount: totals.netTotal,
+              discount: discount,
+              due_date: dueDate,
+              status: "pending"
+            })
+            .select("id")
+            .single();
+          
+          if (feeError) throw feeError;
+          if (newFee) studentFeeId = newFee.id;
+        }
+      }
+
+      if (!studentFeeId) {
+        toast.error("Failed to create fee record");
+        return;
+      }
+
+      // Record the payment
+      const { error } = await supabase
+        .from("fee_payments")
+        .insert({
+          student_fee_id: studentFeeId,
+          amount: amount,
+          payment_method: paymentMethod,
+          payment_date: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      toast.success(`Payment of Rs. ${amount.toLocaleString()} recorded successfully!`);
+      setPaymentDialogOpen(false);
+      setPaymentAmount("");
+      
+      // Refresh data
+      fetchStudentFeeData(selectedStudent.id);
+    } catch (error) {
+      console.error("Payment error:", error);
+      toast.error("Failed to record payment");
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   // Build fee card data for PDF - Legacy accurate
@@ -463,15 +622,22 @@ const StudentFeeCard = () => {
             </CardContent>
           </Card>
 
-          {/* Fee Types Selection */}
+          {/* Fee Types Selection - Only show available types */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Fee Types</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Fee Types
+                {selectedStudent && availableFeeTypes.length > 0 && (
+                  <span className="text-xs font-normal text-muted-foreground ml-2">
+                    ({availableFeeTypes.length} available)
+                  </span>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[300px] pr-4">
                 <div className="space-y-2">
-                  {feeTypes.map(feeType => (
+                  {availableFeeTypes.map(feeType => (
                     <div key={feeType} className="flex items-center space-x-2">
                       <Checkbox
                         id={feeType}
@@ -483,6 +649,11 @@ const StudentFeeCard = () => {
                       </Label>
                     </div>
                   ))}
+                  {availableFeeTypes.length === 0 && selectedStudent && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No fee types configured for this grade
+                    </p>
+                  )}
                 </div>
               </ScrollArea>
             </CardContent>
@@ -670,6 +841,7 @@ const StudentFeeCard = () => {
 
               <div className="pt-2">
                 <Button onClick={handleReceive} className="w-full">
+                  <CreditCard className="w-4 h-4 mr-2" />
                   Receive Payment
                 </Button>
               </div>
@@ -707,6 +879,74 @@ const StudentFeeCard = () => {
           </Card>
         </div>
       </div>
+
+      {/* Payment Dialog */}
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5" />
+              Receive Payment
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Student</Label>
+              <Input value={selectedProfile?.full_name || ""} disabled className="bg-muted" />
+            </div>
+            <div className="space-y-2">
+              <Label>Current Balance</Label>
+              <Input 
+                value={`Rs. ${totals.balance.toLocaleString()}`} 
+                disabled 
+                className={`bg-muted font-medium ${totals.balance > 0 ? "text-destructive" : "text-primary"}`} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paymentAmount">Payment Amount</Label>
+              <Input
+                id="paymentAmount"
+                type="number"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="Enter amount"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Method</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="bank">Bank Transfer</SelectItem>
+                  <SelectItem value="online">Online Payment</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button 
+              onClick={handleReceivePayment} 
+              disabled={paymentLoading || !paymentAmount}
+              className="w-full"
+            >
+              {paymentLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Record Payment
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
