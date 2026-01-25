@@ -40,19 +40,26 @@ const StudentTimetable = () => {
     const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", session.user.id).maybeSingle();
     if (!roleData || roleData.role !== "student") { navigate("/dashboard"); return; }
 
-    // Get student's class
+    // Get student's class - use explicit foreign key hint
     const { data: student } = await supabase
       .from("students")
-      .select("class_id, classes(name)")
+      .select("class_id")
       .eq("user_id", session.user.id)
-      .single();
+      .maybeSingle();
 
     if (!student?.class_id) {
       setLoading(false);
       return;
     }
 
-    setClassName((student.classes as any)?.name || "");
+    // Fetch class name separately
+    const { data: classData } = await supabase
+      .from("classes")
+      .select("name, section")
+      .eq("id", student.class_id)
+      .maybeSingle();
+
+    setClassName(classData ? `${classData.name}${classData.section ? ` - ${classData.section}` : ''}` : "");
 
     // Fetch timetable for student's class
     const { data: timetableData, error: timetableError } = await supabase
