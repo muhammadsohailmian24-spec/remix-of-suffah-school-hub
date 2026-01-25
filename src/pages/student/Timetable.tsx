@@ -55,7 +55,7 @@ const StudentTimetable = () => {
     setClassName((student.classes as any)?.name || "");
 
     // Fetch timetable for student's class
-    const { data: timetableData } = await supabase
+    const { data: timetableData, error: timetableError } = await supabase
       .from("timetable")
       .select(`
         id,
@@ -70,22 +70,30 @@ const StudentTimetable = () => {
       .order("day_of_week")
       .order("start_time");
 
+    console.log("Timetable query for class:", student.class_id, "Result:", timetableData, "Error:", timetableError);
+
     if (timetableData && timetableData.length > 0) {
       // Fetch teacher names
-      const teacherIds = [...new Set(timetableData.map((t: any) => t.teachers?.user_id).filter(Boolean))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .in("user_id", teacherIds);
-
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+      const teacherUserIds = [...new Set(timetableData.map((t: any) => t.teachers?.user_id).filter(Boolean))];
+      
+      let profileMap = new Map<string, string>();
+      if (teacherUserIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", teacherUserIds);
+        profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+      }
 
       const entriesWithNames = timetableData.map((entry: any) => ({
         ...entry,
         teacherName: entry.teachers?.user_id ? profileMap.get(entry.teachers.user_id) || "Teacher" : "Teacher"
       }));
 
+      console.log("Timetable entries with names:", entriesWithNames);
       setEntries(entriesWithNames);
+    } else {
+      console.log("No timetable data found for class:", student.class_id);
     }
 
     setLoading(false);
