@@ -23,6 +23,7 @@ import { generateMarksCertificatePdf, downloadMarksCertificate, MarksCertificate
 import { generateAwardListPdf, AwardListData } from "@/utils/generateAwardListPdf";
 import { generateClassTimetablePdf, ClassTimetablePdfData, TimetableEntry } from "@/utils/generateClassTimetablePdf";
 import { downloadGazetteBook, GazetteBookData } from "@/utils/generateGazetteBookPdf";
+import { generatePositionListPdf, PositionListData } from "@/utils/generatePositionListPdf";
 import { exportToExcel, exportToCSV } from "@/utils/exportUtils";
 import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 
@@ -770,6 +771,36 @@ const ReportsModule = () => {
     toast({ title: "Success", description: `Contacts exported as ${format.toUpperCase()}` });
   };
 
+  const handleDownloadPositionListPdf = async () => {
+    if (positionData.length === 0) {
+      toast({ title: "No Data", description: "No position data to download", variant: "destructive" });
+      return;
+    }
+
+    const classData = classes.find(c => c.id === selectedClass);
+    
+    const pdfData: PositionListData = {
+      session: selectedSession?.name || new Date().getFullYear().toString(),
+      className: classData?.name || "Class",
+      section: classData?.section || "",
+      examType: selectedExamType,
+      date: format(new Date(), "dd-MMM-yyyy"),
+      students: positionData.map(s => ({
+        position: s.position,
+        rollNumber: s.rollNumber || s.studentId,
+        studentId: s.studentId,
+        name: s.name,
+        totalMarks: s.totalMarks,
+        totalMax: s.totalMax,
+        percentage: s.percentage,
+      })),
+    };
+
+    const doc = await generatePositionListPdf(pdfData);
+    doc.save(`Position-List-${classData?.name || "Class"}-${selectedExamType}.pdf`);
+    toast({ title: "Success", description: "Position list PDF downloaded" });
+  };
+
   const handleExportPositionList = (format: "excel" | "csv") => {
     const columns = [
       { header: "Position", key: "position" },
@@ -1366,12 +1397,12 @@ const ReportsModule = () => {
                   </Select>
                 </div>
                 <div className="flex items-end gap-2">
-                  <Button onClick={() => handleExportPositionList("excel")} disabled={positionData.length === 0}>
+                  <Button onClick={handleDownloadPositionListPdf} disabled={positionData.length === 0}>
                     <Download className="w-4 h-4 mr-2" />
-                    Excel
+                    Download PDF
                   </Button>
-                  <Button variant="outline" onClick={() => handleExportPositionList("csv")} disabled={positionData.length === 0}>
-                    CSV
+                  <Button variant="outline" onClick={() => handleExportPositionList("excel")} disabled={positionData.length === 0}>
+                    Excel
                   </Button>
                 </div>
               </div>
