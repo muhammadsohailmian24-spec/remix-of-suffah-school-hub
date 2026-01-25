@@ -18,7 +18,7 @@ import {
   ClipboardList, Bell, LogOut, Settings, UserCheck, UserPlus,
   Shield, Megaphone, BarChart3, CreditCard, TrendingUp, Image, Clock, FileText,
   Menu, X, ChevronLeft, AlertCircle, UserX, FileCheck, CalendarCheck, Calendar,
-  Award, ChevronDown, GraduationCap, Library
+  Award, ChevronDown, GraduationCap, Library, FileBarChart
 } from "lucide-react";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import SessionSelector from "./SessionSelector";
@@ -58,6 +58,18 @@ const sidebarItems: SidebarItem[] = [
       { label: "Monthly Progress Report", link: "/admin/certificates?type=monthly-progress" },
       { label: "Annual Progress Report", link: "/admin/certificates?type=annual-progress" },
       { label: "School Leaving Certificate", link: "/admin/certificates?type=slc" },
+    ]
+  },
+  { 
+    icon: FileBarChart, 
+    label: "Reports", 
+    children: [
+      { label: "Gazette", link: "/admin/reports-module?type=gazette" },
+      { label: "DMC", link: "/admin/reports-module?type=dmc" },
+      { label: "Position List", link: "/admin/reports-module?type=position" },
+      { label: "Exam Timetable", link: "/admin/reports-module?type=timetable" },
+      { label: "Award Lists", link: "/admin/reports-module?type=awards" },
+      { label: "Student Contacts", link: "/admin/reports-module?type=contacts" },
     ]
   },
   { icon: CreditCard, label: "Fees", link: "/admin/fees" },

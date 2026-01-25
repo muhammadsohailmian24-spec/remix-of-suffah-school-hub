@@ -36,6 +36,7 @@ import SessionReport from "./pages/admin/SessionReport";
 import Expenses from "./pages/admin/Expenses";
 import Families from "./pages/admin/Families";
 import ReportsHub from "./pages/admin/ReportsHub";
+import ReportsModule from "./pages/admin/ReportsModule";
 import Certificates from "./pages/admin/Certificates";
 import AdminSessions from "./pages/admin/Sessions";
 import FeeStructureMatrix from "./pages/admin/FeeStructureMatrix";
@@ -107,6 +108,7 @@ const App = () => (
             <Route path="/admin/expenses" element={<Expenses />} />
             <Route path="/admin/families" element={<Families />} />
             <Route path="/admin/reports-hub" element={<ReportsHub />} />
+            <Route path="/admin/reports-module" element={<ReportsModule />} />
             <Route path="/admin/certificates" element={<Certificates />} />
             <Route path="/admin/sessions" element={<AdminSessions />} />
             <Route path="/admin/fee-structure" element={<FeeStructureMatrix />} />
