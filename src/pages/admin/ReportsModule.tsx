@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { generateMarksCertificatePdf, downloadMarksCertificate, MarksCertificateData } from "@/utils/generateMarksCertificatePdf";
-import { generateAwardListPdf, AwardListData, downloadBlankAwardList } from "@/utils/generateAwardListPdf";
+import { generateAwardListPdf, AwardListData } from "@/utils/generateAwardListPdf";
 import { generateClassTimetablePdf, ClassTimetablePdfData, TimetableEntry } from "@/utils/generateClassTimetablePdf";
 import { downloadGazetteBook, GazetteBookData } from "@/utils/generateGazetteBookPdf";
 import { exportToExcel, exportToCSV } from "@/utils/exportUtils";
@@ -982,6 +982,74 @@ const ReportsModule = () => {
     toast({ title: "Success", description: `Award list exported as ${format.toUpperCase()}` });
   };
 
+  const handleDownloadBlankAwardList = async () => {
+    if (!selectedClass) {
+      toast({ title: "Select Class", description: "Please select a class first", variant: "destructive" });
+      return;
+    }
+
+    try {
+      // Fetch students from the selected class
+      const { data: studentsData } = await supabase
+        .from("students")
+        .select("id, student_id, roll_number, father_name, user_id")
+        .eq("status", "active")
+        .eq("class_id", selectedClass);
+
+      if (!studentsData || studentsData.length === 0) {
+        toast({ title: "No Students", description: "No students found in this class", variant: "destructive" });
+        return;
+      }
+
+      // Fetch profiles for names
+      const userIds = studentsData.map(s => s.user_id).filter(Boolean);
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+
+      const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
+
+      // Sort by name alphabetically and assign sequential roll numbers
+      const studentsWithNames = studentsData.map(s => ({
+        ...s,
+        name: profilesMap.get(s.user_id)?.full_name || ""
+      })).sort((a, b) => a.name.localeCompare(b.name));
+
+      const classData = classes.find(c => c.id === selectedClass);
+
+      // Format students for blank award list (with empty marks)
+      const blankStudents = studentsWithNames.map((s, idx) => ({
+        sr_no: idx + 1,
+        student_id: (idx + 1).toString(), // Sequential roll number
+        name: s.name,
+        father_name: s.father_name || "",
+        theory_marks: "",
+        practical_marks: "",
+        total_marks: "",
+      }));
+
+      const blankData: AwardListData = {
+        session: selectedSession?.name || new Date().getFullYear().toString(),
+        date: format(new Date(), "dd-MMM-yyyy"),
+        className: classData ? classData.name : "Class",
+        section: classData?.section || "",
+        subject: "", // Blank for handwritten entry
+        teacherName: "", // Blank for handwritten entry
+        maxMarks: "", // Blank for handwritten entry
+        students: blankStudents,
+        isBlank: true,
+      };
+
+      const doc = await generateAwardListPdf(blankData);
+      doc.save(`Blank-Award-List-${classData?.name || "Class"}.pdf`);
+      toast({ title: "Success", description: "Blank award list downloaded" });
+    } catch (error) {
+      console.error("Error generating blank award list:", error);
+      toast({ title: "Error", description: "Failed to generate blank award list", variant: "destructive" });
+    }
+  };
+
   const toggleStudentSelection = (studentId: string) => {
     setSelectedStudents(prev => 
       prev.includes(studentId) 
@@ -1511,7 +1579,7 @@ const ReportsModule = () => {
                   <Button variant="outline" onClick={() => handleExportAwardList("excel")} disabled={awardListData.length === 0}>
                     Excel
                   </Button>
-                  <Button variant="secondary" onClick={downloadBlankAwardList}>
+                  <Button variant="secondary" onClick={handleDownloadBlankAwardList}>
                     <FileText className="w-4 h-4 mr-2" />
                     Blank Form
                   </Button>
