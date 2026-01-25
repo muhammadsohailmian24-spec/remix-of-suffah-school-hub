@@ -12,22 +12,16 @@ export interface FeeCardData {
   className: string;
   section?: string;
   session: string;
-  feeType: string; // e.g., "Transport Fee", "Tuition Fee"
-  monthlyAmount: number; // Fixed monthly amount
-  annualTotal: number;
-  monthlyData: Record<string, { arrears: number; totalAmount: number; adjustment: number; paid: number; balance: number }>;
-  totals: {
-    arrears: number;
-    totalPayables: number;
-    adjustment: number;
-    paid: number;
-    balance: number;
-  };
+  feeType: string; // e.g., "Transport", "Tuition", "Annual"
+  annualTotal: number; // Total annual fee for this fee type
+  monthlyAmount: number; // Monthly breakdown = annualTotal / 12
+  paidMonths: string[]; // List of months that have been paid
+  totalPaid: number; // Total amount paid so far
   dueDate: string;
   feeOfMonth: string;
 }
 
-const drawWhiteCircles = (doc: jsPDF, headerHeight: number): void => {
+const drawWhiteCircles = (doc: jsPDF): void => {
   const pageWidth = doc.internal.pageSize.getWidth();
   
   // White semi-transparent circles in header
@@ -60,7 +54,7 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   doc.rect(0, 42, pageWidth, 2, "F");
 
   // White circular decorations
-  drawWhiteCircles(doc, 42);
+  drawWhiteCircles(doc);
 
   // Left logo with gold ring
   if (logoImg) {
@@ -107,6 +101,9 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
 
   // Content area starts
   const contentY = 48;
+  
+  // Calculate arrears - remaining balance from annual fee after payments
+  const arrearsAmount = Math.max(0, data.annualTotal - data.totalPaid);
   
   // Left section - Student Info
   const leftSectionX = 8;
@@ -224,15 +221,16 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(data.feeType, pageWidth / 2, feeTypeY + 2, { align: "center" });
+  doc.text(`${data.feeType} Fee`, pageWidth / 2, feeTypeY + 2, { align: "center" });
 
-  // Date range badge
+  // Date range badge - extract session year
+  const sessionYear = data.session.split("-")[0] || "20";
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(...darkColor);
   doc.roundedRect(pageWidth / 2 + 40, feeTypeY - 5, 50, 10, 2, 2, "FD");
   doc.setTextColor(...darkColor);
   doc.setFontSize(8);
-  doc.text("From Sep 20 To Aug 20", pageWidth / 2 + 65, feeTypeY + 2, { align: "center" });
+  doc.text(`From Sep ${sessionYear} To Aug ${sessionYear}`, pageWidth / 2 + 65, feeTypeY + 2, { align: "center" });
 
   // Transactions Details label
   doc.setFillColor(...darkColor);
@@ -244,43 +242,70 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
 
   // Main transaction table
   const tableY = feeTypeY + 10;
-  const descColWidth = 45;
-  const monthColWidth = 13;
   
-  // Table headers
-  const tableHeaders = ["Description", ...MONTHS];
+  // Build monthly data - show monthly amount in cells where payment is due/made
+  // Arrears row shows running balance from previous months
+  // The "Annual" row shows the monthly breakdown amount (annualTotal / 12)
   
-  // Table data rows
+  const monthlyAmount = data.monthlyAmount;
+  let runningArrears = 0;
+  let remainingToPay = data.annualTotal - data.totalPaid;
+  
+  // Calculate how many months have been paid
+  const paidMonthsCount = data.paidMonths.length;
+  
+  // Build table data
+  const arrearsRow = ["Arrears"];
+  const annualRow = [data.feeType]; // Fee type name (e.g., "Transport", "Annual")
+  const totalAmountRow = ["Total Amount"];
+  const adjustmentRow = ["Off/Adjustment"];
+  const paidRow = ["Paid Amount"];
+  const balanceRow = ["Balance"];
+  
+  let cumulativeArrears = 0;
+  
+  MONTHS.forEach((month, idx) => {
+    const isPaid = data.paidMonths.includes(month);
+    
+    // Arrears from previous month
+    arrearsRow.push(cumulativeArrears > 0 ? cumulativeArrears.toString() : "");
+    
+    // Monthly fee amount - show only if this month has fee due (active month)
+    // In legacy system, shows monthly amount in each month column
+    annualRow.push(monthlyAmount > 0 ? monthlyAmount.toString() : "");
+    
+    // Total amount = arrears + monthly
+    const totalForMonth = cumulativeArrears + monthlyAmount;
+    totalAmountRow.push(totalForMonth > 0 ? totalForMonth.toString() : "");
+    
+    // Adjustment (none in this basic implementation)
+    adjustmentRow.push("");
+    
+    // Paid amount for this month
+    const paidForMonth = isPaid ? monthlyAmount : 0;
+    paidRow.push(paidForMonth > 0 ? paidForMonth.toString() : "");
+    
+    // Balance = total - paid
+    const balanceForMonth = totalForMonth - paidForMonth;
+    balanceRow.push(balanceForMonth > 0 ? balanceForMonth.toString() : "");
+    
+    // If not paid, arrears carry to next month
+    if (!isPaid) {
+      cumulativeArrears += monthlyAmount;
+    }
+  });
+
   const tableData = [
-    ["Arrears", ...MONTHS.map(m => {
-      const monthData = data.monthlyData[m];
-      return monthData?.arrears > 0 ? monthData.arrears.toString() : "";
-    })],
-    [data.feeType.replace(" Fee", ""), ...MONTHS.map(m => {
-      const monthData = data.monthlyData[m];
-      return monthData?.totalAmount > 0 ? monthData.totalAmount.toString() : "";
-    })],
-    ["Total Amount", ...MONTHS.map(m => {
-      const monthData = data.monthlyData[m];
-      const total = (monthData?.arrears || 0) + (monthData?.totalAmount || 0);
-      return total > 0 ? total.toString() : "";
-    })],
-    ["Off/Adjustment", ...MONTHS.map(m => {
-      const monthData = data.monthlyData[m];
-      return monthData?.adjustment > 0 ? monthData.adjustment.toString() : "";
-    })],
-    ["Paid Amount", ...MONTHS.map(m => {
-      const monthData = data.monthlyData[m];
-      return monthData?.paid > 0 ? monthData.paid.toString() : "";
-    })],
-    ["Balance", ...MONTHS.map(m => {
-      const monthData = data.monthlyData[m];
-      return monthData?.balance > 0 ? monthData.balance.toString() : "";
-    })],
+    arrearsRow,
+    annualRow,
+    totalAmountRow,
+    adjustmentRow,
+    paidRow,
+    balanceRow,
   ];
 
   autoTable(doc, {
-    head: [tableHeaders],
+    head: [["Description", ...MONTHS]],
     body: tableData,
     startY: tableY,
     margin: { left: leftSectionX, right: 70 },
@@ -299,8 +324,7 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
       fontSize: 7,
     },
     columnStyles: {
-      0: { cellWidth: descColWidth, halign: "left", fontStyle: "bold" },
-      ...Object.fromEntries(MONTHS.map((_, i) => [i + 1, { cellWidth: monthColWidth }])),
+      0: { cellWidth: 35, halign: "left", fontStyle: "bold" },
     },
     theme: "grid",
   });
@@ -315,13 +339,13 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.3);
   
-  // Summary table
+  // Summary table data
   const summaryData = [
     ["Description", "Amount"],
-    [`Arrears ${data.feeType.replace(" Fee", "")}`, data.totals.arrears.toString()],
-    ["Total Payables", data.totals.totalPayables.toString()],
-    ["Adjustment", data.totals.adjustment.toString()],
-    ["Paid", data.totals.paid.toString()],
+    [`Arrears ${data.feeType}`, arrearsAmount.toString()],
+    ["Total Payables", data.annualTotal.toString()],
+    ["Adjustment", "0"],
+    ["Paid", data.totalPaid.toString()],
   ];
 
   let summaryRowY = summaryY;
@@ -372,15 +396,15 @@ export const generateFeeCardPdf = async (data: FeeCardData): Promise<jsPDF> => {
   doc.text("Total Payables:", leftSectionX + 80, footerY + 8);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...primaryColor);
-  doc.text(data.totals.totalPayables.toString(), leftSectionX + 110, footerY + 8);
+  doc.text(arrearsAmount.toString(), leftSectionX + 115, footerY + 8);
   
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...darkColor);
-  doc.text("Adjust:", leftSectionX + 130, footerY + 8);
-  doc.line(leftSectionX + 145, footerY + 8, leftSectionX + 165, footerY + 8);
+  doc.text("Adjust:", leftSectionX + 135, footerY + 8);
+  doc.line(leftSectionX + 150, footerY + 8, leftSectionX + 170, footerY + 8);
   
-  doc.text("Paid:", leftSectionX + 175, footerY + 8);
-  doc.line(leftSectionX + 188, footerY + 8, leftSectionX + 210, footerY + 8);
+  doc.text("Paid:", leftSectionX + 180, footerY + 8);
+  doc.line(leftSectionX + 193, footerY + 8, leftSectionX + 215, footerY + 8);
 
   // Generation date at bottom
   doc.setFontSize(7);
