@@ -66,7 +66,7 @@ const ReportsModule = () => {
   useEffect(() => {
     fetchClasses();
     fetchExamTypes();
-  }, [selectedSession]);
+  }, []);
 
   useEffect(() => {
     if (selectedClass) {
@@ -99,20 +99,17 @@ const ReportsModule = () => {
   }, [selectedClass, selectedExamType]);
 
   const fetchClasses = async () => {
-    let query = supabase.from("classes").select("id, name, section, grade_level").order("grade_level");
-    if (selectedSession?.id) {
-      query = query.eq("academic_year_id", selectedSession.id);
-    }
-    const { data } = await query;
+    // Fetch all classes regardless of session - classes may not have academic_year_id set
+    const { data } = await supabase
+      .from("classes")
+      .select("id, name, section, grade_level")
+      .order("grade_level");
     setClasses(data || []);
   };
 
   const fetchExamTypes = async () => {
-    let query = supabase.from("exams").select("exam_type");
-    if (selectedSession?.id) {
-      query = query.eq("academic_year_id", selectedSession.id);
-    }
-    const { data } = await query;
+    // Fetch all exam types regardless of session
+    const { data } = await supabase.from("exams").select("exam_type");
     const types = [...new Set(data?.map(e => e.exam_type) || [])];
     setExamTypes(types);
   };

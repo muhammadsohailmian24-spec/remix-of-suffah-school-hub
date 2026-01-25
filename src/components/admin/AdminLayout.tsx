@@ -60,18 +60,7 @@ const sidebarItems: SidebarItem[] = [
       { label: "School Leaving Certificate", link: "/admin/certificates?type=slc" },
     ]
   },
-  { 
-    icon: FileBarChart, 
-    label: "Reports", 
-    children: [
-      { label: "Gazette", link: "/admin/reports-module?type=gazette" },
-      { label: "DMC", link: "/admin/reports-module?type=dmc" },
-      { label: "Position List", link: "/admin/reports-module?type=position" },
-      { label: "Exam Timetable", link: "/admin/reports-module?type=timetable" },
-      { label: "Award Lists", link: "/admin/reports-module?type=awards" },
-      { label: "Student Contacts", link: "/admin/reports-module?type=contacts" },
-    ]
-  },
+  { icon: FileBarChart, label: "Reports", link: "/admin/reports-module" },
   { icon: CreditCard, label: "Fees", link: "/admin/fees" },
   { icon: Calendar, label: "Sessions", link: "/admin/sessions" },
   { icon: Image, label: "Gallery", link: "/admin/gallery" },
@@ -249,7 +238,9 @@ const AdminLayout = ({ children, title, description }: AdminLayoutProps) => {
         `}>
           <nav className="p-2 space-y-1 overflow-y-auto h-full">
             {sidebarItems.map((item) => {
-              const isActive = item.link ? location.pathname === item.link : 
+              const isActive = item.link ? 
+                (location.pathname === item.link || location.pathname.startsWith(item.link + '?') || 
+                 (item.link === '/admin/reports-module' && location.pathname === '/admin/reports-module')) : 
                 item.children?.some(child => location.pathname + location.search === child.link);
               const isCertificatesOpen = item.children && location.pathname.includes('/admin/certificates');
               
