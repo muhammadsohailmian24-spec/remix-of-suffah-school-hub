@@ -11,8 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Printer, Download, RefreshCw, User, Users } from "lucide-react";
+import { Loader2, Printer, Download, RefreshCw, User, Users, FileText } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
+import { downloadFeeCard, printFeeCard, FeeCardData } from "@/utils/generateFeeCardPdf";
 
 // Grade level mapping
 const GRADE_LABELS: Record<number, string> = {
@@ -252,10 +253,48 @@ const StudentFeeCard = () => {
 
   const handleReceive = () => {
     // Navigate to fee management for payment
-    navigate("/admin/fees");
+    navigate("/admin/fee-management");
   };
 
-  const handleGenerateFeeCards = () => {
+  // Build fee card data for PDF
+  const buildFeeCardData = (): FeeCardData | null => {
+    if (!selectedStudent || !selectedProfile) return null;
+
+    const feeRecords = selectedFeeTypes.map(feeType => {
+      const monthlyData: Record<string, { amount: number; paid: number }> = {};
+      MONTHS.forEach(month => {
+        const matchingFee = studentFees.find(sf =>
+          sf.fee_structure?.name?.toLowerCase().includes(feeType.toLowerCase()) ||
+          sf.fee_structure?.fee_type?.toLowerCase().includes(feeType.toLowerCase())
+        );
+        const amount = matchingFee ? matchingFee.final_amount / 12 : 0;
+        const monthPaid = payments
+          .filter(p => {
+            const paymentMonth = new Date(p.payment_date).toLocaleString('en-US', { month: 'short' });
+            return paymentMonth === month;
+          })
+          .reduce((sum, p) => sum + p.amount, 0);
+        monthlyData[month] = { amount: Math.round(amount), paid: Math.min(monthPaid, amount) };
+      });
+      return { feeType, monthlyData };
+    });
+
+    return {
+      studentId: selectedStudent.student_id,
+      studentName: selectedProfile.full_name,
+      fatherName: selectedStudent.father_name || "N/A",
+      className: selectedStudent.class?.name || "N/A",
+      section: selectedStudent.class?.section,
+      session: currentSession?.name || "2025-26",
+      photoUrl: selectedProfile.photo_url || undefined,
+      address: selectedProfile.address || undefined,
+      feeRecords,
+      totals,
+      dueDate: new Date(dueDate).toLocaleDateString(),
+    };
+  };
+
+  const handleGenerateFeeCards = async () => {
     if (feeCardMode === "specific" && !selectedStudentId) {
       toast.error("Please select a student first");
       return;
@@ -264,11 +303,36 @@ const StudentFeeCard = () => {
       toast.error("Please select a class first");
       return;
     }
-    toast.info("Fee card generation coming soon!");
+
+    const data = buildFeeCardData();
+    if (!data) {
+      toast.error("Please select a student first");
+      return;
+    }
+
+    try {
+      await downloadFeeCard(data);
+      toast.success("Fee card downloaded successfully!");
+    } catch (error) {
+      console.error("Error generating fee card:", error);
+      toast.error("Failed to generate fee card");
+    }
   };
 
-  const handlePrintFeeCards = () => {
-    toast.info("Print fee cards coming soon!");
+  const handlePrintFeeCards = async () => {
+    const data = buildFeeCardData();
+    if (!data) {
+      toast.error("Please select a student first");
+      return;
+    }
+
+    try {
+      await printFeeCard(data);
+      toast.success("Fee card sent to printer!");
+    } catch (error) {
+      console.error("Error printing fee card:", error);
+      toast.error("Failed to print fee card");
+    }
   };
 
   if (loading) {
@@ -446,10 +510,12 @@ const StudentFeeCard = () => {
 
               <div className="flex flex-wrap gap-2">
                 <Button onClick={handleGenerateFeeCards} size="sm">
-                  Generate Fee Card(s)
+                  <Download className="w-4 h-4 mr-1" />
+                  Download Fee Card
                 </Button>
-                <Button onClick={handlePrintFeeCards} variant="secondary" size="sm" disabled>
-                  Reset Fee Card(s)
+                <Button onClick={handlePrintFeeCards} variant="secondary" size="sm">
+                  <Printer className="w-4 h-4 mr-1" />
+                  Print Fee Card
                 </Button>
               </div>
 
