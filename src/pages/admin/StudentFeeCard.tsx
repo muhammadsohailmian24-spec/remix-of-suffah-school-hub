@@ -256,28 +256,50 @@ const StudentFeeCard = () => {
     navigate("/admin/fee-management");
   };
 
-  // Build fee card data for PDF
+  // Build fee card data for PDF - matches legacy layout with arrears tracking
   const buildFeeCardData = (): FeeCardData | null => {
     if (!selectedStudent || !selectedProfile) return null;
 
-    const feeRecords = selectedFeeTypes.map(feeType => {
-      const monthlyData: Record<string, { amount: number; paid: number }> = {};
-      MONTHS.forEach(month => {
-        const matchingFee = studentFees.find(sf =>
-          sf.fee_structure?.name?.toLowerCase().includes(feeType.toLowerCase()) ||
-          sf.fee_structure?.fee_type?.toLowerCase().includes(feeType.toLowerCase())
-        );
-        const amount = matchingFee ? matchingFee.final_amount / 12 : 0;
-        const monthPaid = payments
-          .filter(p => {
-            const paymentMonth = new Date(p.payment_date).toLocaleString('en-US', { month: 'short' });
-            return paymentMonth === month;
-          })
-          .reduce((sum, p) => sum + p.amount, 0);
-        monthlyData[month] = { amount: Math.round(amount), paid: Math.min(monthPaid, amount) };
-      });
-      return { feeType, monthlyData };
+    // Use first selected fee type for the card (legacy shows one fee type per card)
+    const primaryFeeType = selectedFeeTypes[0] || "Annual";
+    
+    // Find the matching fee structure
+    const matchingFee = studentFees.find(sf =>
+      sf.fee_structure?.name?.toLowerCase().includes(primaryFeeType.toLowerCase()) ||
+      sf.fee_structure?.fee_type?.toLowerCase().includes(primaryFeeType.toLowerCase())
+    );
+    
+    const annualTotal = matchingFee?.final_amount || totals.netTotal;
+    const monthlyAmount = Math.round(annualTotal / 12);
+    
+    // Build monthly data with arrears tracking (academic year: Sep to Aug)
+    const academicMonths = ["Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
+    const monthlyData: Record<string, { arrears: number; totalAmount: number; adjustment: number; paid: number; balance: number }> = {};
+    
+    let runningArrears = 0;
+    let totalPaidSoFar = payments.reduce((sum, p) => sum + p.amount, 0);
+    let remainingPaid = totalPaidSoFar;
+    
+    academicMonths.forEach((month, idx) => {
+      const monthPaid = Math.min(remainingPaid, monthlyAmount);
+      remainingPaid = Math.max(0, remainingPaid - monthlyAmount);
+      
+      const balance = monthPaid < monthlyAmount ? monthlyAmount - monthPaid : 0;
+      
+      monthlyData[month] = {
+        arrears: runningArrears,
+        totalAmount: monthlyAmount,
+        adjustment: 0,
+        paid: monthPaid,
+        balance: balance,
+      };
+      
+      // Accumulate arrears for next month
+      runningArrears += balance;
     });
+
+    // Determine which month we're billing for
+    const currentMonth = new Date().toLocaleString('en-US', { month: 'short' });
 
     return {
       studentId: selectedStudent.student_id,
@@ -286,11 +308,19 @@ const StudentFeeCard = () => {
       className: selectedStudent.class?.name || "N/A",
       section: selectedStudent.class?.section,
       session: currentSession?.name || "2025-26",
-      photoUrl: selectedProfile.photo_url || undefined,
-      address: selectedProfile.address || undefined,
-      feeRecords,
-      totals,
+      feeType: `${primaryFeeType} Fee`,
+      monthlyAmount,
+      annualTotal,
+      monthlyData,
+      totals: {
+        arrears: runningArrears,
+        totalPayables: totals.netTotal,
+        adjustment: totals.discount,
+        paid: totals.paid,
+        balance: totals.balance,
+      },
       dueDate: new Date(dueDate).toLocaleDateString(),
+      feeOfMonth: currentMonth,
     };
   };
 
