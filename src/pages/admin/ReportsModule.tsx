@@ -981,12 +981,12 @@ const ReportsModule = () => {
                 </div>
                 <div>
                   <Label>Exam Type (Optional)</Label>
-                  <Select value={selectedExamType} onValueChange={setSelectedExamType}>
+                  <Select value={selectedExamType || "all"} onValueChange={(v) => setSelectedExamType(v === "all" ? "" : v)}>
                     <SelectTrigger>
                       <SelectValue placeholder="All exams" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Exams</SelectItem>
+                      <SelectItem value="all">All Exams</SelectItem>
                       {examTypes.map(type => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
@@ -1068,12 +1068,12 @@ const ReportsModule = () => {
                 </div>
                 <div>
                   <Label>Class (Optional)</Label>
-                  <Select value={selectedClass} onValueChange={setSelectedClass}>
+                  <Select value={selectedClass || "all"} onValueChange={(v) => setSelectedClass(v === "all" ? "" : v)}>
                     <SelectTrigger>
                       <SelectValue placeholder="All classes" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Classes</SelectItem>
+                      <SelectItem value="all">All Classes</SelectItem>
                       {classes.map(cls => (
                         <SelectItem key={cls.id} value={cls.id}>
                           {cls.name} {cls.section || ""}
