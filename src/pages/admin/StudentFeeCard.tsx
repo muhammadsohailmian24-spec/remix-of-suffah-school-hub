@@ -16,8 +16,8 @@ import { Loader2, Printer, Download, RefreshCw, User, Users, CreditCard } from "
 import { useSession } from "@/contexts/SessionContext";
 import { downloadFeeCard, printFeeCard, FeeCardData } from "@/utils/generateFeeCardPdf";
 
-// Academic year months (Sep to Aug) - matches legacy
-const MONTHS_ACADEMIC = ["Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
+// Academic year months (Mar to Feb) - new session starts from March
+const MONTHS_ACADEMIC = ["Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"];
 
 // Default fee types - fallback only
 const DEFAULT_FEE_TYPES = [
@@ -909,9 +909,50 @@ const StudentFeeCard = () => {
                 type="number"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
-                placeholder="Enter amount"
+                placeholder="Enter custom amount"
                 autoFocus
               />
+              {/* Quick amount buttons for monthly payments */}
+              {feeMatrix.length > 0 && feeMatrix[0].monthlyAmount > 0 && (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPaymentAmount(feeMatrix[0].monthlyAmount.toString())}
+                    className="text-xs"
+                  >
+                    1 Month ({feeMatrix[0].monthlyAmount.toLocaleString()})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPaymentAmount((feeMatrix[0].monthlyAmount * 2).toString())}
+                    className="text-xs"
+                  >
+                    2 Months ({(feeMatrix[0].monthlyAmount * 2).toLocaleString()})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPaymentAmount((feeMatrix[0].monthlyAmount * 3).toString())}
+                    className="text-xs"
+                  >
+                    3 Months ({(feeMatrix[0].monthlyAmount * 3).toLocaleString()})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPaymentAmount(totals.balance.toString())}
+                    className="text-xs"
+                  >
+                    Full Balance ({totals.balance.toLocaleString()})
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Payment Method</Label>
