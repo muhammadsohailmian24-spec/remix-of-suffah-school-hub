@@ -271,6 +271,48 @@ export type Database = {
           },
         ]
       }
+      careers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department: string | null
+          description: string
+          employment_type: string | null
+          id: string
+          is_active: boolean | null
+          location: string | null
+          requirements: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          description: string
+          employment_type?: string | null
+          id?: string
+          is_active?: boolean | null
+          location?: string | null
+          requirements?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          description?: string
+          employment_type?: string | null
+          id?: string
+          is_active?: boolean | null
+          location?: string | null
+          requirements?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       classes: {
         Row: {
           academic_year_id: string | null
