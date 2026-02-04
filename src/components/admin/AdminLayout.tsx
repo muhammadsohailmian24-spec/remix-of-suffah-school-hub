@@ -18,7 +18,7 @@ import {
   ClipboardList, Bell, LogOut, Settings, UserCheck, UserPlus,
   Shield, Megaphone, BarChart3, CreditCard, TrendingUp, Image, Clock, FileText,
   Menu, X, ChevronLeft, AlertCircle, UserX, FileCheck, CalendarCheck, Calendar,
-  Award, ChevronDown, GraduationCap, Library, FileBarChart
+  Award, ChevronDown, GraduationCap, Library, FileBarChart, Briefcase
 } from "lucide-react";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import SessionSelector from "./SessionSelector";
@@ -64,6 +64,8 @@ const sidebarItems: SidebarItem[] = [
   { icon: FileBarChart, label: "Reports", link: "/admin/reports-module" },
   { icon: CreditCard, label: "Fees", link: "/admin/fees" },
   { icon: Calendar, label: "Sessions", link: "/admin/sessions" },
+  { icon: Megaphone, label: "Announcements", link: "/admin/announcements" },
+  { icon: Briefcase, label: "Careers", link: "/admin/careers" },
   { icon: Image, label: "Gallery", link: "/admin/gallery" },
   { icon: Clock, label: "Timetable", link: "/admin/timetable" },
   { icon: Shield, label: "Roles", link: "/admin/roles" },
