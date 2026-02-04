@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, Users, BookOpen, Award, ArrowRight, CheckCircle } from "lucide-react";
 import Gallery from "@/components/Gallery";
+import AnnouncementsSection from "@/components/homepage/AnnouncementsSection";
+import CareersSection from "@/components/homepage/CareersSection";
 
 const Index = () => {
 
@@ -36,14 +38,17 @@ const Index = () => {
             </div>
           </div>
           <div className="hidden md:flex items-center gap-3">
+            <a href="#announcements" className="nav-link-topbar">
+              Announcements
+            </a>
             <a href="#features" className="nav-link-topbar">
               Features
             </a>
+            <a href="#careers" className="nav-link-topbar">
+              Careers
+            </a>
             <a href="#gallery" className="nav-link-topbar">
               Gallery
-            </a>
-            <a href="#about" className="nav-link-topbar">
-              About
             </a>
             <Link to="/admissions" className="nav-link-topbar">
               Admissions
@@ -102,6 +107,9 @@ const Index = () => {
         </div>
       </section>
 
+      {/* Announcements Section */}
+      <AnnouncementsSection />
+
       {/* Stats Section */}
       <section className="py-16 bg-accent/30">
         <div className="container mx-auto px-6">
@@ -143,6 +151,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Careers Section */}
+      <CareersSection />
 
       {/* Gallery Section */}
       <Gallery />

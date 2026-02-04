@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import StaffLogin from "./pages/StaffLogin";
 import Dashboard from "./pages/Dashboard";
 import Admissions from "./pages/Admissions";
+import Careers from "./pages/Careers";
 import ProjectFeatures from "./pages/ProjectFeatures";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import StudentManagement from "./pages/admin/StudentManagement";
@@ -38,6 +39,7 @@ import Families from "./pages/admin/Families";
 import ReportsHub from "./pages/admin/ReportsHub";
 import ReportsModule from "./pages/admin/ReportsModule";
 import Certificates from "./pages/admin/Certificates";
+import CareersManagement from "./pages/admin/CareersManagement";
 import AdminSessions from "./pages/admin/Sessions";
 import FeeStructureMatrix from "./pages/admin/FeeStructureMatrix";
 import TeacherAttendance from "./pages/teacher/Attendance";
@@ -80,6 +82,7 @@ const App = () => (
             <Route path="/staff-login" element={<StaffLogin />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/admissions" element={<Admissions />} />
+            <Route path="/careers" element={<Careers />} />
             <Route path="/features" element={<ProjectFeatures />} />
             {/* Admin Routes */}
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -94,6 +97,7 @@ const App = () => (
             <Route path="/admin/departments" element={<AdminDepartments />} />
             <Route path="/admin/admissions" element={<AdmissionManagement />} />
             <Route path="/admin/announcements" element={<AnnouncementManagement />} />
+            <Route path="/admin/careers" element={<CareersManagement />} />
             <Route path="/admin/reports" element={<Reports />} />
             <Route path="/admin/settings" element={<SystemSettings />} />
             <Route path="/admin/roles" element={<RolesManagement />} />
