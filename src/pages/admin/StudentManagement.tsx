@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail, CreditCard, ArrowUpRight } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail, CreditCard, ArrowUpRight, FolderOpen } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +20,7 @@ import { downloadStudentCard, StudentCardData, generateStudentCardPdf } from "@/
 import DocumentPreviewDialog from "@/components/DocumentPreviewDialog";
 import StudentFormTabs, { StudentFormData } from "@/components/admin/StudentFormTabs";
 import StudentPromotionDialog from "@/components/admin/StudentPromotionDialog";
+import StudentDocumentsDialog from "@/components/admin/StudentDocumentsDialog";
 
 interface Student {
   id: string;
@@ -137,6 +138,10 @@ const StudentManagement = () => {
   
   // Promotion dialog state
   const [isPromotionDialogOpen, setIsPromotionDialogOpen] = useState(false);
+  
+  // Documents dialog state
+  const [isDocumentsDialogOpen, setIsDocumentsDialogOpen] = useState(false);
+  const [documentsStudent, setDocumentsStudent] = useState<Student | null>(null);
 
   useEffect(() => {
     checkAuthAndFetch();
@@ -766,6 +771,10 @@ const StudentManagement = () => {
                             <KeyRound className="w-4 h-4 mr-2" />
                             Reset Password
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setDocumentsStudent(student); setIsDocumentsDialogOpen(true); }}>
+                            <FolderOpen className="w-4 h-4 mr-2" />
+                            Manage Documents
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => handleToggleStatus(student)}>
                             {student.status === "active" ? (
@@ -1066,6 +1075,19 @@ const StudentManagement = () => {
         classes={classes}
         onSuccess={fetchStudents}
       />
+
+      {/* Student Documents Dialog */}
+      {documentsStudent && (
+        <StudentDocumentsDialog
+          open={isDocumentsDialogOpen}
+          onOpenChange={(open) => {
+            setIsDocumentsDialogOpen(open);
+            if (!open) setDocumentsStudent(null);
+          }}
+          studentId={documentsStudent.id}
+          studentName={documentsStudent.profile?.full_name || "Student"}
+        />
+      )}
     </AdminLayout>
   );
 };
