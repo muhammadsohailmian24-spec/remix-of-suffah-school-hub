@@ -273,7 +273,7 @@ const AdminTimetable = () => {
                 <thead>
                   <tr>
                     <th className="border border-border p-2 bg-muted text-left w-20">Time</th>
-                    {DAYS.slice(1, 6).map(day => (
+                    {DAYS.slice(1, 7).map(day => (
                       <th key={day} className="border border-border p-2 bg-muted text-center">{day}</th>
                     ))}
                   </tr>
@@ -281,7 +281,7 @@ const AdminTimetable = () => {
                 <tbody>
                   {timeSlots.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="border border-border p-8 text-center text-muted-foreground">
+                      <td colSpan={7} className="border border-border p-8 text-center text-muted-foreground">
                         No slots created yet. Click "Add Slot" to create your first timetable entry.
                       </td>
                     </tr>
@@ -291,7 +291,7 @@ const AdminTimetable = () => {
                         <td className="border border-border p-2 text-sm font-medium bg-muted/50 whitespace-nowrap">
                           {formatTime(time)} to {formatTime(entries.find(e => e.start_time === time)?.end_time || time)}
                         </td>
-                        {[1, 2, 3, 4, 5].map(day => {
+                        {[1, 2, 3, 4, 5, 6].map(day => {
                           const slotEntries = getEntriesForSlot(day, time);
                           return (
                             <td key={day} className="border border-border p-1 min-w-[140px] h-20 align-top">
