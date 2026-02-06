@@ -132,7 +132,7 @@ const TeacherTimetable = () => {
               <p className="text-muted-foreground text-center py-8">No timetable entries found. Contact admin to set up your schedule.</p>
             ) : (
               <div className="space-y-6">
-                {[1, 2, 3, 4, 5].map(day => (
+                {[1, 2, 3, 4, 5, 6].map(day => (
                   <div key={day}>
                     <h3 className="font-semibold text-lg mb-3 pb-2 border-b">{DAYS[day]}</h3>
                     {groupedByDay[day]?.length > 0 ? (
