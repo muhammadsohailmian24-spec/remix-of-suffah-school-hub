@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Users, User, ArrowUpRight, ArrowDownRight, Minus, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Search, ArrowUpRight, ArrowDownRight, Minus, AlertTriangle } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface ClassOption {
   id: string;
@@ -48,11 +49,11 @@ interface StudentPromotionDialogProps {
   onSuccess: () => void;
 }
 
-const PROMOTION_STATUSES: { value: PromotionStatus; label: string; icon: React.ReactNode; color: string }[] = [
-  { value: "promoted", label: "Promoted", icon: <ArrowUpRight className="w-4 h-4" />, color: "text-success" },
-  { value: "demoted", label: "Demoted", icon: <ArrowDownRight className="w-4 h-4" />, color: "text-destructive" },
-  { value: "constant", label: "Constant (Same Class)", icon: <Minus className="w-4 h-4" />, color: "text-warning" },
-  { value: "modification", label: "Modification by MIS Feeding", icon: <AlertTriangle className="w-4 h-4" />, color: "text-muted-foreground" },
+const PROMOTION_STATUSES: { value: PromotionStatus; label: string }[] = [
+  { value: "promoted", label: "Promoted" },
+  { value: "demoted", label: "Demoted" },
+  { value: "constant", label: "Constant (Same Class)" },
+  { value: "modification", label: "Modification by MIS" },
 ];
 
 const StudentPromotionDialog = ({
@@ -66,25 +67,49 @@ const StudentPromotionDialog = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sessions, setSessions] = useState<AcademicYear[]>([]);
   
-  // Selection mode: "class" or "individual"
-  const [selectionMode, setSelectionMode] = useState<"class" | "individual">("class");
+  // Left Panel - Single Student State
+  const [leftSearchId, setLeftSearchId] = useState("");
+  const [leftFilterClass, setLeftFilterClass] = useState<string>("");
+  const [leftFilterSession, setLeftFilterSession] = useState<string>("");
+  const [leftFilterSection, setLeftFilterSection] = useState<string>("");
+  const [leftStudentList, setLeftStudentList] = useState<StudentItem[]>([]);
+  const [leftSelectedIds, setLeftSelectedIds] = useState<Set<string>>(new Set());
+  const [leftTargetClass, setLeftTargetClass] = useState<string>("");
+  const [leftTargetSection, setLeftTargetSection] = useState<string>("");
+  const [leftTargetSession, setLeftTargetSession] = useState<string>("");
+  const [leftPromotionStatus, setLeftPromotionStatus] = useState<PromotionStatus>("promoted");
+  const [leftLoading, setLeftLoading] = useState(false);
+
+  // Right Panel - Bulk State
+  const [rightMode, setRightMode] = useState<"byId" | "byClass">("byClass");
   
-  // For class selection mode
-  const [sourceClassId, setSourceClassId] = useState<string>("");
-  const [classStudents, setClassStudents] = useState<StudentItem[]>([]);
-  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
-  const [loadingClassStudents, setLoadingClassStudents] = useState(false);
+  // By ID Range
+  const [rightIdFrom, setRightIdFrom] = useState("");
+  const [rightIdTo, setRightIdTo] = useState("");
+  const [rightIdTargetClass, setRightIdTargetClass] = useState<string>("");
+  const [rightIdTargetSection, setRightIdTargetSection] = useState<string>("");
+  const [rightIdTargetYear, setRightIdTargetYear] = useState<string>("");
   
-  // For individual selection mode
-  const [individualStudentId, setIndividualStudentId] = useState<string>("");
+  // By Class
+  const [rightFromClass, setRightFromClass] = useState<string>("");
+  const [rightToClass, setRightToClass] = useState<string>("");
+  const [rightFromYear, setRightFromYear] = useState<string>("");
+  const [rightToYear, setRightToYear] = useState<string>("");
+  const [rightFromSection, setRightFromSection] = useState<string>("");
+  const [rightToSection, setRightToSection] = useState<string>("");
+  const [rightPromotionStatus, setRightPromotionStatus] = useState<PromotionStatus>("promoted");
   
-  // Target settings
-  const [targetClassId, setTargetClassId] = useState<string>("");
-  const [targetSessionId, setTargetSessionId] = useState<string>("");
-  const [promotionStatus, setPromotionStatus] = useState<PromotionStatus>("promoted");
-  
-  // UI state
-  const [showStudentList, setShowStudentList] = useState(true);
+  const [rightStudentList, setRightStudentList] = useState<StudentItem[]>([]);
+  const [rightLoading, setRightLoading] = useState(false);
+
+  // Get unique sections
+  const sections = useMemo(() => {
+    const sectionSet = new Set<string>();
+    classes.forEach(c => {
+      if (c.section) sectionSet.add(c.section);
+    });
+    return Array.from(sectionSet);
+  }, [classes]);
 
   useEffect(() => {
     if (open) {
@@ -92,15 +117,6 @@ const StudentPromotionDialog = ({
       resetForm();
     }
   }, [open]);
-
-  useEffect(() => {
-    if (sourceClassId && selectionMode === "class") {
-      fetchClassStudents(sourceClassId);
-    } else {
-      setClassStudents([]);
-      setSelectedStudentIds(new Set());
-    }
-  }, [sourceClassId, selectionMode]);
 
   const fetchSessions = async () => {
     const { data } = await supabase
@@ -110,23 +126,58 @@ const StudentPromotionDialog = ({
     
     setSessions(data || []);
     
-    // Auto-select current session
     const currentSession = data?.find(s => s.is_current);
     if (currentSession) {
-      setTargetSessionId(currentSession.id);
+      setLeftTargetSession(currentSession.id);
+      setRightIdTargetYear(currentSession.id);
+      setRightToYear(currentSession.id);
     }
   };
 
-  const fetchClassStudents = async (classId: string) => {
-    setLoadingClassStudents(true);
+  const resetForm = () => {
+    // Reset left panel
+    setLeftSearchId("");
+    setLeftFilterClass("");
+    setLeftFilterSession("");
+    setLeftFilterSection("");
+    setLeftStudentList([]);
+    setLeftSelectedIds(new Set());
+    setLeftTargetClass("");
+    setLeftTargetSection("");
+    setLeftPromotionStatus("promoted");
+    
+    // Reset right panel
+    setRightMode("byClass");
+    setRightIdFrom("");
+    setRightIdTo("");
+    setRightIdTargetClass("");
+    setRightIdTargetSection("");
+    setRightFromClass("");
+    setRightToClass("");
+    setRightFromYear("");
+    setRightFromSection("");
+    setRightToSection("");
+    setRightPromotionStatus("promoted");
+    setRightStudentList([]);
+  };
+
+  // Left Panel - Search Students
+  const handleLeftSearch = async () => {
+    setLeftLoading(true);
     try {
-      const { data: studentsData, error } = await supabase
+      let query = supabase
         .from("students")
         .select("id, student_id, user_id, class_id, status")
-        .eq("class_id", classId)
-        .eq("status", "active")
-        .order("student_id");
-      
+        .eq("status", "active");
+
+      if (leftFilterClass) {
+        query = query.eq("class_id", leftFilterClass);
+      }
+      if (leftSearchId) {
+        query = query.ilike("student_id", `%${leftSearchId}%`);
+      }
+
+      const { data: studentsData, error } = await query.order("student_id");
       if (error) throw error;
 
       const userIds = studentsData?.map(s => s.user_id) || [];
@@ -140,373 +191,654 @@ const StudentPromotionDialog = ({
         profile: profiles?.find(p => p.user_id === s.user_id),
       }));
 
-      setClassStudents(enrichedStudents);
-      // Select all by default
-      setSelectedStudentIds(new Set(enrichedStudents.map(s => s.id)));
+      setLeftStudentList(enrichedStudents);
+      setLeftSelectedIds(new Set());
+    } catch (error) {
+      console.error("Error searching students:", error);
+      toast({ title: "Error", description: "Failed to search students", variant: "destructive" });
+    } finally {
+      setLeftLoading(false);
+    }
+  };
+
+  // Right Panel - Load Students by ID Range
+  const handleRightIdSearch = async () => {
+    if (!rightIdFrom || !rightIdTo) {
+      toast({ title: "Error", description: "Please enter both From and To Student IDs", variant: "destructive" });
+      return;
+    }
+    
+    setRightLoading(true);
+    try {
+      const { data: studentsData, error } = await supabase
+        .from("students")
+        .select("id, student_id, user_id, class_id, status")
+        .eq("status", "active")
+        .gte("student_id", rightIdFrom)
+        .lte("student_id", rightIdTo)
+        .order("student_id");
+
+      if (error) throw error;
+
+      const userIds = studentsData?.map(s => s.user_id) || [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+
+      const enrichedStudents: StudentItem[] = (studentsData || []).map(s => ({
+        ...s,
+        profile: profiles?.find(p => p.user_id === s.user_id),
+      }));
+
+      setRightStudentList(enrichedStudents);
+    } catch (error) {
+      console.error("Error fetching students by ID range:", error);
+      toast({ title: "Error", description: "Failed to load students", variant: "destructive" });
+    } finally {
+      setRightLoading(false);
+    }
+  };
+
+  // Right Panel - Load Students by Class
+  const handleRightClassSearch = async () => {
+    if (!rightFromClass) {
+      toast({ title: "Error", description: "Please select From Class", variant: "destructive" });
+      return;
+    }
+    
+    setRightLoading(true);
+    try {
+      const { data: studentsData, error } = await supabase
+        .from("students")
+        .select("id, student_id, user_id, class_id, status")
+        .eq("class_id", rightFromClass)
+        .eq("status", "active")
+        .order("student_id");
+
+      if (error) throw error;
+
+      const userIds = studentsData?.map(s => s.user_id) || [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+
+      const enrichedStudents: StudentItem[] = (studentsData || []).map(s => ({
+        ...s,
+        profile: profiles?.find(p => p.user_id === s.user_id),
+      }));
+
+      setRightStudentList(enrichedStudents);
     } catch (error) {
       console.error("Error fetching class students:", error);
       toast({ title: "Error", description: "Failed to load students", variant: "destructive" });
     } finally {
-      setLoadingClassStudents(false);
+      setRightLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setSelectionMode("class");
-    setSourceClassId("");
-    setClassStudents([]);
-    setSelectedStudentIds(new Set());
-    setIndividualStudentId("");
-    setTargetClassId("");
-    setPromotionStatus("promoted");
-    setShowStudentList(true);
-  };
-
-  const toggleStudentSelection = (studentId: string) => {
-    setSelectedStudentIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(studentId)) {
-        newSet.delete(studentId);
-      } else {
-        newSet.add(studentId);
-      }
-      return newSet;
-    });
-  };
-
-  const toggleAllStudents = () => {
-    if (selectedStudentIds.size === classStudents.length) {
-      setSelectedStudentIds(new Set());
-    } else {
-      setSelectedStudentIds(new Set(classStudents.map(s => s.id)));
-    }
-  };
-
-  const getStudentsToPromote = (): string[] => {
-    if (selectionMode === "class") {
-      return Array.from(selectedStudentIds);
-    } else {
-      return individualStudentId ? [individualStudentId] : [];
-    }
-  };
-
-  const canSubmit = useMemo(() => {
-    const hasStudents = getStudentsToPromote().length > 0;
-    const hasTarget = targetClassId && targetClassId !== "none";
-    const hasSession = !!targetSessionId;
-    return hasStudents && hasTarget && hasSession;
-  }, [selectionMode, selectedStudentIds, individualStudentId, targetClassId, targetSessionId]);
-
-  const handlePromote = async () => {
-    const studentIds = getStudentsToPromote();
-    if (studentIds.length === 0) {
-      toast({ title: "No Students Selected", description: "Please select at least one student", variant: "destructive" });
+  // Left Panel - Promote Selected
+  const handleLeftPromote = async () => {
+    const selectedIds = Array.from(leftSelectedIds);
+    if (selectedIds.length === 0) {
+      toast({ title: "Error", description: "Please select at least one student", variant: "destructive" });
       return;
     }
-
-    if (!targetClassId || targetClassId === "none") {
-      toast({ title: "No Target Class", description: "Please select a target class", variant: "destructive" });
+    if (!leftTargetClass) {
+      toast({ title: "Error", description: "Please select target class", variant: "destructive" });
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Update all selected students
       const { error } = await supabase
         .from("students")
-        .update({ 
-          class_id: targetClassId,
-        })
-        .in("id", studentIds);
+        .update({ class_id: leftTargetClass })
+        .in("id", selectedIds);
 
       if (error) throw error;
 
-      const statusLabel = PROMOTION_STATUSES.find(s => s.value === promotionStatus)?.label || promotionStatus;
       toast({ 
         title: "Success", 
-        description: `${studentIds.length} student(s) ${statusLabel.toLowerCase()} successfully` 
+        description: `${selectedIds.length} student(s) ${leftPromotionStatus} successfully` 
       });
       
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
       console.error("Promotion error:", error);
-      toast({ title: "Error", description: error.message || "Failed to update students", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to promote students", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const targetClass = classes.find(c => c.id === targetClassId);
-  const sourceClass = classes.find(c => c.id === sourceClassId);
+  // Right Panel - Promote All
+  const handleRightPromote = async () => {
+    if (rightStudentList.length === 0) {
+      toast({ title: "Error", description: "No students to promote", variant: "destructive" });
+      return;
+    }
 
-  // Get unique sections from classes
-  const sections = useMemo(() => {
-    const sectionSet = new Set<string>();
-    classes.forEach(c => {
-      if (c.section) sectionSet.add(c.section);
+    const targetClass = rightMode === "byId" ? rightIdTargetClass : rightToClass;
+    if (!targetClass) {
+      toast({ title: "Error", description: "Please select target class", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const studentIds = rightStudentList.map(s => s.id);
+      
+      const { error } = await supabase
+        .from("students")
+        .update({ class_id: targetClass })
+        .in("id", studentIds);
+
+      if (error) throw error;
+
+      const status = rightMode === "byId" ? "promoted" : rightPromotionStatus;
+      toast({ 
+        title: "Success", 
+        description: `${studentIds.length} student(s) ${status} successfully` 
+      });
+      
+      onSuccess();
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error("Bulk promotion error:", error);
+      toast({ title: "Error", description: error.message || "Failed to promote students", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const toggleLeftStudent = (id: string) => {
+    setLeftSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
     });
-    return Array.from(sectionSet);
-  }, [classes]);
+  };
+
+  const selectAllLeft = () => {
+    setLeftSelectedIds(new Set(leftStudentList.map(s => s.id)));
+  };
+
+  const deselectAllLeft = () => {
+    setLeftSelectedIds(new Set());
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ArrowUpRight className="w-5 h-5 text-primary" />
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="px-6 py-4 border-b bg-primary">
+          <DialogTitle className="text-primary-foreground flex items-center gap-2">
+            <ArrowUpRight className="w-5 h-5" />
             Student Promotion / Demotion
           </DialogTitle>
-          <DialogDescription>
-            Promote, demote, or transfer students to different classes and sessions
-          </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-6 py-4">
-          {/* Selection Mode */}
-          <div className="space-y-3">
-            <Label className="text-base font-semibold">Selection Mode</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                type="button"
-                variant={selectionMode === "class" ? "default" : "outline"}
-                className={selectionMode === "class" ? "hero-gradient text-primary-foreground" : ""}
-                onClick={() => {
-                  setSelectionMode("class");
-                  setIndividualStudentId("");
-                }}
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x">
+            {/* LEFT PANEL - Single/Multiple Student Selection */}
+            <div className="p-4 space-y-4">
+              <h3 className="font-semibold text-sm border-b pb-2">Promote/Demote Selected Students</h3>
+              
+              {/* Search by Student ID */}
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label className="text-xs">Student-ID</Label>
+                  <Input
+                    placeholder="Search by ID..."
+                    value={leftSearchId}
+                    onChange={(e) => setLeftSearchId(e.target.value)}
+                    className="h-8"
+                  />
+                </div>
+                <Button size="sm" variant="outline" onClick={selectAllLeft} className="h-8 text-xs">
+                  Select All
+                </Button>
+                <Button size="sm" variant="outline" onClick={deselectAllLeft} className="h-8 text-xs">
+                  Deselect All
+                </Button>
+              </div>
+
+              {/* Student List Table */}
+              <div className="border rounded-md">
+                <ScrollArea className="h-40">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="w-10 h-8 text-xs"></TableHead>
+                        <TableHead className="h-8 text-xs">Student ID</TableHead>
+                        <TableHead className="h-8 text-xs">Student Name</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {leftStudentList.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center text-muted-foreground text-xs py-4">
+                            Use filters below and click Search
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        leftStudentList.map(student => (
+                          <TableRow 
+                            key={student.id} 
+                            className={leftSelectedIds.has(student.id) ? "bg-primary/10" : ""}
+                          >
+                            <TableCell className="py-1">
+                              <Checkbox
+                                checked={leftSelectedIds.has(student.id)}
+                                onCheckedChange={() => toggleLeftStudent(student.id)}
+                              />
+                            </TableCell>
+                            <TableCell className="py-1 text-xs font-mono">{student.student_id}</TableCell>
+                            <TableCell className="py-1 text-xs">{student.profile?.full_name || "Unknown"}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </div>
+
+              {/* Filters Row */}
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label className="text-xs">Student Class</Label>
+                  <Select value={leftFilterClass} onValueChange={setLeftFilterClass}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="All Classes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Classes</SelectItem>
+                      {classes.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}{c.section ? ` - ${c.section}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Session</Label>
+                  <Select value={leftFilterSession} onValueChange={setLeftFilterSession}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="All Sessions" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sessions</SelectItem>
+                      {sessions.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Section</Label>
+                  <Select value={leftFilterSection} onValueChange={setLeftFilterSection}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="All Sections" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sections</SelectItem>
+                      {sections.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button 
+                onClick={handleLeftSearch} 
+                disabled={leftLoading}
+                className="w-full h-8"
+                variant="secondary"
               >
-                <Users className="w-4 h-4 mr-2" />
-                Whole Class
+                {leftLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
+                Search
               </Button>
-              <Button
-                type="button"
-                variant={selectionMode === "individual" ? "default" : "outline"}
-                className={selectionMode === "individual" ? "hero-gradient text-primary-foreground" : ""}
-                onClick={() => {
-                  setSelectionMode("individual");
-                  setSourceClassId("");
-                  setClassStudents([]);
-                  setSelectedStudentIds(new Set());
-                }}
+
+              {/* Target Settings */}
+              <div className="border-t pt-4 space-y-3">
+                <div>
+                  <Label className="text-xs">Class to which student is promoted/demoted</Label>
+                  <Select value={leftTargetClass} onValueChange={setLeftTargetClass}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select Target Class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}{c.section ? ` - ${c.section}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">To-Section</Label>
+                  <Select value={leftTargetSection} onValueChange={setLeftTargetSection}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select Section" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sections.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">To Session</Label>
+                  <Select value={leftTargetSession} onValueChange={setLeftTargetSession}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select Session" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sessions.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Promotion Status</Label>
+                  <Select value={leftPromotionStatus} onValueChange={(v) => setLeftPromotionStatus(v as PromotionStatus)}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROMOTION_STATUSES.map(s => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button 
+                onClick={handleLeftPromote}
+                disabled={isSubmitting || leftSelectedIds.size === 0 || !leftTargetClass}
+                className="w-full bg-primary"
               >
-                <User className="w-4 h-4 mr-2" />
-                Individual Student
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Promote/Demote ({leftSelectedIds.size} selected)
               </Button>
             </div>
-          </div>
 
-          {/* Source Selection */}
-          {selectionMode === "class" ? (
-            <div className="space-y-3">
-              <Label>Select Source Class</Label>
-              <Select value={sourceClassId} onValueChange={setSourceClassId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a class to promote from..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map(c => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}{c.section ? ` - ${c.section}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* RIGHT PANEL - Bulk Promotion */}
+            <div className="p-4 space-y-4">
+              <h3 className="font-semibold text-sm border-b pb-2">Promote/Demote more than one student simultaneously</h3>
+              <p className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                Decision about many students simultaneously
+              </p>
 
-              {/* Student List with Checkboxes */}
-              {sourceClassId && (
-                <div className="border rounded-lg overflow-hidden">
-                  <div 
-                    className="bg-muted px-4 py-2 flex items-center justify-between cursor-pointer"
-                    onClick={() => setShowStudentList(!showStudentList)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        checked={classStudents.length > 0 && selectedStudentIds.size === classStudents.length}
-                        onCheckedChange={toggleAllStudents}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <span className="font-medium text-sm">
-                        Students ({selectedStudentIds.size}/{classStudents.length} selected)
-                      </span>
+              {/* Mode Selection */}
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    checked={rightMode === "byId"} 
+                    onChange={() => { setRightMode("byId"); setRightStudentList([]); }}
+                    className="accent-primary"
+                  />
+                  <span className="text-sm font-medium underline">By ID</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    checked={rightMode === "byClass"} 
+                    onChange={() => { setRightMode("byClass"); setRightStudentList([]); }}
+                    className="accent-primary"
+                  />
+                  <span className="text-sm font-medium underline">By class</span>
+                </label>
+              </div>
+
+              {/* By ID Section */}
+              {rightMode === "byId" && (
+                <div className="space-y-3 p-3 border rounded-md bg-muted/30">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Student-ID From</Label>
+                      <div className="flex gap-1">
+                        <Input 
+                          value={rightIdFrom} 
+                          onChange={(e) => setRightIdFrom(e.target.value)}
+                          className="h-8 text-xs"
+                          placeholder="e.g., 001"
+                        />
+                      </div>
                     </div>
-                    {showStudentList ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    <div>
+                      <Label className="text-xs">To</Label>
+                      <div className="flex gap-1">
+                        <Input 
+                          value={rightIdTo} 
+                          onChange={(e) => setRightIdTo(e.target.value)}
+                          className="h-8 text-xs"
+                          placeholder="e.g., 050"
+                        />
+                        <Button size="sm" variant="secondary" onClick={handleRightIdSearch} className="h-8 px-2">
+                          <Search className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  
-                  {showStudentList && (
-                    <ScrollArea className="max-h-48">
-                      {loadingClassStudents ? (
-                        <div className="p-4 text-center">
-                          <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
-                        </div>
-                      ) : classStudents.length === 0 ? (
-                        <div className="p-4 text-center text-muted-foreground text-sm">
-                          No active students in this class
-                        </div>
-                      ) : (
-                        <div className="divide-y">
-                          {classStudents.map(student => (
-                            <label
-                              key={student.id}
-                              className="flex items-center gap-3 px-4 py-2 hover:bg-accent cursor-pointer"
-                            >
-                              <Checkbox
-                                checked={selectedStudentIds.has(student.id)}
-                                onCheckedChange={() => toggleStudentSelection(student.id)}
-                              />
-                              <span className="font-mono text-xs text-muted-foreground w-16">
-                                {student.student_id}
-                              </span>
-                              <span className="flex-1 text-sm">
-                                {student.profile?.full_name || "Unknown"}
-                              </span>
-                            </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">To Class</Label>
+                      <Select value={rightIdTargetClass} onValueChange={setRightIdTargetClass}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select Class" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {classes.map(c => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}{c.section ? ` - ${c.section}` : ""}
+                            </SelectItem>
                           ))}
-                        </div>
-                      )}
-                    </ScrollArea>
-                  )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">To-Section</Label>
+                      <Select value={rightIdTargetSection} onValueChange={setRightIdTargetSection}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select Section" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sections.map(s => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">To Year</Label>
+                    <Select value={rightIdTargetYear} onValueChange={setRightIdTargetYear}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select Year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sessions.map(s => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <Label>Select Student</Label>
-              <Select value={individualStudentId} onValueChange={setIndividualStudentId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a student..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {students.filter(s => s.status === "active").map(s => (
-                    <SelectItem key={s.id} value={s.id}>
-                      <span className="font-mono text-xs mr-2">{s.student_id}</span>
-                      {s.profile?.full_name || "Unknown"}
-                      {s.class && (
-                        <span className="text-muted-foreground ml-2">
-                          ({s.class.name}{s.class.section ? ` - ${s.class.section}` : ""})
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
-          {/* Target Settings */}
-          <div className="space-y-4 pt-4 border-t">
-            <Label className="text-base font-semibold">Promotion Target</Label>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Target Class *</Label>
-                <Select value={targetClassId} onValueChange={setTargetClassId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select target class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map(c => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}{c.section ? ` - ${c.section}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Target Session *</Label>
-                <Select value={targetSessionId} onValueChange={setTargetSessionId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select session" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sessions.map(s => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name} {s.is_current && <Badge variant="secondary" className="ml-2 text-xs">Current</Badge>}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Promotion Status *</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {PROMOTION_STATUSES.map(status => (
-                  <Button
-                    key={status.value}
-                    type="button"
-                    variant={promotionStatus === status.value ? "default" : "outline"}
-                    className={`justify-start h-auto py-2 ${promotionStatus === status.value ? "ring-2 ring-primary" : ""}`}
-                    onClick={() => setPromotionStatus(status.value)}
+              {/* By Class Section */}
+              {rightMode === "byClass" && (
+                <div className="space-y-3 p-3 border rounded-md bg-muted/30">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">From-Class</Label>
+                      <Select value={rightFromClass} onValueChange={setRightFromClass}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select Class" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {classes.map(c => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}{c.section ? ` - ${c.section}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">To-Class</Label>
+                      <Select value={rightToClass} onValueChange={setRightToClass}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select Class" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {classes.map(c => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}{c.section ? ` - ${c.section}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">From-Year</Label>
+                      <Select value={rightFromYear} onValueChange={setRightFromYear}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select Year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sessions.map(s => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">To-Year</Label>
+                      <Select value={rightToYear} onValueChange={setRightToYear}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select Year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sessions.map(s => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-xs">Promotion Status</Label>
+                      <Select value={rightPromotionStatus} onValueChange={(v) => setRightPromotionStatus(v as PromotionStatus)}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PROMOTION_STATUSES.map(s => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">From Section</Label>
+                      <Select value={rightFromSection} onValueChange={setRightFromSection}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Section" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          {sections.map(s => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">To-Section</Label>
+                      <Select value={rightToSection} onValueChange={setRightToSection}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Section" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sections.map(s => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={handleRightClassSearch}
+                    disabled={rightLoading || !rightFromClass}
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
                   >
-                    <span className={status.color}>{status.icon}</span>
-                    <span className="ml-2 text-sm">{status.label}</span>
+                    {rightLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
+                    Load Students
                   </Button>
-                ))}
+                </div>
+              )}
+
+              {/* Student Preview Table */}
+              <div className="border rounded-md">
+                <ScrollArea className="h-32">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="h-8 text-xs">Student ID</TableHead>
+                        <TableHead className="h-8 text-xs">Student Name</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rightStudentList.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-center text-muted-foreground text-xs py-4">
+                            No record found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        rightStudentList.map(student => (
+                          <TableRow key={student.id}>
+                            <TableCell className="py-1 text-xs font-mono">{student.student_id}</TableCell>
+                            <TableCell className="py-1 text-xs">{student.profile?.full_name || "Unknown"}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
               </div>
+
+              <Button 
+                onClick={handleRightPromote}
+                disabled={isSubmitting || rightStudentList.length === 0 || (rightMode === "byId" ? !rightIdTargetClass : !rightToClass)}
+                className="w-full bg-primary"
+              >
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Promote/Demote ({rightStudentList.length} students)
+              </Button>
             </div>
           </div>
-
-          {/* Summary */}
-          {canSubmit && (
-            <div className="bg-accent/50 p-4 rounded-lg space-y-2">
-              <p className="font-semibold text-sm">Summary</p>
-              <div className="text-sm space-y-1">
-                <p>
-                  <span className="text-muted-foreground">Students:</span>{" "}
-                  <strong>{getStudentsToPromote().length}</strong> student(s)
-                </p>
-                {selectionMode === "class" && sourceClass && (
-                  <p>
-                    <span className="text-muted-foreground">From:</span>{" "}
-                    <strong>{sourceClass.name}{sourceClass.section ? ` - ${sourceClass.section}` : ""}</strong>
-                  </p>
-                )}
-                <p>
-                  <span className="text-muted-foreground">To:</span>{" "}
-                  <strong>{targetClass?.name}{targetClass?.section ? ` - ${targetClass.section}` : ""}</strong>
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Session:</span>{" "}
-                  <strong>{sessions.find(s => s.id === targetSessionId)?.name}</strong>
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Status:</span>{" "}
-                  <Badge variant="outline" className={PROMOTION_STATUSES.find(s => s.value === promotionStatus)?.color}>
-                    {PROMOTION_STATUSES.find(s => s.value === promotionStatus)?.label}
-                  </Badge>
-                </p>
-              </div>
-            </div>
-          )}
         </div>
-
-        <DialogFooter className="border-t pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handlePromote} 
-            disabled={!canSubmit || isSubmitting}
-            className="hero-gradient text-primary-foreground"
-          >
-            {isSubmitting ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</>
-            ) : (
-              <>
-                {PROMOTION_STATUSES.find(s => s.value === promotionStatus)?.icon}
-                <span className="ml-2">
-                  {promotionStatus === "promoted" ? "Promote" : 
-                   promotionStatus === "demoted" ? "Demote" : 
-                   promotionStatus === "constant" ? "Keep Constant" : "Update"} Students
-                </span>
-              </>
-            )}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
