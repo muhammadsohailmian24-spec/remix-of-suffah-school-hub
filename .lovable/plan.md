@@ -1,223 +1,56 @@
 
 
-# Student Documents Storage and Management
+## Plan: House-based Student List Download + Block Deactivated/Deleted Student Login
 
-## Overview
-Implement a complete document management system for students that allows admins to upload, store, preview, and download important documents such as birth certificates, father's CNIC copies, Form B, medical certificates, and more.
+### Feature 1: Download Student List by House
 
-## Current State Analysis
-- **Storage Buckets**: The project has `student-photos` bucket for photos but no dedicated bucket for documents
-- **Students Table**: No column currently exists for storing document references
-- **StudentFormTabs**: Has 4 tabs (Primary, Identity, Secondary 1, Secondary 2) - we can add a 5th "Documents" tab
-- **AdmissionFormData**: Already has a `documents` interface with checkboxes for document types
+Add a new download option in the Student Management page that lets admins generate a PDF student list filtered by house (e.g., IqbalHouse, Qadeer House,etc).
 
-## Implementation Plan
+**Changes:**
+- **`src/pages/admin/StudentManagement.tsx`**: Add a "Download by House" button/dropdown near the existing filters. It will:
+  - Fetch all houses from the `houses` table
+  - Show a dialog/dropdown to select a house
+  - Fetch all active students belonging to that house (via `students.house_id`)
+  - Join with profiles for names, addresses, phones
+  - Generate PDF using the existing `downloadStudentListPdf` utility with the house name as the title
 
-### 1. Database Changes
+### Feature 2: Block Deactivated/Deleted Students from Logging In
 
-**Create a new `student_documents` table:**
-- `id` (uuid, primary key)
-- `student_id` (uuid, foreign key to students)
-- `document_type` (text) - birth_certificate, father_cnic, form_b, medical_certificate, leaving_certificate, other
-- `document_name` (text) - original filename
-- `file_url` (text) - URL from storage bucket
-- `uploaded_by` (uuid) - admin who uploaded
-- `uploaded_at` (timestamp)
-- `notes` (text, optional)
+When a student is deactivated or deleted, their auth account should be disabled so they cannot log in.
 
-**RLS Policies:**
-- Admins can perform all CRUD operations
-- Students/Parents can view their own documents (read-only)
+**Changes:**
 
-### 2. Storage Bucket
+- **`supabase/functions/create-user/index.ts`** (or a new edge function): We need a mechanism to ban/unban users via the Supabase Admin API. The approach:
+  - Create a new edge function `manage-user-status/index.ts` that accepts `{ userId, action: "ban" | "unban" }` and calls `supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "876600h" })` to ban or `{ ban_duration: "none" }` to unban.
+  - Only admins can invoke this function (verified via JWT + role check).
 
-**Create `student-documents` bucket:**
-- Private bucket (not public) for security
-- Files organized by student ID: `{student_id}/{document_type}_{timestamp}.{ext}`
-- Allow common document formats: PDF, JPG, PNG, JPEG
+- **`src/pages/admin/StudentManagement.tsx`**:
+  - In `handleToggleStatus`: After setting student status to "inactive", call the `manage-user-status` edge function with `action: "ban"`. When reactivating, call with `action: "unban"`.
+  - In `handleDelete`: Before deleting the student record, call the edge function with `action: "ban"` (or optionally delete the auth user entirely via `supabaseAdmin.auth.admin.deleteUser`).
 
-### 3. UI Components
+### Technical Details
 
-**New Components to Create:**
+**New Edge Function: `supabase/functions/manage-user-status/index.ts`**
+- Accepts POST with `{ userId: string, action: "ban" | "unban" | "delete" }`
+- Verifies caller is an admin (same pattern as `create-user`)
+- Uses `supabaseAdmin.auth.admin.updateUserById()` for ban/unban
+- Uses `supabaseAdmin.auth.admin.deleteUser()` for delete
 
-1. **StudentDocumentsTab** (`src/components/admin/StudentDocumentsTab.tsx`)
-   - Document upload interface with drag-and-drop
-   - Document type selector (dropdown)
-   - Optional notes field
-   - Progress indicator during upload
+**Student Management Updates:**
+- `handleToggleStatus()` -- after toggling `students.status`, invoke `manage-user-status` with ban/unban
+- `handleDelete()` -- invoke `manage-user-status` with delete action, then delete student record
 
-2. **StudentDocumentsDialog** (`src/components/admin/StudentDocumentsDialog.tsx`)
-   - View all documents for a student
-   - Grid/list view of uploaded documents
-   - Preview button (opens in new tab or modal)
-   - Download button
-   - Delete button with confirmation
-   - Upload new document button
+**House-based Student List:**
+- Fetch houses from DB
+- Show selection dialog with house list
+- Query `students` table filtered by `house_id` and `status = 'active'`
+- Join profiles for full data
+- Pass to existing `downloadStudentListPdf` with house name as title
 
-3. **DocumentPreviewModal** (can reuse existing DocumentPreviewDialog for PDFs)
-   - For images: display in modal
-   - For PDFs: use iframe or existing PDF preview
+### Summary of Files to Create/Edit
 
-### 4. Integration Points
-
-**StudentManagement.tsx:**
-- Add "Documents" option in the student actions dropdown menu
-- Opens StudentDocumentsDialog when clicked
-
-**StudentFormTabs.tsx:**
-- Add 5th tab "Documents" for new student registration
-- Allow uploading documents during student creation
-
-### 5. Document Types
-
-Predefined document types:
-- Birth Certificate (Original & Copy)
-- Father's CNIC Copy
-- Form B (Child Registration)
-- Previous School Leaving Certificate
-- Medical Certificate
-- Passport Size Photos
-- Character Certificate
-- Other (with custom label)
-
-### 6. File Flow
-
-```text
-+------------------+       +-------------------+       +------------------+
-|   Admin Selects  | ----> |  Upload to        | ----> |  Store URL in    |
-|   File & Type    |       |  student-documents|       |  student_documents|
-+------------------+       |  bucket           |       |  table           |
-                           +-------------------+       +------------------+
-                                    |
-                                    v
-                           +-------------------+
-                           |  Return success   |
-                           |  with preview URL |
-                           +-------------------+
-```
-
-### 7. Technical Details
-
-**File Upload Logic:**
-```typescript
-const uploadDocument = async (file: File, studentId: string, docType: string) => {
-  const fileExt = file.name.split('.').pop();
-  const timestamp = Date.now();
-  const filePath = `${studentId}/${docType}_${timestamp}.${fileExt}`;
-  
-  // Upload to storage
-  const { error: uploadError } = await supabase.storage
-    .from('student-documents')
-    .upload(filePath, file, { upsert: false });
-  
-  if (uploadError) throw uploadError;
-  
-  // Get signed URL for private bucket
-  const { data } = await supabase.storage
-    .from('student-documents')
-    .createSignedUrl(filePath, 60 * 60 * 24 * 365); // 1 year validity
-  
-  // Save to database
-  await supabase.from('student_documents').insert({
-    student_id: studentId,
-    document_type: docType,
-    document_name: file.name,
-    file_url: filePath, // Store path, generate signed URL on view
-    uploaded_by: session.user.id,
-  });
-};
-```
-
-**Viewing Documents:**
-- For private bucket, generate signed URLs on-demand when viewing/downloading
-- URLs expire after a short period for security
-
-## Files to Create
-
-1. `src/components/admin/StudentDocumentsDialog.tsx` - Main document management dialog
-2. `src/components/admin/StudentDocumentsTab.tsx` - Documents tab for student form
-
-## Files to Modify
-
-1. `src/pages/admin/StudentManagement.tsx` - Add Documents option to dropdown
-2. `src/components/admin/StudentFormTabs.tsx` - Add Documents tab
-
-## Database Migration
-
-```sql
--- Create storage bucket for student documents
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('student-documents', 'student-documents', false);
-
--- Storage policies for student-documents bucket
-CREATE POLICY "Admins can upload student documents"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (
-  bucket_id = 'student-documents' AND
-  has_role(auth.uid(), 'admin')
-);
-
-CREATE POLICY "Admins can view student documents"
-ON storage.objects FOR SELECT
-TO authenticated
-USING (
-  bucket_id = 'student-documents' AND
-  has_role(auth.uid(), 'admin')
-);
-
-CREATE POLICY "Admins can delete student documents"
-ON storage.objects FOR DELETE
-TO authenticated
-USING (
-  bucket_id = 'student-documents' AND
-  has_role(auth.uid(), 'admin')
-);
-
--- Create student_documents table
-CREATE TABLE public.student_documents (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id UUID NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
-  document_type TEXT NOT NULL,
-  document_name TEXT NOT NULL,
-  file_path TEXT NOT NULL,
-  notes TEXT,
-  uploaded_by UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- Enable RLS
-ALTER TABLE public.student_documents ENABLE ROW LEVEL SECURITY;
-
--- RLS policies
-CREATE POLICY "student_documents_admin" ON public.student_documents
-FOR ALL TO authenticated
-USING (has_role(auth.uid(), 'admin'));
-
-CREATE POLICY "student_documents_select_own" ON public.student_documents
-FOR SELECT TO authenticated
-USING (
-  student_id IN (
-    SELECT id FROM students WHERE user_id = auth.uid()
-  )
-);
-```
-
-## User Experience
-
-1. **From Student List:**
-   - Click dropdown menu on any student
-   - Click "Manage Documents"
-   - Opens dialog showing all documents with upload option
-
-2. **During Student Registration:**
-   - 5th tab "Documents" in the add student form
-   - Upload documents while creating student
-   - Can skip and add later
-
-3. **Document Preview:**
-   - Images open in modal with zoom controls
-   - PDFs open in browser's PDF viewer or embedded iframe
-   - Download button for all file types
+| File | Action |
+|------|--------|
+| `supabase/functions/manage-user-status/index.ts` | Create -- edge function to ban/unban/delete auth users |
+| `src/pages/admin/StudentManagement.tsx` | Edit -- add house-based download + call manage-user-status on deactivate/delete |
 
