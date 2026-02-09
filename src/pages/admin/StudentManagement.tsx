@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail, CreditCard, ArrowUpRight, FolderOpen, Home } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail, CreditCard, ArrowUpRight, FolderOpen, Home, Settings2 } from "lucide-react";
 import { downloadStudentListPdf, StudentListData } from "@/utils/generateStudentListPdf";
+import HousesDialog from "@/components/admin/HousesDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -149,6 +150,7 @@ const StudentManagement = () => {
   const [houses, setHouses] = useState<{ id: string; name: string }[]>([]);
   const [selectedHouseId, setSelectedHouseId] = useState("");
   const [isDownloadingHouseList, setIsDownloadingHouseList] = useState(false);
+  const [isHousesManageOpen, setIsHousesManageOpen] = useState(false);
 
   useEffect(() => {
     checkAuthAndFetch();
@@ -781,6 +783,14 @@ const StudentManagement = () => {
             </Button>
             <Button 
               variant="outline" 
+              onClick={() => setIsHousesManageOpen(true)}
+              className="border-primary text-primary hover:bg-primary/10"
+            >
+              <Settings2 className="w-4 h-4 mr-2" />
+              Manage Houses
+            </Button>
+            <Button 
+              variant="outline" 
               onClick={() => setIsPromotionDialogOpen(true)}
               className="border-primary text-primary hover:bg-primary/10"
             >
@@ -1210,6 +1220,12 @@ const StudentManagement = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Houses Management Dialog */}
+      <HousesDialog
+        open={isHousesManageOpen}
+        onOpenChange={setIsHousesManageOpen}
+      />
     </AdminLayout>
   );
 };
