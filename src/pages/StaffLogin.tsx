@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, type Easing } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -7,11 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail, Lock, ArrowLeft, Sparkles, Shield } from "lucide-react";
+import { Mail, Lock, ArrowLeft, Sparkles, Shield, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 const easeOutExpo: Easing = [0.16, 1, 0.3, 1];
+
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 2 * 60 * 1000; // 2 minutes
 
 // Loading Skeleton Component
 const LoginSkeleton = () => (
@@ -63,12 +66,15 @@ const StaffLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
+
+  // Security: login attempt tracking
+  const loginAttemptsRef = useRef(0);
+  const [isLockedOut, setIsLockedOut] = useState(false);
+  const [lockoutEndTime, setLockoutEndTime] = useState<number | null>(null);
+  const [lockoutCountdown, setLockoutCountdown] = useState(0);
 
   useEffect(() => {
-    // Simulate initial load
     const timer = setTimeout(() => setPageLoading(false), 800);
 
     const params = new URLSearchParams(window.location.search);
@@ -85,7 +91,6 @@ const StaffLogin = () => {
         window.history.replaceState({}, '', '/staff-login');
         return;
       }
-      
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         navigate("/dashboard");
@@ -99,8 +104,33 @@ const StaffLogin = () => {
     };
   }, [navigate]);
 
+  // Lockout countdown timer
+  useEffect(() => {
+    if (!isLockedOut || !lockoutEndTime) return;
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((lockoutEndTime - Date.now()) / 1000));
+      setLockoutCountdown(remaining);
+      if (remaining <= 0) {
+        setIsLockedOut(false);
+        setLockoutEndTime(null);
+        loginAttemptsRef.current = 0;
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isLockedOut, lockoutEndTime]);
+
   const handleStaffSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isLockedOut) {
+      toast({
+        title: "Account temporarily locked",
+        description: `Too many failed attempts. Try again in ${lockoutCountdown} seconds.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -118,59 +148,36 @@ const StaffLogin = () => {
 
       if (error) throw error;
 
+      // Reset attempts on success
+      loginAttemptsRef.current = 0;
+
       toast({
         title: "Welcome back!",
         description: "You have successfully signed in.",
       });
     } catch (error: any) {
-      toast({
-        title: "Sign in failed",
-        description: error.message || "Please check your credentials and try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      loginAttemptsRef.current += 1;
+      const remaining = MAX_LOGIN_ATTEMPTS - loginAttemptsRef.current;
 
-  const handleStaffSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
-          data: { full_name: fullName }
-        }
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        // Add admin role
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({ user_id: data.user.id, role: "admin" });
-
-        if (roleError) {
-          console.error("Role assignment error:", roleError);
-        }
-
+      if (loginAttemptsRef.current >= MAX_LOGIN_ATTEMPTS) {
+        const endTime = Date.now() + LOCKOUT_DURATION_MS;
+        setIsLockedOut(true);
+        setLockoutEndTime(endTime);
+        setLockoutCountdown(Math.ceil(LOCKOUT_DURATION_MS / 1000));
         toast({
-          title: "Account created!",
-          description: "You can now sign in with your credentials.",
+          title: "Too many failed attempts",
+          description: "Your login has been temporarily locked for 2 minutes.",
+          variant: "destructive",
         });
-        setIsSignUp(false);
+      } else {
+        toast({
+          title: "Sign in failed",
+          description: remaining <= 2
+            ? `Invalid credentials. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before lockout.`
+            : "Invalid email or password. Please try again.",
+          variant: "destructive",
+        });
       }
-    } catch (error: any) {
-      toast({
-        title: "Sign up failed",
-        description: error.message || "Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
@@ -194,12 +201,7 @@ const StaffLogin = () => {
         {/* Floating orb 1 */}
         <motion.div
           initial={{ opacity: 0, scale: 0 }}
-          animate={{ 
-            opacity: 0.4, 
-            scale: 1,
-            y: [0, -30, 0],
-            x: [0, -15, 0],
-          }}
+          animate={{ opacity: 0.4, scale: 1, y: [0, -30, 0], x: [0, -15, 0] }}
           transition={{ 
             opacity: { duration: 0.8, delay: 0.2 },
             scale: { duration: 0.8, delay: 0.2 },
@@ -212,12 +214,7 @@ const StaffLogin = () => {
         {/* Floating orb 2 */}
         <motion.div
           initial={{ opacity: 0, scale: 0 }}
-          animate={{ 
-            opacity: 0.3, 
-            scale: 1,
-            y: [0, 40, 0],
-            rotate: [0, -10, 0],
-          }}
+          animate={{ opacity: 0.3, scale: 1, y: [0, 40, 0], rotate: [0, -10, 0] }}
           transition={{ 
             opacity: { duration: 0.8, delay: 0.4 },
             scale: { duration: 0.8, delay: 0.4 },
@@ -230,32 +227,16 @@ const StaffLogin = () => {
         {/* Pulsing orb */}
         <motion.div
           initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ 
-            opacity: [0.2, 0.5, 0.2], 
-            scale: [1, 1.2, 1],
-          }}
-          transition={{ 
-            duration: 5,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
+          animate={{ opacity: [0.2, 0.5, 0.2], scale: [1, 1.2, 1] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
           className="absolute bottom-20 left-1/4 w-72 h-72 bg-secondary/30 rounded-full blur-3xl"
         />
         
         {/* Small sparkle orb */}
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ 
-            opacity: [0.3, 0.7, 0.3],
-            scale: [1, 1.1, 1],
-            y: [0, -20, 0],
-          }}
-          transition={{ 
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: 1,
-          }}
+          animate={{ opacity: [0.3, 0.7, 0.3], scale: [1, 1.1, 1], y: [0, -20, 0] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}
           className="absolute bottom-32 right-10 w-32 h-32 bg-primary-foreground/20 rounded-full blur-xl"
         />
       </div>
@@ -267,11 +248,7 @@ const StaffLogin = () => {
         {/* Desktop floating orbs */}
         <motion.div
           initial={{ opacity: 0, x: 100 }}
-          animate={{ 
-            opacity: 0.3, 
-            x: 0,
-            y: [0, -40, 0],
-          }}
+          animate={{ opacity: 0.3, x: 0, y: [0, -40, 0] }}
           transition={{ 
             opacity: { duration: 1, delay: 0.3 },
             x: { duration: 1, delay: 0.3, ease: easeOutExpo },
@@ -282,10 +259,7 @@ const StaffLogin = () => {
         
         <motion.div
           initial={{ opacity: 0, y: 100 }}
-          animate={{ 
-            opacity: 0.2, 
-            y: [0, 50, 0],
-          }}
+          animate={{ opacity: 0.2, y: [0, 50, 0] }}
           transition={{ 
             opacity: { duration: 1, delay: 0.5 },
             y: { duration: 10, repeat: Infinity, ease: "easeInOut" },
@@ -295,16 +269,8 @@ const StaffLogin = () => {
         
         <motion.div
           initial={{ opacity: 0, scale: 0 }}
-          animate={{ 
-            opacity: [0.3, 0.6, 0.3], 
-            scale: [1, 1.15, 1],
-          }}
-          transition={{ 
-            duration: 6,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: 0.7,
-          }}
+          animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.15, 1] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 0.7 }}
           className="absolute top-1/2 right-1/3 w-40 h-40 bg-secondary/35 rounded-full blur-2xl"
         />
 
@@ -319,10 +285,7 @@ const StaffLogin = () => {
             to="/" 
             className="inline-flex items-center gap-2 text-primary-foreground/80 hover:text-primary-foreground transition-all duration-300 hover:gap-3"
           >
-            <motion.div
-              whileHover={{ x: -3 }}
-              transition={{ type: "spring", stiffness: 400 }}
-            >
+            <motion.div whileHover={{ x: -3 }} transition={{ type: "spring", stiffness: 400 }}>
               <ArrowLeft className="w-4 h-4" />
             </motion.div>
             Back to Home
@@ -334,22 +297,11 @@ const StaffLogin = () => {
           <motion.div
             initial={{ scale: 0, rotate: -180, opacity: 0 }}
             animate={{ scale: 1, rotate: 0, opacity: 1 }}
-            transition={{ 
-              duration: 0.8, 
-              delay: 0.3,
-              type: "spring", 
-              bounce: 0.4 
-            }}
+            transition={{ duration: 0.8, delay: 0.3, type: "spring", bounce: 0.4 }}
             className="relative"
           >
             <motion.div
-              animate={{ 
-                boxShadow: [
-                  "0 0 20px rgba(255,215,0,0.3)",
-                  "0 0 40px rgba(255,215,0,0.5)",
-                  "0 0 20px rgba(255,215,0,0.3)",
-                ]
-              }}
+              animate={{ boxShadow: ["0 0 20px rgba(255,215,0,0.3)", "0 0 40px rgba(255,215,0,0.5)", "0 0 20px rgba(255,215,0,0.3)"] }}
               transition={{ duration: 3, repeat: Infinity }}
               className="w-24 h-24 rounded-full"
             >
@@ -416,10 +368,7 @@ const StaffLogin = () => {
             transition={{ duration: 0.6, ease: easeOutExpo }}
             className="lg:hidden text-center mb-8"
           >
-            <motion.div
-              whileHover={{ x: -5 }}
-              className="inline-block mb-6"
-            >
+            <motion.div whileHover={{ x: -5 }} className="inline-block mb-6">
               <Link 
                 to="/" 
                 className="inline-flex items-center gap-2 text-primary-foreground/80 hover:text-primary-foreground transition-colors"
@@ -436,13 +385,7 @@ const StaffLogin = () => {
               className="flex flex-col items-center gap-3"
             >
               <motion.div
-                animate={{ 
-                  boxShadow: [
-                    "0 0 15px rgba(255,215,0,0.2)",
-                    "0 0 30px rgba(255,215,0,0.4)",
-                    "0 0 15px rgba(255,215,0,0.2)",
-                  ]
-                }}
+                animate={{ boxShadow: ["0 0 15px rgba(255,215,0,0.2)", "0 0 30px rgba(255,215,0,0.4)", "0 0 15px rgba(255,215,0,0.2)"] }}
                 transition={{ duration: 3, repeat: Infinity }}
                 className="rounded-full relative"
               >
@@ -460,11 +403,7 @@ const StaffLogin = () => {
                   <Shield className="w-5 h-5 text-secondary" />
                 </motion.div>
               </motion.div>
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-              >
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
                 <h1 className="font-heading text-xl font-bold text-primary-foreground">The Suffah</h1>
                 <p className="text-sm text-primary-foreground/70">Staff Portal</p>
               </motion.div>
@@ -475,11 +414,7 @@ const StaffLogin = () => {
           <motion.div
             initial={{ opacity: 0, y: 60, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ 
-              duration: 0.8, 
-              delay: 0.3,
-              ease: easeOutExpo 
-            }}
+            transition={{ duration: 0.8, delay: 0.3, ease: easeOutExpo }}
           >
             <Card className="border-0 shadow-2xl backdrop-blur-sm bg-card/95 overflow-hidden">
               <motion.div
@@ -496,13 +431,8 @@ const StaffLogin = () => {
                   transition={{ duration: 0.5, delay: 0.6 }}
                   className="flex items-center gap-2"
                 >
-                  <CardTitle className="font-heading text-2xl">
-                    {isSignUp ? "Create Admin Account" : "Staff Login"}
-                  </CardTitle>
-                  <motion.div
-                    animate={{ rotate: [0, 10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
+                  <CardTitle className="font-heading text-2xl">Staff Login</CardTitle>
+                  <motion.div animate={{ rotate: [0, 10, 0] }} transition={{ duration: 2, repeat: Infinity }}>
                     <Sparkles className="w-5 h-5 text-secondary" />
                   </motion.div>
                 </motion.div>
@@ -511,42 +441,31 @@ const StaffLogin = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.7 }}
                 >
-                  <CardDescription>
-                    {isSignUp 
-                      ? "Create the first admin account for this system" 
-                      : "Sign in with your staff email and password"}
-                  </CardDescription>
+                  <CardDescription>Sign in with your staff email and password</CardDescription>
                 </motion.div>
               </CardHeader>
               
               <CardContent>
+                {isLockedOut && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-2"
+                  >
+                    <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+                    <p className="text-sm text-destructive">
+                      Too many failed attempts. Try again in <strong>{lockoutCountdown}s</strong>.
+                    </p>
+                  </motion.div>
+                )}
+
                 <motion.form
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.8 }}
-                  onSubmit={isSignUp ? handleStaffSignUp : handleStaffSignIn}
+                  onSubmit={handleStaffSignIn}
                   className="space-y-4"
                 >
-                  {isSignUp && (
-                    <motion.div 
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.85, ease: easeOutExpo }}
-                      className="space-y-2"
-                    >
-                      <Label htmlFor="fullname">Full Name</Label>
-                      <Input
-                        id="fullname"
-                        type="text"
-                        placeholder="Your full name"
-                        className="transition-all duration-300 focus:shadow-lg focus:shadow-primary/20 focus:scale-[1.02]"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        required
-                      />
-                    </motion.div>
-                  )}
-                  
                   <motion.div 
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -555,10 +474,7 @@ const StaffLogin = () => {
                   >
                     <Label htmlFor="signin-email">Email</Label>
                     <div className="relative group">
-                      <motion.div
-                        whileHover={{ scale: 1.1 }}
-                        className="absolute left-3 top-1/2 -translate-y-1/2"
-                      >
+                      <motion.div whileHover={{ scale: 1.1 }} className="absolute left-3 top-1/2 -translate-y-1/2">
                         <Mail className="w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
                       </motion.div>
                       <Input
@@ -569,6 +485,7 @@ const StaffLogin = () => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
+                        disabled={isLockedOut}
                       />
                     </div>
                   </motion.div>
@@ -581,10 +498,7 @@ const StaffLogin = () => {
                   >
                     <Label htmlFor="signin-password">Password</Label>
                     <div className="relative group">
-                      <motion.div
-                        whileHover={{ scale: 1.1 }}
-                        className="absolute left-3 top-1/2 -translate-y-1/2"
-                      >
+                      <motion.div whileHover={{ scale: 1.1 }} className="absolute left-3 top-1/2 -translate-y-1/2">
                         <Lock className="w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
                       </motion.div>
                       <Input
@@ -596,56 +510,45 @@ const StaffLogin = () => {
                         onChange={(e) => setPassword(e.target.value)}
                         required
                         minLength={6}
+                        disabled={isLockedOut}
                       />
                     </div>
                   </motion.div>
                   
-                  {!isSignUp && (
-                    <motion.div 
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 1.1, ease: easeOutExpo }}
-                      className="flex items-center space-x-2"
-                    >
-                      <Checkbox 
-                        id="staff-remember" 
-                        checked={rememberMe}
-                        onCheckedChange={(checked) => setRememberMe(checked === true)}
-                      />
-                      <Label htmlFor="staff-remember" className="text-sm font-normal cursor-pointer">
-                        Remember me
-                      </Label>
-                    </motion.div>
-                  )}
+                  <motion.div 
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 1.1, ease: easeOutExpo }}
+                    className="flex items-center space-x-2"
+                  >
+                    <Checkbox 
+                      id="staff-remember" 
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    />
+                    <Label htmlFor="staff-remember" className="text-sm font-normal cursor-pointer">
+                      Remember me
+                    </Label>
+                  </motion.div>
                   
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 1.2, ease: easeOutExpo }}
                   >
-                    <motion.div
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                       <Button
                         type="submit"
                         className="w-full hero-gradient text-primary-foreground relative overflow-hidden"
-                        disabled={isLoading}
+                        disabled={isLoading || isLockedOut}
                       >
                         <span className="relative z-10">
-                          {isLoading 
-                            ? (isSignUp ? "Creating account..." : "Signing in...") 
-                            : (isSignUp ? "Create Admin Account" : "Sign In")}
+                          {isLoading ? "Signing in..." : "Sign In"}
                         </span>
                         <motion.div
                           className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
                           animate={{ x: ["-100%", "100%"] }}
-                          transition={{ 
-                            duration: 2, 
-                            repeat: Infinity,
-                            ease: "linear",
-                            repeatDelay: 1
-                          }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "linear", repeatDelay: 1 }}
                         />
                       </Button>
                     </motion.div>
@@ -658,20 +561,10 @@ const StaffLogin = () => {
                   transition={{ delay: 1.4 }}
                   className="mt-6 pt-6 border-t text-center space-y-3"
                 >
-                  <button
-                    type="button"
-                    onClick={() => setIsSignUp(!isSignUp)}
-                    className="text-sm text-primary hover:underline"
-                  >
-                    {isSignUp ? "Already have an account? Sign in" : "First time? Create admin account"}
-                  </button>
                   <p className="text-sm text-muted-foreground">
                     This login is for teachers and administrators only.
                   </p>
-                  <motion.div
-                    whileHover={{ scale: 1.05, x: -5 }}
-                    className="inline-block"
-                  >
+                  <motion.div whileHover={{ scale: 1.05, x: -5 }} className="inline-block">
                     <Link to="/auth" className="text-sm text-primary hover:underline">
                       ← Student / Parent Login
                     </Link>
