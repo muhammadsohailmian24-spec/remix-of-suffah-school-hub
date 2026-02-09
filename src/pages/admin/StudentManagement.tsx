@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail, CreditCard, ArrowUpRight, FolderOpen } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, UserCheck, UserX, Loader2, KeyRound, Upload, X, MoreHorizontal, FileDown, Mail, CreditCard, ArrowUpRight, FolderOpen, Home } from "lucide-react";
+import { downloadStudentListPdf, StudentListData } from "@/utils/generateStudentListPdf";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -142,6 +143,12 @@ const StudentManagement = () => {
   // Documents dialog state
   const [isDocumentsDialogOpen, setIsDocumentsDialogOpen] = useState(false);
   const [documentsStudent, setDocumentsStudent] = useState<Student | null>(null);
+  
+  // House download state
+  const [isHouseDownloadOpen, setIsHouseDownloadOpen] = useState(false);
+  const [houses, setHouses] = useState<{ id: string; name: string }[]>([]);
+  const [selectedHouseId, setSelectedHouseId] = useState("");
+  const [isDownloadingHouseList, setIsDownloadingHouseList] = useState(false);
 
   useEffect(() => {
     checkAuthAndFetch();
@@ -528,21 +535,96 @@ const StudentManagement = () => {
 
     if (error) {
       toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
-    } else {
-      toast({ title: "Success", description: `Student ${newStatus === "active" ? "activated" : "deactivated"}` });
-      fetchStudents();
+      return;
     }
+
+    // Ban or unban auth account
+    const action = newStatus === "inactive" ? "ban" : "unban";
+    const { error: fnError } = await supabase.functions.invoke("manage-user-status", {
+      body: { userId: student.user_id, action },
+    });
+    if (fnError) {
+      console.error("Failed to manage user auth status:", fnError);
+    }
+
+    toast({ title: "Success", description: `Student ${newStatus === "active" ? "activated" : "deactivated"}` });
+    fetchStudents();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this student?")) return;
+  const handleDelete = async (student: Student) => {
+    if (!confirm("Are you sure you want to delete this student? Their auth account will also be removed.")) return;
 
-    const { error } = await supabase.from("students").delete().eq("id", id);
+    // Delete auth account first
+    const { error: fnError } = await supabase.functions.invoke("manage-user-status", {
+      body: { userId: student.user_id, action: "delete" },
+    });
+    if (fnError) {
+      console.error("Failed to delete auth account:", fnError);
+    }
+
+    const { error } = await supabase.from("students").delete().eq("id", student.id);
     if (error) {
       toast({ title: "Error", description: "Failed to delete student", variant: "destructive" });
     } else {
       toast({ title: "Success", description: "Student deleted" });
       fetchStudents();
+    }
+  };
+
+  const fetchHouses = async () => {
+    const { data } = await supabase.from("houses").select("id, name").eq("is_active", true).order("name");
+    setHouses(data || []);
+  };
+
+  const handleDownloadByHouse = async () => {
+    if (!selectedHouseId) return;
+    setIsDownloadingHouseList(true);
+
+    try {
+      const house = houses.find(h => h.id === selectedHouseId);
+      if (!house) return;
+
+      const { data: studentsData } = await supabase
+        .from("students")
+        .select("student_id, user_id, roll_number, father_name")
+        .eq("house_id", selectedHouseId)
+        .eq("status", "active")
+        .order("roll_number");
+
+      if (!studentsData || studentsData.length === 0) {
+        toast({ title: "No Students", description: `No active students found in ${house.name}`, variant: "destructive" });
+        return;
+      }
+
+      const userIds = studentsData.map(s => s.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, address, phone")
+        .in("user_id", userIds);
+
+      const studentListData: StudentListData[] = studentsData.map((s, idx) => {
+        const profile = profiles?.find(p => p.user_id === s.user_id);
+        return {
+          rollNumber: parseInt(s.roll_number || "0") || idx + 1,
+          studentId: s.student_id,
+          studentName: profile?.full_name || "-",
+          fatherName: s.father_name || "-",
+          address: profile?.address || undefined,
+          phone: profile?.phone || undefined,
+        };
+      });
+
+      await downloadStudentListPdf({
+        className: house.name,
+        students: studentListData,
+      });
+
+      toast({ title: "Downloaded", description: `Student list for ${house.name} downloaded` });
+      setIsHouseDownloadOpen(false);
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
+    } finally {
+      setIsDownloadingHouseList(false);
     }
   };
 
@@ -691,6 +773,14 @@ const StudentManagement = () => {
             </Select>
             <Button 
               variant="outline" 
+              onClick={() => { fetchHouses(); setIsHouseDownloadOpen(true); }}
+              className="border-primary text-primary hover:bg-primary/10"
+            >
+              <Home className="w-4 h-4 mr-2" />
+              Download by House
+            </Button>
+            <Button 
+              variant="outline" 
               onClick={() => setIsPromotionDialogOpen(true)}
               className="border-primary text-primary hover:bg-primary/10"
             >
@@ -790,7 +880,7 @@ const StudentManagement = () => {
                             )}
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => handleDelete(student.id)}
+                            onClick={() => handleDelete(student)}
                             className="text-destructive focus:text-destructive"
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
@@ -1088,6 +1178,38 @@ const StudentManagement = () => {
           studentName={documentsStudent.profile?.full_name || "Student"}
         />
       )}
+
+      {/* House Download Dialog */}
+      <Dialog open={isHouseDownloadOpen} onOpenChange={setIsHouseDownloadOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Download Student List by House</DialogTitle>
+            <DialogDescription>Select a house to download its active student list as PDF.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Select House</Label>
+              <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
+                <SelectTrigger><SelectValue placeholder="Choose a house" /></SelectTrigger>
+                <SelectContent>
+                  {houses.map(h => (
+                    <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button
+                onClick={handleDownloadByHouse}
+                disabled={!selectedHouseId || isDownloadingHouseList}
+                className="hero-gradient text-primary-foreground"
+              >
+                {isDownloadingHouseList ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</> : <><FileDown className="w-4 h-4 mr-2" /> Download PDF</>}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
