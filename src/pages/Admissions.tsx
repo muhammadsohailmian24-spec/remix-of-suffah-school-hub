@@ -72,11 +72,11 @@ const Admissions = () => {
       return null;
     }
 
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = await supabase.storage
       .from("student-photos")
-      .getPublicUrl(filePath);
+      .createSignedUrl(filePath, 60 * 60 * 24 * 365);
 
-    return urlData.publicUrl;
+    return urlData?.signedUrl || null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
