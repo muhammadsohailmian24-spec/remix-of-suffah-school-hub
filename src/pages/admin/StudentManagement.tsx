@@ -262,8 +262,8 @@ const StudentManagement = () => {
       return null;
     }
     
-    const { data } = supabase.storage.from('student-photos').getPublicUrl(filePath);
-    return data.publicUrl;
+    const { data } = await supabase.storage.from('student-photos').createSignedUrl(filePath, 60 * 60 * 24 * 365);
+    return data?.signedUrl || null;
   };
 
   const handleAddStudent = async (e: React.FormEvent) => {
