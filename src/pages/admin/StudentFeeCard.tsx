@@ -10,9 +10,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Printer, Download, RefreshCw, User, Users, CreditCard } from "lucide-react";
+import { Loader2, Printer, Download, RefreshCw, User, Users, CreditCard, TableProperties, Settings2 } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import { downloadFeeCard, printFeeCard, FeeCardData } from "@/utils/generateFeeCardPdf";
 
@@ -56,7 +58,7 @@ interface FeeMatrixEntry {
   feeType: string;
   annualAmount: number;
   monthlyAmount: number;
-  months: Record<string, number>; // Empty per legacy - populated during fee card generation only
+  months: Record<string, number>;
 }
 
 interface Payment {
@@ -64,6 +66,15 @@ interface Payment {
   student_fee_id: string;
   amount: number;
   payment_date: string;
+}
+
+interface CustomFee {
+  id: string;
+  student_id: string;
+  fee_type_name: string;
+  custom_monthly_amount: number;
+  academic_year_id: string | null;
+  remarks: string | null;
 }
 
 const StudentFeeCard = () => {
@@ -78,6 +89,7 @@ const StudentFeeCard = () => {
   const [feeTypes, setFeeTypes] = useState<string[]>(DEFAULT_FEE_TYPES);
   const [feeTypeStructures, setFeeTypeStructures] = useState<FeeTypeStructure[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [customFees, setCustomFees] = useState<CustomFee[]>([]);
   
   // Selection states
   const [selectedStudentId, setSelectedStudentId] = useState("");
@@ -101,6 +113,11 @@ const StudentFeeCard = () => {
   const [paymentForMonth, setPaymentForMonth] = useState(new Date().toLocaleString('en-US', { month: 'short' }));
   const [paymentLoading, setPaymentLoading] = useState(false);
 
+  // Customize fee dialog states
+  const [customizeFeeDialogOpen, setCustomizeFeeDialogOpen] = useState(false);
+  const [customFeeEdits, setCustomFeeEdits] = useState<Record<string, { amount: string; remarks: string }>>({});
+  const [savingCustomFees, setSavingCustomFees] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, [currentSession]);
@@ -115,7 +132,6 @@ const StudentFeeCard = () => {
       ]);
 
       if (studentsRes.data) {
-        // Enrich students with class data
         const enrichedStudents = studentsRes.data.map(s => ({
           ...s,
           class: classesRes.data?.find(c => c.id === s.class_id) || null
@@ -143,31 +159,45 @@ const StudentFeeCard = () => {
     }
   };
 
-  // Fetch fee structures for selected student's grade level
+  // Fetch fee structures and custom fees for selected student's grade level
   const fetchStudentFeeData = async (studentId: string) => {
     const student = students.find(s => s.id === studentId);
     if (!student?.class?.grade_level) {
       setFeeTypeStructures([]);
       setPayments([]);
+      setCustomFees([]);
       return;
     }
 
     const gradeLevel = student.class.grade_level;
 
-    // Get fee amounts from fee_type_structures for this grade
-    const { data: feeStructures } = await supabase
-      .from("fee_type_structures")
-      .select("*")
-      .eq("grade_level", gradeLevel)
-      .eq("academic_year_id", currentSession?.id);
+    // Get fee amounts, payments, and custom fees in parallel
+    const [feeStructuresRes, customFeesRes] = await Promise.all([
+      supabase
+        .from("fee_type_structures")
+        .select("*")
+        .eq("grade_level", gradeLevel)
+        .eq("academic_year_id", currentSession?.id),
+      supabase
+        .from("student_custom_fees")
+        .select("*")
+        .eq("student_id", studentId)
+        .eq("academic_year_id", currentSession?.id)
+    ]);
 
-    if (feeStructures) {
-      setFeeTypeStructures(feeStructures);
+    if (feeStructuresRes.data) {
+      setFeeTypeStructures(feeStructuresRes.data);
     } else {
       setFeeTypeStructures([]);
     }
 
-    // Get any payments made by this student (through student_fees junction)
+    if (customFeesRes.data) {
+      setCustomFees(customFeesRes.data as CustomFee[]);
+    } else {
+      setCustomFees([]);
+    }
+
+    // Get any payments made by this student
     const { data: studentFeesData } = await supabase
       .from("student_fees")
       .select("id")
@@ -180,11 +210,7 @@ const StudentFeeCard = () => {
         .select("*")
         .in("student_fee_id", feeIds);
       
-      if (paymentsData) {
-        setPayments(paymentsData);
-      } else {
-        setPayments([]);
-      }
+      setPayments(paymentsData || []);
     } else {
       setPayments([]);
     }
@@ -196,23 +222,19 @@ const StudentFeeCard = () => {
     } else {
       setFeeTypeStructures([]);
       setPayments([]);
+      setCustomFees([]);
     }
   }, [selectedStudentId, students, currentSession]);
 
   // Auto-select available fee types when fee structures are loaded
   useEffect(() => {
     if (feeTypeStructures.length > 0) {
-      // Get unique fee types from structures for this grade
       const availableTypes = [...new Set(feeTypeStructures.map(f => f.fee_type_name))];
-      
-      // Check if currently selected types are valid
       const validSelected = selectedFeeTypes.filter(t => availableTypes.includes(t));
       
-      // If no valid selections and we have available types, select the first one
       if (validSelected.length === 0 && availableTypes.length > 0) {
         setSelectedFeeTypes([availableTypes[0]]);
       } else if (validSelected.length !== selectedFeeTypes.length) {
-        // Update to only valid selections
         setSelectedFeeTypes(validSelected.length > 0 ? validSelected : [availableTypes[0]]);
       }
     }
@@ -242,29 +264,41 @@ const StudentFeeCard = () => {
     return cls?.section ? [cls.section] : [];
   }, [classes, selectedClassId]);
 
-  // Get available fee types for current student's grade - ONLY show types with structures
-  const availableFeeTypes = useMemo(() => {
-    if (feeTypeStructures.length === 0) {
-      // No structures loaded yet - show default types but they'll have 0 amounts
-      return feeTypes;
-    }
-    // Return only fee types that have structures for this grade
-    return [...new Set(feeTypeStructures.map(f => f.fee_type_name))];
-  }, [feeTypeStructures, feeTypes]);
+  // Get ALL fee types for current student's grade - show all types with amount info
+  const availableFeeTypesWithAmounts = useMemo(() => {
+    // Get all unique fee type names from structures
+    const structuredTypes = [...new Set(feeTypeStructures.map(f => f.fee_type_name))];
+    
+    // Merge with all known fee types
+    const allTypes = [...new Set([...structuredTypes, ...feeTypes])];
+    
+    return allTypes.map(name => {
+      const structure = feeTypeStructures.find(f => f.fee_type_name === name);
+      const customFee = customFees.find(cf => cf.fee_type_name === name);
+      return {
+        name,
+        annualAmount: structure?.annual_amount || 0,
+        customAmount: customFee?.custom_monthly_amount || null,
+        hasStructure: !!structure
+      };
+    });
+  }, [feeTypeStructures, feeTypes, customFees]);
 
-  // Build fee matrix - Legacy accurate: months NOT prefilled, only fee structure amounts
+  // Build fee matrix with custom fee override support
   const feeMatrix = useMemo<FeeMatrixEntry[]>(() => {
     return selectedFeeTypes.map(feeType => {
-      // Find fee structure for this type and student's grade
-      const feeStructure = feeTypeStructures.find(
-        f => f.fee_type_name === feeType
-      );
+      const feeStructure = feeTypeStructures.find(f => f.fee_type_name === feeType);
+      const customFee = customFees.find(cf => cf.fee_type_name === feeType);
       
-      const annualAmount = feeStructure?.annual_amount || 0;
-      const monthlyAmount = Math.round(annualAmount / 12);
+      let annualAmount = feeStructure?.annual_amount || 0;
+      let monthlyAmount = Math.round(annualAmount / 12);
 
-      // IMPORTANT: months are NOT prefilled per legacy rules
-      // Grid only activates when fee card exists
+      // If custom fee exists, override the monthly amount
+      if (customFee) {
+        monthlyAmount = customFee.custom_monthly_amount;
+        annualAmount = monthlyAmount * 12;
+      }
+
       const monthData: Record<string, number> = {};
 
       return { 
@@ -274,16 +308,11 @@ const StudentFeeCard = () => {
         months: monthData 
       };
     });
-  }, [selectedFeeTypes, feeTypeStructures]);
+  }, [selectedFeeTypes, feeTypeStructures, customFees]);
 
-  // Calculate totals - Legacy accurate
+  // Calculate totals
   const totals = useMemo(() => {
-    // Sum all annual amounts for selected fee types
-    const totalAnnual = feeMatrix.reduce(
-      (sum, row) => sum + row.annualAmount,
-      0
-    );
-
+    const totalAnnual = feeMatrix.reduce((sum, row) => sum + row.annualAmount, 0);
     const netTotal = totalAnnual - discount;
     const paid = payments.reduce((sum, p) => sum + p.amount, 0);
     const balance = Math.max(0, netTotal - paid);
@@ -315,9 +344,9 @@ const StudentFeeCard = () => {
     setDiscount(0);
     setFeeTypeStructures([]);
     setPayments([]);
+    setCustomFees([]);
   };
 
-  // Open payment dialog instead of navigating away
   const handleReceive = () => {
     if (!selectedStudent) {
       toast.error("Please select a student first");
@@ -341,10 +370,8 @@ const StudentFeeCard = () => {
 
     setPaymentLoading(true);
     try {
-      // First ensure student_fee record exists (create if needed)
       let studentFeeId: string | null = null;
       
-      // Check if student_fee exists
       const { data: existingFee } = await supabase
         .from("student_fees")
         .select("id")
@@ -354,8 +381,6 @@ const StudentFeeCard = () => {
       if (existingFee) {
         studentFeeId = existingFee.id;
       } else {
-        // Create a fee record (required for payment foreign key)
-        // Find or create a fee structure reference
         const { data: feeStructure } = await supabase
           .from("fee_structures")
           .select("id")
@@ -363,14 +388,9 @@ const StudentFeeCard = () => {
           .maybeSingle();
 
         if (!feeStructure) {
-          // Create a generic fee structure
           const { data: newStructure, error: structureError } = await supabase
             .from("fee_structures")
-            .insert({
-              name: "Student Fee",
-              amount: totals.total,
-              fee_type: "tuition"
-            })
+            .insert({ name: "Student Fee", amount: totals.total, fee_type: "tuition" })
             .select("id")
             .single();
           
@@ -419,7 +439,6 @@ const StudentFeeCard = () => {
         return;
       }
 
-      // Record the payment
       const { error } = await supabase
         .from("fee_payments")
         .insert({
@@ -434,8 +453,6 @@ const StudentFeeCard = () => {
       toast.success(`Payment of Rs. ${amount.toLocaleString()} recorded successfully!`);
       setPaymentDialogOpen(false);
       setPaymentAmount("");
-      
-      // Refresh data
       fetchStudentFeeData(selectedStudent.id);
     } catch (error) {
       console.error("Payment error:", error);
@@ -445,7 +462,80 @@ const StudentFeeCard = () => {
     }
   };
 
-  // Build fee card data for PDF - Legacy accurate
+  // Customize fee dialog handlers
+  const openCustomizeFeeDialog = () => {
+    if (!selectedStudent) {
+      toast.error("Please select a student first");
+      return;
+    }
+    
+    // Pre-populate with current values
+    const edits: Record<string, { amount: string; remarks: string }> = {};
+    selectedFeeTypes.forEach(feeType => {
+      const customFee = customFees.find(cf => cf.fee_type_name === feeType);
+      const structure = feeTypeStructures.find(f => f.fee_type_name === feeType);
+      const standardMonthly = structure ? Math.round(structure.annual_amount / 12) : 0;
+      
+      edits[feeType] = {
+        amount: customFee ? customFee.custom_monthly_amount.toString() : standardMonthly.toString(),
+        remarks: customFee?.remarks || ""
+      };
+    });
+    setCustomFeeEdits(edits);
+    setCustomizeFeeDialogOpen(true);
+  };
+
+  const handleSaveCustomFees = async () => {
+    if (!selectedStudent || !currentSession) return;
+
+    setSavingCustomFees(true);
+    try {
+      for (const [feeType, edit] of Object.entries(customFeeEdits)) {
+        const amount = parseFloat(edit.amount) || 0;
+        const structure = feeTypeStructures.find(f => f.fee_type_name === feeType);
+        const standardMonthly = structure ? Math.round(structure.annual_amount / 12) : 0;
+        
+        const existingCustom = customFees.find(cf => cf.fee_type_name === feeType);
+
+        // Only save if different from standard
+        if (amount !== standardMonthly || edit.remarks) {
+          if (existingCustom) {
+            await supabase
+              .from("student_custom_fees")
+              .update({ custom_monthly_amount: amount, remarks: edit.remarks || null })
+              .eq("id", existingCustom.id);
+          } else {
+            await supabase
+              .from("student_custom_fees")
+              .insert({
+                student_id: selectedStudent.id,
+                fee_type_name: feeType,
+                custom_monthly_amount: amount,
+                academic_year_id: currentSession.id,
+                remarks: edit.remarks || null
+              });
+          }
+        } else if (existingCustom && amount === standardMonthly && !edit.remarks) {
+          // Remove custom override if it matches standard
+          await supabase
+            .from("student_custom_fees")
+            .delete()
+            .eq("id", existingCustom.id);
+        }
+      }
+
+      toast.success("Custom fees saved successfully!");
+      setCustomizeFeeDialogOpen(false);
+      fetchStudentFeeData(selectedStudent.id);
+    } catch (error) {
+      console.error("Error saving custom fees:", error);
+      toast.error("Failed to save custom fees");
+    } finally {
+      setSavingCustomFees(false);
+    }
+  };
+
+  // Build fee card data for PDF
   const buildFeeCardData = (): FeeCardData | null => {
     if (!selectedStudent || !selectedProfile) return null;
     if (selectedFeeTypes.length === 0) return null;
@@ -453,7 +543,6 @@ const StudentFeeCard = () => {
     const feeRow = feeMatrix[0];
     if (!feeRow) return null;
 
-    // Calculate totals - legacy logic
     const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
     const balance = Math.max(0, totals.netTotal - totalPaid);
 
@@ -489,8 +578,6 @@ const StudentFeeCard = () => {
       return;
     }
 
-    // Legacy rule: Checkbox is FINAL authority
-    // Only skip if BOTH balance = 0 AND checkbox is checked
     if (data.balance <= 0 && dontPrintFreeStudents) {
       toast.info("Student has no outstanding balance - fee card not generated");
       return;
@@ -512,7 +599,6 @@ const StudentFeeCard = () => {
       return;
     }
 
-    // Legacy rule: Checkbox is FINAL authority
     if (data.balance <= 0 && dontPrintFreeStudents) {
       toast.info("Student has no outstanding balance - fee card not printed");
       return;
@@ -539,6 +625,20 @@ const StudentFeeCard = () => {
 
   return (
     <AdminLayout title="Fee Card" description="View and manage student fee records by month">
+      {/* Top Action Bar */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <Button variant="outline" size="sm" onClick={() => navigate("/admin/fee-structure")}>
+          <TableProperties className="w-4 h-4 mr-1" />
+          Fee Structure
+        </Button>
+        {selectedStudent && (
+          <Button variant="outline" size="sm" onClick={openCustomizeFeeDialog}>
+            <Settings2 className="w-4 h-4 mr-1" />
+            Customize Fee
+          </Button>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Panel - Fee Types & Info */}
         <div className="lg:col-span-3 space-y-4">
@@ -623,34 +723,55 @@ const StudentFeeCard = () => {
             </CardContent>
           </Card>
 
-          {/* Fee Types Selection - Only show available types */}
+          {/* Fee Types Selection - Show ALL types with amounts */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">
                 Fee Types
-                {selectedStudent && availableFeeTypes.length > 0 && (
+                {selectedStudent && (
                   <span className="text-xs font-normal text-muted-foreground ml-2">
-                    ({availableFeeTypes.length} available)
+                    ({availableFeeTypesWithAmounts.length} types)
                   </span>
                 )}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[300px] pr-4">
-                <div className="space-y-2">
-                  {availableFeeTypes.map(feeType => (
-                    <div key={feeType} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={feeType}
-                        checked={selectedFeeTypes.includes(feeType)}
-                        onCheckedChange={(checked) => handleFeeTypeToggle(feeType, !!checked)}
-                      />
-                      <Label htmlFor={feeType} className="text-sm cursor-pointer">
-                        {feeType}
-                      </Label>
+                <div className="space-y-1">
+                  {availableFeeTypesWithAmounts.map(({ name, annualAmount, customAmount }) => (
+                    <div 
+                      key={name} 
+                      className={`flex items-center justify-between gap-2 p-1.5 rounded-md cursor-pointer hover:bg-accent/50 transition-colors ${
+                        selectedFeeTypes.includes(name) ? "bg-accent" : ""
+                      }`}
+                      onClick={() => handleFeeTypeToggle(name, !selectedFeeTypes.includes(name))}
+                    >
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <Checkbox
+                          id={name}
+                          checked={selectedFeeTypes.includes(name)}
+                          onCheckedChange={(checked) => handleFeeTypeToggle(name, !!checked)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <Label htmlFor={name} className="text-xs cursor-pointer truncate">
+                          {name}
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {customAmount !== null && (
+                          <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-100 text-amber-800">
+                            Custom
+                          </Badge>
+                        )}
+                        {annualAmount > 0 && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            {(annualAmount / 12).toLocaleString()}/m
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   ))}
-                  {availableFeeTypes.length === 0 && selectedStudent && (
+                  {availableFeeTypesWithAmounts.length === 0 && selectedStudent && (
                     <p className="text-sm text-muted-foreground text-center py-4">
                       No fee types configured for this grade
                     </p>
@@ -782,13 +903,23 @@ const StudentFeeCard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {feeMatrix.map(row => (
-                      <TableRow key={row.feeType}>
-                        <TableCell className="font-medium text-sm">{row.feeType}</TableCell>
-                        <TableCell className="text-right text-sm">{row.monthlyAmount.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-sm">{row.annualAmount.toLocaleString()}</TableCell>
-                      </TableRow>
-                    ))}
+                    {feeMatrix.map(row => {
+                      const hasCustom = customFees.some(cf => cf.fee_type_name === row.feeType);
+                      return (
+                        <TableRow key={row.feeType}>
+                          <TableCell className="font-medium text-sm">
+                            {row.feeType}
+                            {hasCustom && (
+                              <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0 bg-amber-100 text-amber-800">
+                                Custom
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right text-sm">{row.monthlyAmount.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-sm">{row.annualAmount.toLocaleString()}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                     {feeMatrix.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={3} className="text-center text-muted-foreground text-sm py-4">
@@ -807,7 +938,6 @@ const StudentFeeCard = () => {
 
         {/* Right Panel - Totals & Actions */}
         <div className="lg:col-span-3 space-y-4">
-          {/* Totals */}
           <Card>
             <CardContent className="pt-4 space-y-3">
               <div className="flex justify-between items-center">
@@ -849,7 +979,6 @@ const StudentFeeCard = () => {
             </CardContent>
           </Card>
 
-          {/* Action Buttons */}
           <Card>
             <CardContent className="pt-4 space-y-2">
               <Button onClick={handleRefresh} variant="outline" className="w-full" size="sm">
@@ -862,7 +991,6 @@ const StudentFeeCard = () => {
             </CardContent>
           </Card>
 
-          {/* SMS Section Placeholder */}
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center space-x-2">
@@ -933,43 +1061,19 @@ const StudentFeeCard = () => {
               </div>
             </div>
 
-            {/* Quick amount buttons for monthly payments */}
+            {/* Quick amount buttons */}
             {feeMatrix.length > 0 && feeMatrix[0].monthlyAmount > 0 && (
               <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPaymentAmount(feeMatrix[0].monthlyAmount.toString())}
-                  className="text-xs"
-                >
+                <Button type="button" variant="outline" size="sm" onClick={() => setPaymentAmount(feeMatrix[0].monthlyAmount.toString())} className="text-xs">
                   1 Month ({feeMatrix[0].monthlyAmount.toLocaleString()})
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPaymentAmount((feeMatrix[0].monthlyAmount * 2).toString())}
-                  className="text-xs"
-                >
+                <Button type="button" variant="outline" size="sm" onClick={() => setPaymentAmount((feeMatrix[0].monthlyAmount * 2).toString())} className="text-xs">
                   2 Months ({(feeMatrix[0].monthlyAmount * 2).toLocaleString()})
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPaymentAmount((feeMatrix[0].monthlyAmount * 3).toString())}
-                  className="text-xs"
-                >
+                <Button type="button" variant="outline" size="sm" onClick={() => setPaymentAmount((feeMatrix[0].monthlyAmount * 3).toString())} className="text-xs">
                   3 Months ({(feeMatrix[0].monthlyAmount * 3).toLocaleString()})
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPaymentAmount(totals.balance.toString())}
-                  className="text-xs"
-                >
+                <Button type="button" variant="outline" size="sm" onClick={() => setPaymentAmount(totals.balance.toString())} className="text-xs">
                   Full Balance ({totals.balance.toLocaleString()})
                 </Button>
               </div>
@@ -1004,6 +1108,83 @@ const StudentFeeCard = () => {
                   <CreditCard className="w-4 h-4 mr-2" />
                   Record Payment
                 </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Customize Fee Dialog */}
+      <Dialog open={customizeFeeDialogOpen} onOpenChange={setCustomizeFeeDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="w-5 h-5" />
+              Customize Fee - {selectedProfile?.full_name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-muted-foreground">
+              Override the standard monthly fee for this student. Changes only affect this student.
+            </p>
+            <ScrollArea className="max-h-[400px]">
+              <div className="space-y-3 pr-4">
+                {Object.entries(customFeeEdits).map(([feeType, edit]) => {
+                  const structure = feeTypeStructures.find(f => f.fee_type_name === feeType);
+                  const standardMonthly = structure ? Math.round(structure.annual_amount / 12) : 0;
+                  const isModified = parseFloat(edit.amount) !== standardMonthly;
+                  
+                  return (
+                    <div key={feeType} className={`p-3 rounded-lg border ${isModified ? "border-amber-300 bg-amber-50/50" : "border-border"}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-sm font-medium">{feeType}</Label>
+                        <span className="text-xs text-muted-foreground">
+                          Standard: Rs. {standardMonthly.toLocaleString()}/month
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Custom Monthly Amount</Label>
+                          <Input
+                            type="number"
+                            value={edit.amount}
+                            onChange={(e) => setCustomFeeEdits(prev => ({
+                              ...prev,
+                              [feeType]: { ...prev[feeType], amount: e.target.value }
+                            }))}
+                            className="h-8"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Remarks</Label>
+                          <Input
+                            value={edit.remarks}
+                            onChange={(e) => setCustomFeeEdits(prev => ({
+                              ...prev,
+                              [feeType]: { ...prev[feeType], remarks: e.target.value }
+                            }))}
+                            placeholder="e.g., Scholarship"
+                            className="h-8"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+            <Button 
+              onClick={handleSaveCustomFees} 
+              disabled={savingCustomFees} 
+              className="w-full"
+            >
+              {savingCustomFees ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Custom Fees"
               )}
             </Button>
           </div>

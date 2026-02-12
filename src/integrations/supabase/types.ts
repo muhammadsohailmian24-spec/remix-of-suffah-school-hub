@@ -1175,6 +1175,54 @@ export type Database = {
         }
         Relationships: []
       }
+      student_custom_fees: {
+        Row: {
+          academic_year_id: string | null
+          created_at: string
+          custom_monthly_amount: number
+          fee_type_name: string
+          id: string
+          remarks: string | null
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          academic_year_id?: string | null
+          created_at?: string
+          custom_monthly_amount?: number
+          fee_type_name: string
+          id?: string
+          remarks?: string | null
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          academic_year_id?: string | null
+          created_at?: string
+          custom_monthly_amount?: number
+          fee_type_name?: string
+          id?: string
+          remarks?: string | null
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_custom_fees_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_custom_fees_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_documents: {
         Row: {
           created_at: string
