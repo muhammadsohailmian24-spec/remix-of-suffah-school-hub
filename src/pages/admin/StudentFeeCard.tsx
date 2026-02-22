@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Loader2, Printer, Download, RefreshCw, User, Users, CreditCard, TableProperties, Settings2 } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import { downloadFeeCard, printFeeCard, FeeCardData } from "@/utils/generateFeeCardPdf";
+import { downloadReceipt, ReceiptData } from "@/utils/generateReceiptPdf";
 
 // Academic year months (Mar to Feb) - new session starts from March
 const MONTHS_ACADEMIC = ["Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"];
@@ -320,10 +321,72 @@ const StudentFeeCard = () => {
     return { total: totalAnnual, discount, netTotal, paid, balance };
   }, [feeMatrix, payments, discount]);
 
-  // Handle fee type checkbox toggle
-  const handleFeeTypeToggle = (feeType: string, checked: boolean) => {
+  // Handle fee type checkbox toggle - also persist to student_fees when adding
+  const handleFeeTypeToggle = async (feeType: string, checked: boolean) => {
     if (checked) {
       setSelectedFeeTypes(prev => [...prev, feeType]);
+      
+      // Persist to student_fees if student is selected
+      if (selectedStudent && currentSession) {
+        try {
+          const feeStructure = feeTypeStructures.find(f => f.fee_type_name === feeType);
+          const customFee = customFees.find(cf => cf.fee_type_name === feeType);
+          let annualAmount = feeStructure?.annual_amount || 0;
+          let monthlyAmount = Math.round(annualAmount / 12);
+          if (customFee) {
+            monthlyAmount = customFee.custom_monthly_amount;
+            annualAmount = monthlyAmount * 12;
+          }
+
+          // Check if a fee_structure record exists for this fee type
+          let feeStructureId: string | null = null;
+          const { data: existingStructure } = await supabase
+            .from("fee_structures")
+            .select("id")
+            .eq("name", feeType)
+            .eq("academic_year_id", currentSession.id)
+            .maybeSingle();
+
+          if (existingStructure) {
+            feeStructureId = existingStructure.id;
+          } else {
+            const { data: newStructure, error: sErr } = await supabase
+              .from("fee_structures")
+              .insert({ name: feeType, amount: annualAmount, fee_type: "tuition", academic_year_id: currentSession.id })
+              .select("id")
+              .single();
+            if (sErr) throw sErr;
+            feeStructureId = newStructure?.id || null;
+          }
+
+          if (feeStructureId) {
+            // Check if student_fee already exists for this student + fee_structure
+            const { data: existingFee } = await supabase
+              .from("student_fees")
+              .select("id")
+              .eq("student_id", selectedStudent.id)
+              .eq("fee_structure_id", feeStructureId)
+              .maybeSingle();
+
+            if (!existingFee) {
+              await supabase
+                .from("student_fees")
+                .insert({
+                  student_id: selectedStudent.id,
+                  fee_structure_id: feeStructureId,
+                  amount: annualAmount,
+                  final_amount: annualAmount,
+                  due_date: dueDate,
+                  status: "pending"
+                });
+              toast.success(`${feeType} added to student account`);
+            }
+          }
+        } catch (error) {
+          console.error("Error adding fee to student:", error);
+          toast.error(`Failed to add ${feeType} to student account`);
+        }
+      }
     } else {
       setSelectedFeeTypes(prev => prev.filter(ft => ft !== feeType));
     }
@@ -449,6 +512,24 @@ const StudentFeeCard = () => {
         });
 
       if (error) throw error;
+
+      // Generate receipt
+      const receiptNumber = `RCP-${Date.now().toString(36).toUpperCase()}`;
+      const receiptData: ReceiptData = {
+        receiptNumber,
+        paymentDate: new Date().toLocaleDateString(),
+        studentName: selectedProfile?.full_name || "Unknown",
+        studentId: selectedStudent.student_id,
+        className: selectedStudent.class?.name,
+        feeName: selectedFeeTypes.join(", ") || "Fee Payment",
+        feeType: "payment",
+        paymentAmount: amount,
+        paymentMethod: paymentMethod,
+        totalFeeAmount: totals.netTotal,
+        previouslyPaid: totals.paid,
+        balanceAfterPayment: Math.max(0, totals.balance - amount),
+      };
+      await downloadReceipt(receiptData);
 
       toast.success(`Payment of Rs. ${amount.toLocaleString()} recorded successfully!`);
       setPaymentDialogOpen(false);
