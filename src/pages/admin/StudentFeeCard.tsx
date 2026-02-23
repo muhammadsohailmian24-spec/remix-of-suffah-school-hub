@@ -14,10 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Printer, Download, RefreshCw, User, Users, CreditCard, TableProperties, Settings2 } from "lucide-react";
+import { Loader2, Printer, Download, RefreshCw, User, Users, CreditCard, TableProperties, Settings2, FileText } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import { downloadFeeCard, printFeeCard, FeeCardData } from "@/utils/generateFeeCardPdf";
 import { downloadReceipt, ReceiptData } from "@/utils/generateReceiptPdf";
+import { downloadChallan, printChallan, ChallanData } from "@/utils/generateChallanPdf";
 
 // Academic year months (Mar to Feb) - new session starts from March
 const MONTHS_ACADEMIC = ["Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"];
@@ -694,6 +695,69 @@ const StudentFeeCard = () => {
     }
   };
 
+  // Build challan data
+  const buildChallanData = (): ChallanData | null => {
+    if (!selectedStudent || !selectedProfile || feeMatrix.length === 0) return null;
+
+    const feeItems = feeMatrix.map(row => ({
+      name: row.feeType,
+      amount: row.monthlyAmount
+    }));
+
+    const totalAmount = feeItems.reduce((sum, item) => sum + item.amount, 0);
+    const netAmount = totalAmount - discount;
+    const previousBalance = Math.max(0, totals.paid > 0 ? totals.balance : 0);
+
+    return {
+      challanNumber: `CHL-${Date.now().toString(36).toUpperCase()}`,
+      issueDate: new Date().toLocaleDateString(),
+      dueDate: new Date(dueDate).toLocaleDateString(),
+      studentName: selectedProfile.full_name,
+      studentId: selectedStudent.student_id,
+      fatherName: selectedStudent.father_name || "N/A",
+      className: selectedStudent.class?.name || "N/A",
+      section: selectedStudent.class?.section,
+      session: currentSession?.name || "2025-26",
+      feeMonth: selectedMonth,
+      feeItems,
+      totalAmount,
+      discount,
+      netAmount,
+      previousBalance,
+      grandTotal: netAmount + previousBalance,
+    };
+  };
+
+  const handleDownloadChallan = async () => {
+    const data = buildChallanData();
+    if (!data) {
+      toast.error("Please select a student and fee types first");
+      return;
+    }
+    try {
+      await downloadChallan(data);
+      toast.success("Challan downloaded successfully!");
+    } catch (error) {
+      console.error("Error generating challan:", error);
+      toast.error("Failed to generate challan");
+    }
+  };
+
+  const handlePrintChallan = async () => {
+    const data = buildChallanData();
+    if (!data) {
+      toast.error("Please select a student and fee types first");
+      return;
+    }
+    try {
+      await printChallan(data);
+      toast.success("Challan sent to printer!");
+    } catch (error) {
+      console.error("Error printing challan:", error);
+      toast.error("Failed to print challan");
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout title="Fee Card" description="Manage student fee records">
@@ -936,6 +1000,14 @@ const StudentFeeCard = () => {
                 <Button onClick={handlePrintFeeCards} variant="secondary" size="sm">
                   <Printer className="w-4 h-4 mr-1" />
                   Print Fee Card
+                </Button>
+                <Button onClick={handleDownloadChallan} variant="outline" size="sm">
+                  <FileText className="w-4 h-4 mr-1" />
+                  Download Challan
+                </Button>
+                <Button onClick={handlePrintChallan} variant="outline" size="sm">
+                  <Printer className="w-4 h-4 mr-1" />
+                  Print Challan
                 </Button>
               </div>
 
